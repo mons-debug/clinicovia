@@ -102,6 +102,8 @@ services:
       dockerfile: Dockerfile
     command: celery -A app.tasks worker --loglevel=warning --concurrency=4
     restart: unless-stopped
+    healthcheck:
+      disable: true
     env_file:
       - .env
     depends_on:
@@ -116,6 +118,8 @@ services:
       dockerfile: Dockerfile
     command: celery -A app.tasks beat --loglevel=warning
     restart: unless-stopped
+    healthcheck:
+      disable: true
     env_file:
       - .env
     depends_on:
