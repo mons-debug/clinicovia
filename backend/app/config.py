@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -51,8 +53,28 @@ class Settings(BaseSettings):
 
     # AI
     openai_api_key: str = ""
+    openai_api_key_file: str = ""
     anthropic_api_key: str = ""
+    anthropic_api_key_file: str = ""
     google_gemini_api_key: str = ""
+    google_gemini_api_key_file: str = ""
+
+    def model_post_init(self, __context) -> None:
+        self._load_secret_file("openai_api_key", self.openai_api_key_file)
+        self._load_secret_file("anthropic_api_key", self.anthropic_api_key_file)
+        self._load_secret_file("google_gemini_api_key", self.google_gemini_api_key_file)
+
+    def _load_secret_file(self, field_name: str, file_path: str) -> None:
+        if getattr(self, field_name) or not file_path:
+            return
+
+        path = Path(file_path)
+        if not path.exists():
+            return
+
+        value = path.read_text(encoding="utf-8").strip()
+        if value:
+            object.__setattr__(self, field_name, value)
 
     # Email
     smtp_host: str = ""

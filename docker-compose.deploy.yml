@@ -54,6 +54,10 @@ services:
     restart: unless-stopped
     env_file:
       - .env
+    environment:
+      OPENAI_API_KEY_FILE: /run/secrets/openai_api_key
+    volumes:
+      - ./.secrets:/run/secrets:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -106,6 +110,10 @@ services:
       disable: true
     env_file:
       - .env
+    environment:
+      OPENAI_API_KEY_FILE: /run/secrets/openai_api_key
+    volumes:
+      - ./.secrets:/run/secrets:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -122,6 +130,10 @@ services:
       disable: true
     env_file:
       - .env
+    environment:
+      OPENAI_API_KEY_FILE: /run/secrets/openai_api_key
+    volumes:
+      - ./.secrets:/run/secrets:ro
     depends_on:
       redis:
         condition: service_healthy
