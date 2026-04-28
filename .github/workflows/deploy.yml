@@ -1,0 +1,51 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: clinicovia-production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy to Hetzner
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install SSH key
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.HETZNER_SSH_KEY }}
+          HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
+          HETZNER_PORT: ${{ secrets.HETZNER_PORT || '22' }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/clinicovia_deploy
+          chmod 600 ~/.ssh/clinicovia_deploy
+          ssh-keyscan -p "$HETZNER_PORT" "$HETZNER_HOST" >> ~/.ssh/known_hosts
+
+      - name: Deploy
+        env:
+          HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
+          HETZNER_USER: ${{ secrets.HETZNER_USER }}
+          HETZNER_PORT: ${{ secrets.HETZNER_PORT || '22' }}
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/clinicovia_deploy -p "$HETZNER_PORT" "$HETZNER_USER@$HETZNER_HOST" <<'REMOTE'
+            set -euo pipefail
+            cd /opt/clinicovia
+            git fetch origin main
+            git reset --hard origin/main
+            docker compose -f docker-compose.deploy.yml build
+            docker compose -f docker-compose.deploy.yml run --rm backend alembic upgrade head
+            docker compose -f docker-compose.deploy.yml up -d --remove-orphans
+            docker image prune -f
+            docker compose -f docker-compose.deploy.yml ps
+          REMOTE

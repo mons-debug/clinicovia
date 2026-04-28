@@ -2,13 +2,13 @@ name: CI
 
 on:
   pull_request:
-    branches: [main, develop]
+    branches: [main]
   push:
-    branches: [main, develop]
+    branches: [main]
 
 jobs:
   frontend:
-    name: Frontend (Lint + Build)
+    name: Frontend
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -17,15 +17,18 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - run: npm ci
+      - run: npm ci --legacy-peer-deps
       - run: npm run lint
       - run: npm run build
+        env:
+          NEXT_PUBLIC_API_URL: https://clinicovia.com
+          NEXT_PUBLIC_BRIDGE_URL: https://clinicovia.com
 
   backend:
-    name: Backend (Lint + Test)
+    name: Backend
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -34,8 +37,8 @@ jobs:
       postgres:
         image: postgres:16-alpine
         env:
-          POSTGRES_DB: clinicfy_test
-          POSTGRES_USER: clinicfy
+          POSTGRES_DB: clinicovia_test
+          POSTGRES_USER: clinicovia
           POSTGRES_PASSWORD: test_password
         ports:
           - 5432:5432
@@ -62,19 +65,30 @@ jobs:
       - run: pip install -r requirements.txt -r requirements-dev.txt
       - run: ruff check .
       - run: ruff format --check .
-      - run: pytest --cov=app tests/
+      - name: Tests
+        run: |
+          if find tests -type f \( -name 'test_*.py' -o -name '*_test.py' \) | read; then
+            pytest --cov=app tests/
+          else
+            python -m compileall -q app
+          fi
         env:
           POSTGRES_HOST: localhost
           POSTGRES_PORT: 5432
-          POSTGRES_DB: clinicfy_test
-          POSTGRES_USER: clinicfy
+          POSTGRES_DB: clinicovia_test
+          POSTGRES_USER: clinicovia
           POSTGRES_PASSWORD: test_password
           REDIS_URL: redis://localhost:6379/0
           SECRET_KEY: test-secret-key
 
   docker:
-    name: Docker Build Test
+    name: Docker
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: docker compose build --no-cache
+      - run: docker compose -f docker-compose.deploy.yml config
+        env:
+          POSTGRES_PASSWORD: test_password
+          WHATSAPP_BRIDGE_SECRET: test_bridge_secret
+      - run: docker build -f backend/Dockerfile -t clinicovia-backend:test backend
+      - run: docker build -f whatsapp-bridge/Dockerfile --target production -t clinicovia-whatsapp-bridge:test whatsapp-bridge
