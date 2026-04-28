@@ -119,6 +119,12 @@
 }
 .clinicovia-landing .nav-inner { display: flex; align-items: center; justify-content: space-between; padding: 18px 0; }
 .clinicovia-landing .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; letter-spacing: -0.01em; }
+.clinicovia-landing .brand-logo {
+  width: 156px;
+  height: auto;
+  display: block;
+}
+.clinicovia-landing .brand-logo-light { width: 168px; }
 .clinicovia-landing .brand-mark {
   width: 32px; height: 32px; border-radius: 9px; background: var(--navy);
   color: #fff; display: grid; place-items: center;

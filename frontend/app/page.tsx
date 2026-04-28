@@ -136,22 +136,9 @@ function Nav() {
       transition={{ duration: 0.5, ease }}
     >
       <div className="wrap nav-inner">
-        <div className="brand">
-          <span className="brand-mark">
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="white"
-              strokeWidth="2"
-              strokeLinecap="round"
-            >
-              <path d="M12 4v16M4 12h16" />
-            </svg>
-          </span>
-          Clinicovia
-        </div>
+        <Link className="brand" href="/" aria-label="Clinicovia home">
+          <img className="brand-logo" src="/logo.webp" alt="Clinicovia" />
+        </Link>
         <div className="nav-links">
           <a href="#features">Platform</a>
           <a href="#how">How it works</a>
@@ -817,20 +804,7 @@ function Footer() {
         <div className="foot-grid">
           <div className="foot-brand">
             <div className="brand" style={{ color: "#fff" }}>
-              <span className="brand-mark" style={{ background: "var(--teal)" }}>
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="white"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                >
-                  <path d="M12 4v16M4 12h16" />
-                </svg>
-              </span>
-              Clinicovia
+              <img className="brand-logo brand-logo-light" src="/whitelogo.webp" alt="Clinicovia" />
             </div>
             <p>
               The WhatsApp-native clinic OS. Built for healthcare teams who want
