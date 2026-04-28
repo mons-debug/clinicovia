@@ -1,0 +1,11 @@
+clinicovia.com, www.clinicovia.com {
+	encode zstd gzip
+
+	@api path /api/*
+	reverse_proxy @api backend:8000
+
+	@socket path /socket.io/*
+	reverse_proxy @socket whatsapp-bridge:3001
+
+	reverse_proxy frontend:3000
+}

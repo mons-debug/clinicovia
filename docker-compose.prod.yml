@@ -1,0 +1,49 @@
+version: "3.9"
+
+# Production overrides — use with:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
+    volumes: []  # No volume mount in prod
+    restart: always
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: production
+    volumes: []  # No volume mount in prod
+    restart: always
+
+  whatsapp-bridge:
+    build:
+      context: ./whatsapp-bridge
+      dockerfile: Dockerfile
+      target: production
+    volumes:
+      - whatsapp_sessions:/app/sessions
+    restart: always
+
+  celery-worker:
+    command: celery -A app.tasks worker --loglevel=warning --concurrency=8
+    volumes: []
+    restart: always
+
+  celery-beat:
+    command: celery -A app.tasks beat --loglevel=warning
+    volumes: []
+    restart: always
+
+  postgres:
+    restart: always
+
+  redis:
+    restart: always
+
+  mongodb:
+    restart: always
