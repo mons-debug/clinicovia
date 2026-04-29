@@ -29,7 +29,7 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="en"
+      lang="fr"
       className={`${inter.variable} ${jetbrainsMono.variable}`}
       suppressHydrationWarning
     >

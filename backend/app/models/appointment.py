@@ -55,6 +55,6 @@ class Treatment(Base, TimestampMixin, TenantMixin):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     duration_minutes: Mapped[int] = mapped_column(default=30)
     price: Mapped[float] = mapped_column(default=0.0)
-    currency: Mapped[str] = mapped_column(String(10), default="AED")
+    currency: Mapped[str] = mapped_column(String(10), default="MAD")
     category: Mapped[str | None] = mapped_column(String(100), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)

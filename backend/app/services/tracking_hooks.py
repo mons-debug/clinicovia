@@ -23,7 +23,7 @@ async def on_deal_stage_change(
     new_stage: str,
     patient_id: uuid.UUID | None = None,
     deal_value: Decimal | None = None,
-    currency: str = "AED",
+    currency: str = "MAD",
 ) -> None:
     """Called when a deal moves to a new pipeline stage."""
     await ensure_default_mappings(db, clinic_id)
@@ -86,7 +86,7 @@ async def on_appointment_status_change(
     new_status: str,
     patient_id: uuid.UUID | None = None,
     deal_value: Decimal | None = None,
-    currency: str = "AED",
+    currency: str = "MAD",
 ) -> None:
     """Called when an appointment status changes to a trackable state."""
     # Map appointment statuses to event names

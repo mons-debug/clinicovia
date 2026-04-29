@@ -68,7 +68,7 @@ async def send_ga4_event(
     params: dict = {}
     if event.value is not None:
         params["value"] = float(event.value)
-        params["currency"] = event.currency or "AED"
+        params["currency"] = event.currency or "MAD"
 
     payload = {
         "client_id": _deterministic_client_id(event),

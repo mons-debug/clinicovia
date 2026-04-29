@@ -26,7 +26,7 @@ class Deal(Base, TimestampMixin, TenantMixin):
 
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     value: Mapped[float] = mapped_column(Float, default=0.0)
-    currency: Mapped[str] = mapped_column(String(10), default="AED")
+    currency: Mapped[str] = mapped_column(String(10), default="MAD")
     treatment: Mapped[str | None] = mapped_column(String(255), nullable=True)
     temperature: Mapped[DealTemperature] = mapped_column(Enum(DealTemperature), default=DealTemperature.WARM)
 

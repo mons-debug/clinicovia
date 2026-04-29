@@ -323,7 +323,7 @@ async def move_deal_stage(
             db, clinic_id, deal.id, body.stage,
             patient_id=deal.patient_id,
             deal_value=deal.value,
-            currency=deal.currency or "AED",
+            currency=deal.currency or "MAD",
         )
     except Exception:
         pass
@@ -364,7 +364,7 @@ async def mark_deal_won(
         deal_id=deal.id,
         actor_id=user.id,
         action="won",
-        description=f"Deal '{deal.title}' marked as won (AED {deal.value:,.0f})",
+        description=f"Deal '{deal.title}' marked as won (MAD {deal.value:,.0f})",
     )
     db.add(activity)
     await db.commit()
@@ -377,7 +377,7 @@ async def mark_deal_won(
             db, clinic_id, deal.id, "Payment",
             patient_id=deal.patient_id,
             deal_value=deal.value,
-            currency=deal.currency or "AED",
+            currency=deal.currency or "MAD",
         )
     except Exception:
         pass
