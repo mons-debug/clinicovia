@@ -1,6 +1,5 @@
 "use client";
 
-import { Card, Badge } from "flowbite-react";
 import { Calendar, UserPlus, DollarSign, Clock, Plus, Activity } from "lucide-react";
 
 // Mock data — will be replaced with API calls
