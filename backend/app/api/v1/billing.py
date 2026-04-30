@@ -16,6 +16,7 @@ import uuid
 from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -30,8 +31,10 @@ from app.models.billing import (
     PaymentKind,
     PaymentMethod,
 )
+from app.models.clinic import Clinic
 from app.models.patient import Patient
 from app.models.user import User
+from app.services.pdf import render_invoice_pdf
 from app.schemas.billing import (
     CancelRequest,
     InvoiceCreate,
@@ -328,6 +331,44 @@ async def record_payment(
     await db.commit()
     await db.refresh(pay)
     return PaymentResponse.model_validate(pay)
+
+
+# ---------- PDF ---------------------------------------------------------
+
+@router.get("/{invoice_id}/pdf")
+async def invoice_pdf(
+    invoice_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Render the invoice as a downloadable PDF."""
+    clinic_id = _get_clinic_id(user)
+
+    res = await db.execute(
+        select(Invoice)
+        .options(selectinload(Invoice.payments))
+        .where(Invoice.id == invoice_id, Invoice.clinic_id == clinic_id)
+    )
+    inv = res.scalar_one_or_none()
+    if not inv:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+
+    pat_res = await db.execute(select(Patient).where(Patient.id == inv.patient_id))
+    patient = pat_res.scalar_one()
+    cl_res = await db.execute(select(Clinic).where(Clinic.id == clinic_id))
+    clinic = cl_res.scalar_one()
+
+    pdf_bytes = render_invoice_pdf(clinic=clinic, patient=patient, invoice=inv)
+
+    filename = f"{inv.number}.pdf"
+    return StreamingResponse(
+        iter([pdf_bytes]),
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'inline; filename="{filename}"',
+            "Cache-Control": "no-store",
+        },
+    )
 
 
 # ---------- Cancel ------------------------------------------------------

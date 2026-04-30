@@ -3,7 +3,10 @@
 import { use, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { ArrowLeft, CheckCircle2, Loader2, XCircle, Receipt } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Loader2, XCircle, Receipt, Download } from "lucide-react";
+import { useAuthStore } from "@/stores/auth-store";
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -71,6 +74,28 @@ export default function InvoiceDetailPage(props: { params: Promise<{ id: string 
   const issueMut = useIssueInvoice(id);
   const cancelMut = useCancelInvoice(id);
   const payMut = useRecordPayment(id);
+  const accessToken = useAuthStore((s) => s.accessToken);
+
+  const downloadPdf = async () => {
+    if (!inv) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/v1/invoices/${id}/pdf`, {
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${inv.number}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Échec du téléchargement");
+    }
+  };
 
   if (isLoading) {
     return (
@@ -155,6 +180,12 @@ export default function InvoiceDetailPage(props: { params: Promise<{ id: string 
               <Button onClick={issue} disabled={issueMut.isPending}>
                 {issueMut.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
                 Émettre
+              </Button>
+            )}
+            {inv.status !== "draft" && (
+              <Button variant="secondary" onClick={downloadPdf}>
+                <Download className="h-3 w-3" />
+                Télécharger PDF
               </Button>
             )}
             {(inv.status === "issued" || inv.status === "partial") && (
