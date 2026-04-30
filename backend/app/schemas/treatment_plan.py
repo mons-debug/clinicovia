@@ -108,3 +108,9 @@ class SessionAdvanceRequest(BaseModel):
     to_status: str  # scheduled | in_progress | completed | skipped | planned
     outcome_score: int | None = Field(None, ge=1, le=10)
     outcome_note: str | None = None
+
+
+class SessionUpdateRequest(BaseModel):
+    outcome_score: int | None = Field(None, ge=1, le=10)
+    outcome_note: str | None = None
+    products_used: list | None = None

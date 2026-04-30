@@ -31,6 +31,7 @@ import { CompleteDossierCard } from "@/components/patient/complete-dossier-card"
 import { IdentityEditCard } from "@/components/patient/identity-edit-card";
 import { ClinicalEditCard } from "@/components/patient/clinical-edit-card";
 import { ScreeningCard } from "@/components/patient/screening-card";
+import { TerminerVisiteButton } from "@/components/patient/terminer-visite-button";
 import { PhotosCard } from "@/components/photos/photos-card";
 import { NewConsultationDialog } from "@/components/consultations/new-consultation-dialog";
 import {
@@ -244,6 +245,12 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
               <MessageSquare className="h-4 w-4" />
               WhatsApp
             </button>
+            {p.intake_status === "in_room" && (
+              <TerminerVisiteButton
+                patientId={p.id}
+                patientName={`${p.first_name} ${p.last_name}`}
+              />
+            )}
           </div>
         </div>
 

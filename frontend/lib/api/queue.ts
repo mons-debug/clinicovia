@@ -49,6 +49,42 @@ export function useAdvanceIntake() {
   });
 }
 
+// End-of-visit checkout from patient dossier. Doctor clicks "Terminer
+// la visite" on the patient detail page → creates invoice draft, closes
+// appointment, schedules follow-up, flips to CHECKOUT_PENDING.
+export function useCheckoutFromDossier() {
+  const token = useAuthStore((s) => s.accessToken);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      patientId,
+      amount,
+      followUpWeeks,
+      notes,
+    }: {
+      patientId: string;
+      amount: number;
+      followUpWeeks?: number | null;
+      notes?: string | null;
+    }) =>
+      apiClient<Patient>(`/queue/${patientId}/checkout`, {
+        method: "POST",
+        body: JSON.stringify({
+          amount,
+          follow_up_weeks: followUpWeeks ?? null,
+          notes: notes ?? null,
+        }),
+        token: token ?? undefined,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["queue"] });
+      qc.invalidateQueries({ queryKey: ["calendar"] });
+      qc.invalidateQueries({ queryKey: ["invoices"] });
+      qc.invalidateQueries({ queryKey: ["patients"] });
+    },
+  });
+}
+
 // Doctor → reception ping. POST /queue/:id/call sets doctor_called_at,
 // reception's queue board pulses green + chimes on the next 4-second poll.
 export function useCallPatient() {

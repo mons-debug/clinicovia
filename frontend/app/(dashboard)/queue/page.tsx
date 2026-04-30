@@ -425,14 +425,11 @@ export default function QueuePage() {
               secondaryAction={{ label: "Renvoyer en attente", to: "awaiting_doctor", variant: "ghost" }}
             />
           ))}
-          {/* Doctor shortcut — go to calendar to use Terminer dialog */}
+          {/* Doctor tip — click patient name to open dossier + Terminer */}
           {data.counts.in_room > 0 && isDoctor && (
-            <Link
-              href="/calendar"
-              className="mt-1 block rounded-md bg-emerald-50 px-3 py-2 text-center text-xs font-medium text-emerald-700 hover:bg-emerald-100"
-            >
-              Ouvrir le calendrier pour terminer →
-            </Link>
+            <p className="mt-1 rounded-md bg-emerald-50 px-3 py-2 text-center text-[11px] text-emerald-700">
+              Clic sur le nom du patient → dossier → Terminer la visite
+            </p>
           )}
         </Column>
 

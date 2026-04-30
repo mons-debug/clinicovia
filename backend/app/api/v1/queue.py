@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
-from datetime import date as date_type, datetime, time as time_type, timezone
+from datetime import date as date_type, datetime, time as time_type, timedelta, timezone
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -307,6 +307,136 @@ async def walk_in_existing_patient(
 
 
 # ---------- Doctor → reception call signal -----------------------------
+
+# ---------- End-of-visit checkout (from patient dossier) ---------------
+
+class DossierCheckoutRequest(BaseModel):
+    amount: float = 0.0
+    follow_up_weeks: int | None = None
+    notes: str | None = None
+
+
+@router.post("/{patient_id}/checkout", response_model=PatientResponse)
+async def checkout_from_dossier(
+    patient_id: uuid.UUID,
+    body: DossierCheckoutRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Doctor clicks 'Terminer la visite' on the patient dossier page.
+
+    Finds today's in-progress appointment for this patient, closes it,
+    creates invoice draft, schedules follow-up, flips patient to
+    CHECKOUT_PENDING. Same logic as /calendar/:id/checkout but keyed
+    by patient_id instead of appointment_id.
+    """
+    clinic_id = _get_clinic_id(user)
+
+    res = await db.execute(
+        select(Patient)
+        .options(selectinload(Patient.tags))
+        .where(Patient.id == patient_id, Patient.clinic_id == clinic_id)
+    )
+    patient = res.scalar_one_or_none()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    if patient.intake_status != IntakeStatus.IN_ROOM:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Patient is not in consultation (status: {patient.intake_status.value})",
+        )
+
+    now = datetime.now(timezone.utc)
+    today = now.date()
+
+    # Find today's active appointment for this patient
+    appt_res = await db.execute(
+        select(Appointment).where(
+            Appointment.clinic_id == clinic_id,
+            Appointment.patient_id == patient_id,
+            Appointment.appointment_date == today,
+            Appointment.status.in_([
+                AppointmentStatus.IN_PROGRESS,
+                AppointmentStatus.CHECKED_IN,
+                AppointmentStatus.SCHEDULED,
+            ]),
+        ).order_by(Appointment.created_at.desc()).limit(1)
+    )
+    appt = appt_res.scalar_one_or_none()
+
+    # Close the appointment
+    if appt:
+        appt.status = AppointmentStatus.COMPLETED
+        appt.ended_at = now
+        if not appt.started_at:
+            appt.started_at = now
+        if not appt.arrived_at:
+            appt.arrived_at = now
+        if not appt.doctor_id:
+            appt.doctor_id = user.id
+
+    # Move patient to checkout
+    patient.intake_status = IntakeStatus.CHECKOUT_PENDING
+    patient.intake_at = now
+    patient.doctor_called_at = None
+    checkout_label = f"{int(body.amount)} MAD" if body.amount else "Gratuit"
+    if body.notes:
+        checkout_label += f" · {body.notes}"
+    patient.requested_service = checkout_label
+
+    # Create invoice draft
+    if body.amount and body.amount > 0:
+        from app.models.billing import Invoice, InvoiceStatus
+        import uuid as _uuid
+        treatment_label = appt.treatment if appt else "Consultation"
+        line_items = [{
+            "label": treatment_label,
+            "quantity": 1,
+            "unit_price": float(body.amount),
+            "total": float(body.amount),
+        }]
+        inv = Invoice(
+            clinic_id=clinic_id,
+            patient_id=patient.id,
+            issued_by=user.id,
+            number=f"DRAFT-{_uuid.uuid4().hex[:8].upper()}",
+            issue_date=now.date(),
+            line_items=line_items,
+            subtotal=float(body.amount),
+            discount=0.0,
+            tva_rate=0.0,
+            tva=0.0,
+            total=float(body.amount),
+            currency="MAD",
+            status=InvoiceStatus.DRAFT,
+            notes=body.notes,
+        )
+        db.add(inv)
+
+    # Auto-schedule follow-up
+    if body.follow_up_weeks and body.follow_up_weeks > 0:
+        follow_date = (now + timedelta(weeks=body.follow_up_weeks)).date()
+        follow = Appointment(
+            clinic_id=clinic_id,
+            patient_id=patient.id,
+            doctor_id=appt.doctor_id if appt else user.id,
+            appointment_date=follow_date,
+            start_time=time_type(10, 0),
+            end_time=time_type(10, 30),
+            duration_minutes=30,
+            treatment=appt.treatment if appt else "Suivi",
+            kind=appt.kind if appt else AppointmentKind.CONSULTATION,
+            status=AppointmentStatus.SCHEDULED,
+            needs_confirmation=True,
+            notes=body.notes,
+        )
+        db.add(follow)
+
+    await db.commit()
+    await db.refresh(patient)
+    return PatientResponse.model_validate(patient)
+
 
 @router.post("/{patient_id}/call", response_model=PatientResponse)
 async def call_patient(

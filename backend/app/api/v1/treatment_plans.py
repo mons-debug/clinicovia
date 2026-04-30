@@ -40,6 +40,7 @@ from app.schemas.treatment_plan import (
     PlanUpdate,
     SessionAdvanceRequest,
     SessionResponse,
+    SessionUpdateRequest,
 )
 
 
@@ -334,6 +335,35 @@ async def advance_session(
         await db.commit()
         await db.refresh(session_row)
 
+    return SessionResponse.model_validate(session_row)
+
+
+@router.patch("/sessions/{session_id}", response_model=SessionResponse)
+async def update_session(
+    session_id: uuid.UUID,
+    body: SessionUpdateRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update séance content (notes, products, score) without changing status."""
+    clinic_id = _get_clinic_id(user)
+
+    res = await db.execute(
+        select(TreatmentSession).where(
+            TreatmentSession.id == session_id,
+            TreatmentSession.clinic_id == clinic_id,
+        )
+    )
+    session_row = res.scalar_one_or_none()
+    if not session_row:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    update_data = body.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(session_row, key, value)
+
+    await db.commit()
+    await db.refresh(session_row)
     return SessionResponse.model_validate(session_row)
 
 

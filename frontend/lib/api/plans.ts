@@ -168,6 +168,37 @@ export function useCreatePlan() {
   });
 }
 
+export function useUpdateSession(planId: string) {
+  const token = useAuthStore((s) => s.accessToken);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      sessionId,
+      outcomeScore,
+      outcomeNote,
+      productsUsed,
+    }: {
+      sessionId: string;
+      outcomeScore?: number | null;
+      outcomeNote?: string | null;
+      productsUsed?: unknown[] | null;
+    }) =>
+      apiClient<TreatmentSession>(`/plans/sessions/${sessionId}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          outcome_score: outcomeScore ?? undefined,
+          outcome_note: outcomeNote ?? undefined,
+          products_used: productsUsed ?? undefined,
+        }),
+        token: token ?? undefined,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["plans", "detail", planId] });
+      qc.invalidateQueries({ queryKey: ["plans", "timeline", planId] });
+    },
+  });
+}
+
 export function useAdvanceSession(planId: string) {
   const token = useAuthStore((s) => s.accessToken);
   const qc = useQueryClient();

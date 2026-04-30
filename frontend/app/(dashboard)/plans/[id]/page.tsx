@@ -1,6 +1,6 @@
 "use client";
 
-import { use } from "react";
+import { use, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import {
@@ -13,18 +13,23 @@ import {
   PlayCircle,
   Receipt,
   RotateCcw,
+  Save,
   SkipForward,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   useAdvanceSession,
+  useUpdateSession,
   usePlanTimeline,
   type SessionStatus,
   type SessionTimelineEntry,
 } from "@/lib/api/plans";
+import { useUploadPhoto } from "@/lib/api/photos";
 
 const STATUS_LABEL: Record<SessionStatus, string> = {
   planned: "Planifiée",
@@ -80,12 +85,21 @@ function fmt(d: string | null): string {
 function SessionCard({
   entry,
   planId,
+  patientId,
 }: {
   entry: SessionTimelineEntry;
   planId: string;
+  patientId: string;
 }) {
   const { session, appointment, photos, prescriptions } = entry;
   const advance = useAdvanceSession(planId);
+  const updateSession = useUpdateSession(planId);
+  const [expanded, setExpanded] = useState(false);
+  const [noteVal, setNoteVal] = useState(session.outcome_note ?? "");
+  const [scoreVal, setScoreVal] = useState(session.outcome_score?.toString() ?? "");
+  const [productsVal, setProductsVal] = useState(
+    session.products_used ? JSON.stringify(session.products_used) : ""
+  );
 
   const fire = (to: SessionStatus, label: string) =>
     advance.mutate(
@@ -96,6 +110,29 @@ function SessionCard({
           toast.error(e instanceof Error ? e.message : "Erreur"),
       }
     );
+
+  const saveDetails = () => {
+    let products: unknown[] | null = null;
+    if (productsVal.trim()) {
+      try {
+        products = JSON.parse(productsVal);
+      } catch {
+        products = productsVal.split(",").map((s) => ({ product_name: s.trim() }));
+      }
+    }
+    updateSession.mutate(
+      {
+        sessionId: session.id,
+        outcomeNote: noteVal.trim() || null,
+        outcomeScore: scoreVal ? Number(scoreVal) : null,
+        productsUsed: products,
+      },
+      {
+        onSuccess: () => toast.success("Séance mise à jour"),
+        onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Erreur"),
+      }
+    );
+  };
 
   const completeWithScore = () => {
     const raw = window.prompt("Score d'évolution (1-10) ?", "8");
@@ -244,6 +281,72 @@ function SessionCard({
           )}
         </div>
       )}
+
+      {/* Expandable detail section — notes, score, products, photo upload */}
+      <div className="mt-3 border-t border-[var(--line-soft,_#E2E8F0)] pt-3">
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="text-xs font-medium text-[var(--primary)] hover:underline"
+        >
+          {expanded ? "Masquer les détails ▲" : "Modifier les détails ▼"}
+        </button>
+
+        {expanded && (
+          <div className="mt-3 space-y-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor={`score-${session.id}`} className="text-xs">Score d&apos;évolution (1-10)</Label>
+                <Input
+                  id={`score-${session.id}`}
+                  type="number"
+                  min={1}
+                  max={10}
+                  value={scoreVal}
+                  onChange={(e) => setScoreVal(e.target.value)}
+                  placeholder="ex. 8"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor={`products-${session.id}`} className="text-xs">Produits utilisés</Label>
+                <Input
+                  id={`products-${session.id}`}
+                  value={productsVal}
+                  onChange={(e) => setProductsVal(e.target.value)}
+                  placeholder="ex. Botox 20u, Restylane 1ml"
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor={`note-${session.id}`} className="text-xs">Notes cliniques de la séance</Label>
+              <textarea
+                id={`note-${session.id}`}
+                rows={3}
+                value={noteVal}
+                onChange={(e) => setNoteVal(e.target.value)}
+                placeholder="Observations, réactions, ajustements…"
+                className="block w-full rounded-md border border-[var(--border)] bg-white px-3 py-2 text-sm placeholder:text-[var(--text-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <Link
+                href={`/patients/${patientId}#photos`}
+                className="text-xs text-[var(--primary)] hover:underline"
+              >
+                Ajouter des photos →
+              </Link>
+              <Button
+                size="sm"
+                onClick={saveDetails}
+                disabled={updateSession.isPending}
+              >
+                {updateSession.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                Enregistrer
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
     </Card>
   );
 }
@@ -352,7 +455,7 @@ export default function PlanDetailPage(props: { params: Promise<{ id: string }> 
           Séances
         </h2>
         {sessions.map((entry) => (
-          <SessionCard key={entry.session.id} entry={entry} planId={plan.id} />
+          <SessionCard key={entry.session.id} entry={entry} planId={plan.id} patientId={plan.patient_id} />
         ))}
       </div>
 
