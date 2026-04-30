@@ -32,11 +32,26 @@ import {
 import { useConversations, useWhatsAppSessions, startConversation } from "@/lib/api/whatsapp";
 
 const tabs = [
-  { key: "overview", label: "Overview", icon: User },
+  { key: "overview", label: "Dossier", icon: User },
   { key: "conversations", label: "Conversations", icon: MessageSquare },
   { key: "notes", label: "Notes", icon: StickyNote },
-  { key: "activity", label: "Activity", icon: Activity },
+  { key: "activity", label: "Activité", icon: Activity },
 ] as const;
+
+const INTAKE_LABEL: Record<string, string> = {
+  intake_pending: "À l'accueil",
+  awaiting_doctor: "En attente",
+  in_room: "En consultation",
+  active: "Actif",
+  archived: "Archivé",
+};
+
+const CHANNEL_LABEL: Record<string, string> = {
+  whatsapp: "WhatsApp",
+  phone: "Téléphone",
+  email: "E-mail",
+  sms: "SMS",
+};
 
 type TabKey = (typeof tabs)[number]["key"];
 
@@ -56,7 +71,7 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
   const patientConversations = convsData?.conversations || [];
 
   const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString("en-US", {
+    return new Date(dateStr).toLocaleDateString("fr-FR", {
       month: "short",
       day: "numeric",
       year: "numeric",
@@ -64,7 +79,7 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
   };
 
   const formatTime = (dateStr: string) => {
-    return new Date(dateStr).toLocaleTimeString("en-US", {
+    return new Date(dateStr).toLocaleTimeString("fr-FR", {
       hour: "2-digit",
       minute: "2-digit",
     });
@@ -72,15 +87,15 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
 
   const handleAddNote = async () => {
     if (!noteContent.trim()) {
-      toast.error("Note content cannot be empty");
+      toast.error("La note ne peut pas être vide");
       return;
     }
     try {
       await createNoteMutation.mutateAsync({ content: noteContent.trim() });
       setNoteContent("");
-      toast.success("Note added");
+      toast.success("Note ajoutée");
     } catch {
-      toast.error("Failed to add note");
+      toast.error("Impossible d'ajouter la note");
     }
   };
 
@@ -88,7 +103,7 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
     return (
       <div className="flex items-center justify-center p-12">
         <Loader2 className="h-6 w-6 animate-spin text-text-muted" />
-        <span className="ml-2 text-sm text-text-secondary">Loading patient...</span>
+        <span className="ml-2 text-sm text-text-secondary">Chargement du dossier…</span>
       </div>
     );
   }
@@ -101,7 +116,7 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
           className="inline-flex items-center gap-1.5 text-sm font-medium text-text-secondary transition-colors hover:text-text-primary"
         >
           <ArrowLeft className="h-4 w-4" />
-          Back to Patients
+          Retour aux patients
         </Link>
         <div className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 p-4">
           <AlertCircle className="h-5 w-5 text-red-500" />
@@ -123,7 +138,7 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
         className="inline-flex items-center gap-1.5 text-sm font-medium text-text-secondary transition-colors hover:text-text-primary"
       >
         <ArrowLeft className="h-4 w-4" />
-        Back to Patients
+        Retour aux patients
       </Link>
 
       {/* Patient header card */}
@@ -264,33 +279,137 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
       {/* Tab content */}
       {activeTab === "overview" && (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <div className="rounded-xl border border-border bg-white p-5 lg:col-span-2">
-            <h3 className="text-base font-semibold text-text-primary">Patient Details</h3>
-            <div className="mt-4 grid grid-cols-2 gap-4">
-              {[
-                { label: "Full Name", value: `${p.first_name} ${p.last_name}` },
-                { label: "Gender", value: p.gender ? p.gender.charAt(0).toUpperCase() + p.gender.slice(1) : "--" },
-                { label: "Date of Birth", value: p.date_of_birth || "--" },
-                { label: "Lead Source", value: p.lead_source || "--" },
-                { label: "Treatment Interests", value: p.treatment_interests || "--" },
-                { label: "Address", value: [p.city, p.country].filter(Boolean).join(", ") || "--" },
-              ].map((item) => (
-                <div key={item.label}>
-                  <p className="text-xs text-text-muted">{item.label}</p>
-                  <p className="mt-0.5 text-sm font-medium text-text-primary">{item.value}</p>
-                </div>
-              ))}
+          <div className="space-y-6 lg:col-span-2">
+            {/* Identité */}
+            <div className="rounded-xl border border-border bg-white p-5">
+              <h3 className="text-base font-semibold text-text-primary">Identité</h3>
+              <div className="mt-4 grid grid-cols-2 gap-4">
+                {[
+                  { label: "Nom complet", value: `${p.first_name} ${p.last_name}` },
+                  { label: "Sexe", value: p.gender ? p.gender.charAt(0).toUpperCase() + p.gender.slice(1) : "—" },
+                  { label: "Date de naissance", value: p.date_of_birth ? formatDate(p.date_of_birth) : "—" },
+                  { label: "CNIE", value: p.cnie || "—" },
+                  { label: "Ville", value: [p.city, p.country].filter(Boolean).join(", ") || "—" },
+                  { label: "Adresse", value: p.email || "—" },
+                ].map((item) => (
+                  <div key={item.label}>
+                    <p className="text-xs text-text-muted">{item.label}</p>
+                    <p className="mt-0.5 text-sm font-medium text-text-primary">{item.value}</p>
+                  </div>
+                ))}
+              </div>
             </div>
+
+            {/* Dossier clinique */}
+            <div className="rounded-xl border border-border bg-white p-5">
+              <h3 className="text-base font-semibold text-text-primary">Dossier clinique</h3>
+              <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-3">
+                <div>
+                  <p className="text-xs text-text-muted">Phototype</p>
+                  <p className="mt-0.5 text-sm font-medium text-text-primary">
+                    {p.fitzpatrick ? `Fitzpatrick ${p.fitzpatrick}` : "—"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-text-muted">Poids</p>
+                  <p className="mt-0.5 text-sm font-medium text-text-primary">
+                    {p.weight_kg != null ? `${p.weight_kg} kg` : "—"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-text-muted">Taille</p>
+                  <p className="mt-0.5 text-sm font-medium text-text-primary">
+                    {p.height_cm != null ? `${p.height_cm} cm` : "—"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-text-muted">IMC</p>
+                  <p className="mt-0.5 text-sm font-medium text-text-primary">
+                    {p.bmi != null ? p.bmi : "—"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-text-muted">Tabac</p>
+                  <p className="mt-0.5 text-sm font-medium text-text-primary">
+                    {p.smoker == null ? "—" : p.smoker ? "Oui" : "Non"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-text-muted">Statut salle</p>
+                  <p className="mt-0.5 text-sm font-medium text-text-primary">
+                    {INTAKE_LABEL[p.intake_status] || p.intake_status}
+                  </p>
+                </div>
+              </div>
+              {p.requested_service && (
+                <div className="mt-4 rounded-lg bg-[var(--primary-lighter)] p-3">
+                  <p className="text-xs font-medium text-[var(--primary)]">Demande à l&apos;accueil</p>
+                  <p className="mt-0.5 text-sm text-[var(--primary)]">{p.requested_service}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Préférences & attribution */}
+            <div className="rounded-xl border border-border bg-white p-5">
+              <h3 className="text-base font-semibold text-text-primary">
+                Préférences &amp; provenance
+              </h3>
+              <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-3">
+                <div>
+                  <p className="text-xs text-text-muted">Langue</p>
+                  <p className="mt-0.5 text-sm font-medium text-text-primary">
+                    {p.language_pref?.toUpperCase() || "FR"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-text-muted">Canal préféré</p>
+                  <p className="mt-0.5 text-sm font-medium text-text-primary">
+                    {CHANNEL_LABEL[p.channel_pref] || p.channel_pref || "—"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-text-muted">Source</p>
+                  <p className="mt-0.5 text-sm font-medium text-text-primary">
+                    {p.lead_source || "—"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-text-muted">Campagne</p>
+                  <p className="mt-0.5 text-sm font-medium text-text-primary">
+                    {p.source_campaign || "—"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-text-muted">Médium</p>
+                  <p className="mt-0.5 text-sm font-medium text-text-primary">
+                    {p.source_medium || "—"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-text-muted">Premier contact</p>
+                  <p className="mt-0.5 text-sm font-medium text-text-primary">
+                    {p.first_touch_at ? formatDate(p.first_touch_at) : "—"}
+                  </p>
+                </div>
+              </div>
+              {p.treatment_interests && (
+                <div className="mt-4">
+                  <p className="text-xs text-text-muted">Intérêts traitement</p>
+                  <p className="mt-0.5 text-sm font-medium text-text-primary">{p.treatment_interests}</p>
+                </div>
+              )}
+            </div>
+
             {p.internal_notes && (
-              <div className="mt-5 rounded-lg bg-amber-50 p-3">
-                <p className="text-xs font-medium text-amber-700">Internal Notes</p>
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+                <p className="text-xs font-medium text-amber-700">Notes internes</p>
                 <p className="mt-1 text-sm text-amber-800">{p.internal_notes}</p>
               </div>
             )}
           </div>
 
           <div className="rounded-xl border border-border bg-white p-5">
-            <h3 className="text-base font-semibold text-text-primary">Recent Activity</h3>
+            <h3 className="text-base font-semibold text-text-primary">Activité récente</h3>
             <div className="mt-4 space-y-3">
               {activities.slice(0, 5).map((act) => (
                 <div key={act.id} className="flex items-start gap-2">
@@ -302,7 +421,7 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
                 </div>
               ))}
               {activities.length === 0 && (
-                <p className="text-xs text-text-muted">No activity yet</p>
+                <p className="text-xs text-text-muted">Aucune activité pour le moment</p>
               )}
             </div>
           </div>

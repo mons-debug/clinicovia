@@ -12,6 +12,8 @@ export interface PatientTag {
 
 export interface Patient {
   id: string;
+  clinic_id: string;
+  // Identity
   first_name: string;
   last_name: string;
   email: string | null;
@@ -19,19 +21,42 @@ export interface Patient {
   phone_country_code: string;
   gender: string | null;
   date_of_birth: string | null;
+  cnie: string | null;
   avatar_url: string | null;
+  // Address
   city: string | null;
   country: string | null;
+  // Preferences
+  language_pref: string;
+  channel_pref: string;
+  // Clinical
+  fitzpatrick: string | null;
+  weight_kg: number | null;
+  height_cm: number | null;
+  bmi: number | null;
+  smoker: boolean | null;
+  // Lead / attribution
   status: string;
   lead_source: string | null;
   lead_score: number;
   treatment_interests: string | null;
+  source_campaign: string | null;
+  source_medium: string | null;
+  first_touch_at: string | null;
+  // Workflow
+  intake_status: string;
+  intake_at: string | null;
+  requested_service: string | null;
+  // Assignment + financial
   assigned_to: string | null;
   total_spent: number;
   lifetime_value: number;
+  // WhatsApp
   whatsapp_id: string | null;
+  // Notes + lifecycle
   internal_notes: string | null;
   is_active: boolean;
+  archived_at: string | null;
   created_at: string;
   updated_at: string;
   tags: PatientTag[];
