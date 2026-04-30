@@ -461,6 +461,11 @@ async def checkout_appointment(
     patient.intake_status = IntakeStatus.CHECKOUT_PENDING
     patient.intake_at = now
     patient.doctor_called_at = None
+    # Show the handoff info on the queue card so reception sees the amount
+    checkout_label = f"{int(body.amount)} MAD" if body.amount else "Gratuit"
+    if body.notes:
+        checkout_label += f" · {body.notes}"
+    patient.requested_service = checkout_label
 
     # 3. Create invoice draft (skip if amount is zero)
     if body.amount and body.amount > 0:

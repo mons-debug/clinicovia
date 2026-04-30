@@ -172,9 +172,39 @@ async def advance_intake(
         patient.archived_at = now
         patient.is_active = False
     elif target != IntakeStatus.ARCHIVED and patient.archived_at is not None:
-        # Un-archive if moving back into the queue
         patient.archived_at = None
         patient.is_active = True
+
+    # ── Sync today's appointment to match queue state ──────────────
+    # This eliminates redundant "Arrivé" + "Commencer" clicks on the
+    # calendar. The queue IS the source of truth for in-clinic flow;
+    # the calendar appointment just reflects it.
+    today = now.date()
+    appt_res = await db.execute(
+        select(Appointment).where(
+            Appointment.clinic_id == clinic_id,
+            Appointment.patient_id == patient_id,
+            Appointment.appointment_date == today,
+            Appointment.status.notin_([
+                AppointmentStatus.COMPLETED,
+                AppointmentStatus.CANCELLED,
+                AppointmentStatus.NO_SHOW,
+            ]),
+        ).order_by(Appointment.created_at.desc()).limit(1)
+    )
+    linked_appt = appt_res.scalar_one_or_none()
+
+    if linked_appt:
+        if target == IntakeStatus.AWAITING_DOCTOR:
+            linked_appt.status = AppointmentStatus.CHECKED_IN
+            if not linked_appt.arrived_at:
+                linked_appt.arrived_at = now
+        elif target == IntakeStatus.IN_ROOM:
+            linked_appt.status = AppointmentStatus.IN_PROGRESS
+            if not linked_appt.arrived_at:
+                linked_appt.arrived_at = now
+            if not linked_appt.started_at:
+                linked_appt.started_at = now
 
     await db.commit()
     await db.refresh(patient)

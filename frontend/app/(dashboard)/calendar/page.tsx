@@ -131,11 +131,14 @@ function ApptRow({ appt, isoDate }: ApptRowProps) {
   };
 
   const isWalkIn = appt.kind === "walk_in";
+  const isDone = appt.status === "completed" || appt.status === "cancelled" || appt.status === "no_show";
   const cardClass = cn(
-    "flex items-stretch gap-3 rounded-lg bg-white p-3 transition-shadow hover:shadow-card-hover",
-    isWalkIn
-      ? "border-2 border-dashed border-[var(--primary)]"
-      : "border border-[var(--border)]"
+    "flex items-stretch gap-3 rounded-lg p-3 transition-shadow",
+    isDone
+      ? "border border-[var(--border)] bg-[var(--background)] opacity-60"
+      : isWalkIn
+      ? "border-2 border-dashed border-[var(--primary)] bg-white hover:shadow-card-hover"
+      : "border border-[var(--border)] bg-white hover:shadow-card-hover"
   );
 
   return (

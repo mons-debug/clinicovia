@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import {
   Phone,
@@ -26,6 +27,7 @@ import {
   type IntakeStatus,
 } from "@/lib/api/queue";
 import type { Patient } from "@/lib/api/patients";
+import { useAuthStore } from "@/stores/auth-store";
 import { cn } from "@/lib/utils";
 
 // ── Chime (reception alert when doctor calls) ────────────────────────
@@ -86,12 +88,15 @@ interface PatientCardProps {
   primaryAction?: { label: string; to: IntakeStatus; variant?: "default" | "secondary" };
   secondaryAction?: { label: string; to: IntakeStatus; variant?: "secondary" | "ghost" };
   showCallButton?: boolean;
+  checkoutAmount?: string | null;
 }
 
-function PatientCard({ patient: p, primaryAction, secondaryAction, showCallButton }: PatientCardProps) {
+function PatientCard({ patient: p, primaryAction, secondaryAction, showCallButton, checkoutAmount }: PatientCardProps) {
   const advance = useAdvanceIntake();
   const callMut = useCallPatient();
   const uncallMut = useUncallPatient();
+  const role = useAuthStore((s) => s.currentRole);
+  const isDoctor = role === "doctor" || role === "clinic_owner" || role === "manager";
 
   const handle = (to: IntakeStatus, label: string) => {
     advance.mutate(
@@ -135,9 +140,12 @@ function PatientCard({ patient: p, primaryAction, secondaryAction, showCallButto
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <p className="truncate font-semibold text-[var(--text-primary)]">
+            <Link
+              href={`/patients/${p.id}`}
+              className="truncate font-semibold text-[var(--text-primary)] hover:text-[var(--primary)] hover:underline"
+            >
               {p.first_name} {p.last_name}
-            </p>
+            </Link>
             {p.lead_source === "whatsapp" && (
               <Badge variant="outline" className="text-[10px] border-[var(--whatsapp)] text-[var(--whatsapp)]">
                 WA
@@ -163,8 +171,8 @@ function PatientCard({ patient: p, primaryAction, secondaryAction, showCallButto
         </div>
       </div>
 
-      {/* Doctor → reception ping (only on EN ATTENTE cards) */}
-      {showCallButton && (
+      {/* Doctor → reception ping (only doctors see this on EN ATTENTE cards) */}
+      {showCallButton && isDoctor && (
         called ? (
           <div className="mt-3 flex items-center justify-between rounded-md bg-emerald-100 px-3 py-2 text-xs font-semibold text-emerald-800">
             <span className="inline-flex items-center gap-1.5">
@@ -285,6 +293,8 @@ function Column({ title, subtitle, count, accent, Icon, children, empty }: Colum
 
 export default function QueuePage() {
   const { data, isLoading, isError, refetch, isFetching } = useQueue(4000);
+  const role = useAuthStore((s) => s.currentRole);
+  const isDoctor = role === "doctor" || role === "clinic_owner" || role === "manager";
 
   // Track which patients are currently flagged "called" so we can chime
   // exactly once when a new call arrives (not on every poll).
@@ -411,9 +421,19 @@ export default function QueuePage() {
             <PatientCard
               key={p.id}
               patient={p}
+              primaryAction={isDoctor ? undefined : undefined}
               secondaryAction={{ label: "Renvoyer en attente", to: "awaiting_doctor", variant: "ghost" }}
             />
           ))}
+          {/* Doctor shortcut — go to calendar to use Terminer dialog */}
+          {data.counts.in_room > 0 && isDoctor && (
+            <Link
+              href="/calendar"
+              className="mt-1 block rounded-md bg-emerald-50 px-3 py-2 text-center text-xs font-medium text-emerald-700 hover:bg-emerald-100"
+            >
+              Ouvrir le calendrier pour terminer →
+            </Link>
+          )}
         </Column>
 
         <Column
