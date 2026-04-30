@@ -9,6 +9,7 @@ import {
   ArrowRight,
   CheckCircle2,
   DoorOpen,
+  FileText,
   UserCheck,
   Loader2,
   Sparkles,
@@ -441,14 +442,42 @@ export default function QueuePage() {
           Icon={Receipt}
           empty="Personne à encaisser"
         >
-          {(data.checkout_pending ?? []).map((p) => (
-            <PatientCard
-              key={p.id}
-              patient={p}
-              primaryAction={{ label: "Payé / clôturé", to: "active" }}
-              secondaryAction={{ label: "Renvoyer au médecin", to: "in_room", variant: "ghost" }}
-            />
-          ))}
+          {(data.checkout_pending ?? []).map((p) => {
+            const docs = (data.checkout_documents ?? []).find((d) => d.patient_id === p.id);
+            return (
+              <div key={p.id}>
+                <PatientCard
+                  patient={p}
+                  primaryAction={{ label: "Payé / clôturé", to: "active" }}
+                  secondaryAction={{ label: "Renvoyer au médecin", to: "in_room", variant: "ghost" }}
+                />
+                {/* Document links for reception */}
+                {docs && (docs.invoice_id || docs.prescription_ids.length > 0) && (
+                  <div className="mt-1 flex flex-wrap gap-2 rounded-md bg-rose-50 px-3 py-2">
+                    {docs.invoice_id && (
+                      <Link
+                        href={`/invoices/${docs.invoice_id}`}
+                        className="inline-flex items-center gap-1 rounded-md border border-rose-200 bg-white px-2 py-1 text-[11px] font-medium text-rose-700 hover:border-rose-400"
+                      >
+                        <Receipt className="h-3 w-3" />
+                        Facture · {docs.invoice_total ? `${docs.invoice_total} MAD` : docs.invoice_number}
+                      </Link>
+                    )}
+                    {docs.prescription_ids.map((rxId, i) => (
+                      <Link
+                        key={rxId}
+                        href={`/prescriptions/${rxId}`}
+                        className="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-white px-2 py-1 text-[11px] font-medium text-blue-700 hover:border-blue-400"
+                      >
+                        <FileText className="h-3 w-3" />
+                        {docs.prescription_numbers[i] || "Ordonnance"}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </Column>
       </div>
 

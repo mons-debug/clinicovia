@@ -11,11 +11,21 @@ export type IntakeStatus =
   | "active"
   | "archived";
 
+export interface CheckoutDocuments {
+  patient_id: string;
+  invoice_id: string | null;
+  invoice_number: string | null;
+  invoice_total: number | null;
+  prescription_ids: string[];
+  prescription_numbers: string[];
+}
+
 export interface QueueBoard {
   intake_pending: Patient[];
   awaiting_doctor: Patient[];
   in_room: Patient[];
   checkout_pending: Patient[];
+  checkout_documents: CheckoutDocuments[];
   counts: {
     intake_pending: number;
     awaiting_doctor: number;

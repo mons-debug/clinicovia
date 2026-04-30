@@ -66,11 +66,21 @@ TRANSITIONS: dict[IntakeStatus, set[IntakeStatus]] = {
 
 # ---------- Schemas -----------------------------------------------------
 
+class CheckoutDocuments(BaseModel):
+    patient_id: str
+    invoice_id: str | None = None
+    invoice_number: str | None = None
+    invoice_total: float | None = None
+    prescription_ids: list[str] = []
+    prescription_numbers: list[str] = []
+
+
 class QueueBoard(BaseModel):
     intake_pending: list[PatientResponse]
     awaiting_doctor: list[PatientResponse]
     in_room: list[PatientResponse]
     checkout_pending: list[PatientResponse]
+    checkout_documents: list[CheckoutDocuments] = []
     counts: dict[str, int]
 
 
@@ -106,11 +116,48 @@ async def get_queue(
     in_room = await _bucket(IntakeStatus.IN_ROOM)
     checkout = await _bucket(IntakeStatus.CHECKOUT_PENDING)
 
+    # Enrich checkout patients with their draft invoice + prescriptions
+    # so reception can click directly to view/print.
+    from app.models.billing import Invoice, InvoiceStatus
+    from app.models.prescription import Prescription
+
+    checkout_docs: list[CheckoutDocuments] = []
+    for p in checkout:
+        doc = CheckoutDocuments(patient_id=str(p.id))
+
+        # Latest draft invoice for this patient
+        inv_res = await db.execute(
+            select(Invoice).where(
+                Invoice.clinic_id == clinic_id,
+                Invoice.patient_id == p.id,
+                Invoice.status == InvoiceStatus.DRAFT,
+            ).order_by(Invoice.created_at.desc()).limit(1)
+        )
+        inv = inv_res.scalar_one_or_none()
+        if inv:
+            doc.invoice_id = str(inv.id)
+            doc.invoice_number = inv.number
+            doc.invoice_total = float(inv.total)
+
+        # Recent prescriptions (today)
+        rx_res = await db.execute(
+            select(Prescription).where(
+                Prescription.clinic_id == clinic_id,
+                Prescription.patient_id == p.id,
+            ).order_by(Prescription.created_at.desc()).limit(3)
+        )
+        for rx in rx_res.scalars().all():
+            doc.prescription_ids.append(str(rx.id))
+            doc.prescription_numbers.append(rx.number)
+
+        checkout_docs.append(doc)
+
     return QueueBoard(
         intake_pending=[PatientResponse.model_validate(p) for p in pending],
         awaiting_doctor=[PatientResponse.model_validate(p) for p in awaiting],
         in_room=[PatientResponse.model_validate(p) for p in in_room],
         checkout_pending=[PatientResponse.model_validate(p) for p in checkout],
+        checkout_documents=checkout_docs,
         counts={
             "intake_pending": len(pending),
             "awaiting_doctor": len(awaiting),
