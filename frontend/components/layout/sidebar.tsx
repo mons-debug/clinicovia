@@ -82,7 +82,6 @@ const NAV_GROUPS: NavGroup[] = [
     module: "patients",
     children: [
       { label: "All Patients", href: "/patients", icon: Users },
-      { label: "Add Patient", href: "/patients/new", icon: UserPlus },
     ],
   },
   {

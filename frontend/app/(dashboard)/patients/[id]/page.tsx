@@ -244,14 +244,6 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
               <MessageSquare className="h-4 w-4" />
               WhatsApp
             </button>
-            <Link
-              href={`/patients/${id}/edit`}
-              className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90"
-              style={{ backgroundColor: "var(--primary-light)" }}
-            >
-              <Pencil className="h-4 w-4" />
-              Edit
-            </Link>
           </div>
         </div>
 

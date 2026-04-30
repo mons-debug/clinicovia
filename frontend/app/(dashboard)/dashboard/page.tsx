@@ -146,13 +146,10 @@ export default function DashboardPage() {
         </div>
         <div className="flex flex-wrap gap-2">
           <Button asChild variant="default" size="sm">
-            <Link href="/queue"><UserPlus className="h-3 w-3" />Walk-in</Link>
+            <Link href="/queue"><UserPlus className="h-3 w-3" />Nouveau patient · Walk-in</Link>
           </Button>
           <Button asChild variant="secondary" size="sm">
             <Link href="/calendar"><CalendarIcon className="h-3 w-3" />Calendrier</Link>
-          </Button>
-          <Button asChild variant="secondary" size="sm">
-            <Link href="/patients/new"><UserPlus className="h-3 w-3" />Nouveau patient</Link>
           </Button>
         </div>
       </div>

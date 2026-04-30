@@ -20,6 +20,7 @@ import { toast } from "sonner";
 import { DataTable } from "@/components/shared/data-table";
 import { StatusBadge, getStatusVariant } from "@/components/shared/status-badge";
 import { EmptyState } from "@/components/shared/empty-state";
+import { WalkInDialog } from "@/components/queue/walk-in-dialog";
 import { LEAD_SOURCES } from "@/lib/constants";
 import {
   usePatients,
@@ -214,13 +215,6 @@ export default function PatientsPage() {
             >
               <Eye className="h-4 w-4" />
             </Link>
-            <Link
-              href={`/patients/${row.original.id}/edit`}
-              className="rounded-md p-1.5 text-text-muted transition-colors hover:bg-gray-100 hover:text-text-primary"
-              title="Edit"
-            >
-              <Pencil className="h-4 w-4" />
-            </Link>
             <button
               onClick={() => setDeleteTarget(row.original)}
               className="rounded-md p-1.5 text-text-muted transition-colors hover:bg-red-50 hover:text-red-600"
@@ -254,41 +248,8 @@ export default function PatientsPage() {
             <Download className="h-4 w-4" />
             Export
           </button>
-          <Link
-            href="/patients/new"
-            className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-            style={{ backgroundColor: "var(--primary-light)" }}
-          >
-            <Plus className="h-4 w-4" />
-            Add Patient
-          </Link>
+          <WalkInDialog triggerLabel="Nouveau patient" />
         </div>
-      </div>
-
-      {/* Status filter tabs */}
-      <div className="flex gap-1 rounded-lg bg-gray-100 p-1">
-        {[
-          { key: "all", label: "All" },
-          { key: "new", label: "New" },
-          { key: "active", label: "Active" },
-          { key: "vip", label: "VIP" },
-          { key: "inactive", label: "Inactive" },
-        ].map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => {
-              setStatusFilter(tab.key);
-              setPage(1);
-            }}
-            className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-              statusFilter === tab.key
-                ? "bg-white text-text-primary shadow-sm"
-                : "text-text-secondary hover:text-text-primary"
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
       </div>
 
       {/* Lifecycle tabs */}

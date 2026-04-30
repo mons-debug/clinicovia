@@ -175,10 +175,7 @@ export default function NewDealPage() {
                     ))
                   ) : (
                     <div className="p-3 text-sm text-text-muted">
-                      No patients found.{" "}
-                      <Link href="/patients/new" className="font-medium" style={{ color: "var(--primary-light)" }}>
-                        Add a patient first
-                      </Link>
+                      Aucun patient trouvé. Créez-le d&apos;abord depuis la salle d&apos;attente.
                     </div>
                   )}
                 </div>
