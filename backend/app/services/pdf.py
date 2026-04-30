@@ -25,6 +25,18 @@ _PAYMENT_METHOD_LABELS = {
     "other": "Autre",
 }
 
+_DRUG_FORM_LABELS = {
+    "tablet": "comprimé",
+    "capsule": "gélule",
+    "syrup": "sirop",
+    "injection": "injection",
+    "cream": "crème",
+    "ointment": "pommade",
+    "drops": "gouttes",
+    "spray": "spray",
+    "other": "",
+}
+
 
 def _fmt_money(value: float | int | None) -> str:
     if value is None:
@@ -56,6 +68,13 @@ def _method_label(value: Any) -> str:
     return _PAYMENT_METHOD_LABELS.get(s, s.title())
 
 
+def _form_label(value: Any) -> str:
+    if value is None:
+        return ""
+    s = value.value if hasattr(value, "value") else str(value)
+    return _DRUG_FORM_LABELS.get(s.lower(), s)
+
+
 _env = Environment(
     loader=FileSystemLoader(str(_TEMPLATE_DIR)),
     autoescape=select_autoescape(["html"]),
@@ -63,17 +82,27 @@ _env = Environment(
 _env.filters["fmt_money"] = _fmt_money
 _env.filters["fmt_date"] = _fmt_date
 _env.filters["method_label"] = _method_label
+_env.filters["form_label"] = _form_label
 
 
-def render_invoice_pdf(*, clinic: Any, patient: Any, invoice: Any) -> bytes:
-    """Render an invoice to PDF bytes. Lazy-imports WeasyPrint so the
-    rest of the API stays usable even if the system libs are absent."""
+def _render_pdf(template_name: str, **ctx: Any) -> bytes:
     from weasyprint import HTML  # noqa: WPS433 — runtime-only import
 
-    html_str = _env.get_template("invoice.html").render(
-        clinic=clinic, patient=patient, invoice=invoice
-    )
+    html_str = _env.get_template(template_name).render(**ctx)
     buf = BytesIO()
     HTML(string=html_str).write_pdf(target=buf)
     buf.seek(0)
     return buf.read()
+
+
+def render_invoice_pdf(*, clinic: Any, patient: Any, invoice: Any) -> bytes:
+    return _render_pdf("invoice.html", clinic=clinic, patient=patient, invoice=invoice)
+
+
+def render_prescription_pdf(
+    *, clinic: Any, patient: Any, prescription: Any, doctor: Any | None = None
+) -> bytes:
+    return _render_pdf(
+        "prescription.html",
+        clinic=clinic, patient=patient, prescription=prescription, doctor=doctor,
+    )

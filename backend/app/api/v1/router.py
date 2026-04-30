@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1 import auth, patients, dashboard, deals, appointments, forms, whatsapp, doctors, tracking, ai_agents, queue, calendar, treatment_plans, billing, clinics
+from app.api.v1 import auth, patients, dashboard, deals, appointments, forms, whatsapp, doctors, tracking, ai_agents, queue, calendar, treatment_plans, billing, clinics, prescriptions
 
 api_router = APIRouter()
 
@@ -13,6 +13,7 @@ api_router.include_router(calendar.router, prefix="/calendar", tags=["Calendar"]
 api_router.include_router(treatment_plans.router, prefix="/plans", tags=["Treatment Plans"])
 api_router.include_router(billing.router, prefix="/invoices", tags=["Invoices"])
 api_router.include_router(clinics.router, prefix="/clinics", tags=["Clinics"])
+api_router.include_router(prescriptions.router, prefix="/prescriptions", tags=["Prescriptions"])
 api_router.include_router(forms.router, prefix="/forms", tags=["Forms"])
 api_router.include_router(forms.public_router, prefix="/public/forms", tags=["Public Forms"])
 api_router.include_router(dashboard.router, prefix="/dashboard", tags=["Dashboard"])

@@ -26,6 +26,7 @@ import { StatusBadge, getStatusVariant } from "@/components/shared/status-badge"
 import { Badge } from "@/components/ui/badge";
 import { NewPlanDialog } from "@/components/plans/new-plan-dialog";
 import { NewInvoiceDialog } from "@/components/billing/new-invoice-dialog";
+import { NewPrescriptionDialog } from "@/components/prescriptions/new-prescription-dialog";
 import {
   usePatient,
   usePatientNotes,
@@ -34,6 +35,7 @@ import {
 } from "@/lib/api/patients";
 import { usePatientPlans, type TreatmentPlan } from "@/lib/api/plans";
 import { useInvoices, type Invoice as InvoiceType, type InvoiceStatus } from "@/lib/api/invoices";
+import { usePatientPrescriptions, type Prescription as PrescriptionType, type PrescriptionStatus } from "@/lib/api/prescriptions";
 import { useConversations, useWhatsAppSessions, startConversation } from "@/lib/api/whatsapp";
 
 const tabs = [
@@ -78,6 +80,8 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
   const plans: TreatmentPlan[] = plansData?.plans ?? [];
   const { data: invoicesData } = useInvoices({ patientId: id });
   const invoices: InvoiceType[] = invoicesData?.invoices ?? [];
+  const { data: prescriptionsData } = usePatientPrescriptions(id);
+  const prescriptions: PrescriptionType[] = prescriptionsData?.prescriptions ?? [];
 
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString("fr-FR", {
@@ -463,6 +467,55 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
                               />
                             </div>
                           </div>
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Ordonnances */}
+            <div className="rounded-xl border border-border bg-white p-5">
+              <div className="flex items-center justify-between">
+                <h3 className="text-base font-semibold text-text-primary">Ordonnances</h3>
+                <NewPrescriptionDialog patientId={p.id} />
+              </div>
+              {prescriptions.length === 0 ? (
+                <p className="mt-3 text-xs text-text-muted">
+                  Aucune ordonnance pour ce patient.
+                </p>
+              ) : (
+                <div className="mt-4 space-y-2">
+                  {prescriptions.map((rx) => {
+                    const rxLabel: Record<PrescriptionStatus, string> = {
+                      draft: "Brouillon",
+                      signed: "Signée",
+                      cancelled: "Annulée",
+                    };
+                    const rxVariant: Record<PrescriptionStatus, "outline" | "success" | "destructive"> = {
+                      draft: "outline",
+                      signed: "success",
+                      cancelled: "destructive",
+                    };
+                    return (
+                      <Link
+                        key={rx.id}
+                        href={`/prescriptions/${rx.id}`}
+                        className="flex items-center justify-between rounded-lg border border-border p-3 transition-colors hover:bg-gray-50"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <p className="truncate font-mono text-sm font-semibold text-text-primary">{rx.number}</p>
+                            <Badge variant={rxVariant[rx.status]}>{rxLabel[rx.status]}</Badge>
+                            {rx.renewable && <Badge variant="secondary">Renouvelable</Badge>}
+                          </div>
+                          <p className="text-xs text-text-muted">
+                            {new Date(rx.issue_date).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}
+                            {" · "}
+                            {rx.lines.length} médicament{rx.lines.length > 1 ? "s" : ""}
+                            {rx.diagnosis && (<><span className="mx-1">·</span><span className="italic">{rx.diagnosis}</span></>)}
+                          </p>
                         </div>
                       </Link>
                     );
