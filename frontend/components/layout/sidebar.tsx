@@ -98,6 +98,12 @@ const NAV_GROUPS: NavGroup[] = [
     module: "calendar",
   },
   {
+    label: "Factures",
+    href: "/invoices",
+    icon: FileText,
+    module: "invoices",
+  },
+  {
     label: "Pipeline",
     href: "/pipeline",
     icon: Kanban,
