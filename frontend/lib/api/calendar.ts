@@ -79,3 +79,53 @@ export function useJourneyEvent(isoDate: string) {
     },
   });
 }
+
+export interface RescheduleArgs {
+  appointmentId: string;
+  appointment_date: string; // ISO yyyy-mm-dd
+  start_time: string;       // "HH:MM" or "HH:MM:SS"
+  duration_minutes: number;
+  doctor_id?: string | null;
+  room?: string | null;
+}
+
+export function useReschedule(isoDate: string) {
+  const token = useAuthStore((s) => s.accessToken);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (args: RescheduleArgs) =>
+      apiClient<CalendarAppointment>(`/calendar/${args.appointmentId}/reschedule`, {
+        method: "POST",
+        body: JSON.stringify({
+          appointment_date: args.appointment_date,
+          start_time: args.start_time,
+          duration_minutes: args.duration_minutes,
+          doctor_id: args.doctor_id ?? null,
+          room: args.room ?? null,
+        }),
+        token: token ?? undefined,
+      }),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ["calendar", "day", isoDate] });
+      // Also invalidate the destination date if it changed
+      if (vars.appointment_date !== isoDate) {
+        qc.invalidateQueries({ queryKey: ["calendar", "day", vars.appointment_date] });
+      }
+    },
+  });
+}
+
+export function useConfirmAppointment(isoDate: string) {
+  const token = useAuthStore((s) => s.accessToken);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (appointmentId: string) =>
+      apiClient<CalendarAppointment>(`/calendar/${appointmentId}/confirm`, {
+        method: "POST",
+        token: token ?? undefined,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["calendar", "day", isoDate] });
+    },
+  });
+}

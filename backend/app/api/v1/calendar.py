@@ -8,7 +8,7 @@ Used by the front-desk + doctor day-view UI.
 from __future__ import annotations
 
 import uuid
-from datetime import date as date_type, datetime, timezone
+from datetime import date as date_type, datetime, time as time_type, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
@@ -52,6 +52,14 @@ class CalendarDayResponse(BaseModel):
 
 class JourneyEventRequest(BaseModel):
     event: str  # one of: arrived | started | ended | cancel | no_show
+
+
+class RescheduleRequest(BaseModel):
+    appointment_date: date_type
+    start_time: time_type
+    duration_minutes: int = 30
+    doctor_id: uuid.UUID | None = None
+    room: str | None = None
 
 
 # ---------- Endpoints ---------------------------------------------------
@@ -191,6 +199,99 @@ async def journey_event(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Unknown event: {event}",
         )
+
+    await db.commit()
+    await db.refresh(appt)
+
+    return AppointmentResponse.model_validate({
+        **appt.__dict__,
+        "patient_name": f"{patient.first_name} {patient.last_name}",
+        "patient_phone": f"{patient.phone_country_code}{patient.phone}",
+        "patient_initials": f"{patient.first_name[:1]}{patient.last_name[:1]}".upper(),
+        "doctor_name": "",
+        "doctor_color": "#6B7280",
+    })
+
+
+@router.post("/{appointment_id}/reschedule", response_model=AppointmentResponse)
+async def reschedule(
+    appointment_id: uuid.UUID,
+    body: RescheduleRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Move an appointment to a new slot (date + time + duration).
+
+    Recomputes end_time. Doctor + room are optional re-assignments.
+    """
+    clinic_id = _get_clinic_id(user)
+
+    result = await db.execute(
+        select(Appointment, Patient)
+        .join(Patient, Patient.id == Appointment.patient_id)
+        .where(
+            Appointment.id == appointment_id,
+            Appointment.clinic_id == clinic_id,
+        )
+    )
+    row = result.first()
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Appointment not found")
+    appt, patient = row
+
+    # Compute end_time from start + duration
+    start_dt = datetime.combine(body.appointment_date, body.start_time)
+    end_dt = start_dt + timedelta(minutes=body.duration_minutes)
+
+    appt.appointment_date = body.appointment_date
+    appt.start_time = body.start_time
+    appt.end_time = end_dt.time()
+    appt.duration_minutes = body.duration_minutes
+    if body.doctor_id is not None:
+        appt.doctor_id = body.doctor_id
+    if body.room is not None:
+        appt.room = body.room
+
+    await db.commit()
+    await db.refresh(appt)
+
+    return AppointmentResponse.model_validate({
+        **appt.__dict__,
+        "patient_name": f"{patient.first_name} {patient.last_name}",
+        "patient_phone": f"{patient.phone_country_code}{patient.phone}",
+        "patient_initials": f"{patient.first_name[:1]}{patient.last_name[:1]}".upper(),
+        "doctor_name": "",
+        "doctor_color": "#6B7280",
+    })
+
+
+@router.post("/{appointment_id}/confirm", response_model=AppointmentResponse)
+async def confirm_appointment(
+    appointment_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Confirm a tentative booking — clears needs_confirmation, bumps
+    status from SCHEDULED → CONFIRMED if applicable."""
+    clinic_id = _get_clinic_id(user)
+
+    result = await db.execute(
+        select(Appointment, Patient)
+        .join(Patient, Patient.id == Appointment.patient_id)
+        .where(
+            Appointment.id == appointment_id,
+            Appointment.clinic_id == clinic_id,
+        )
+    )
+    row = result.first()
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Appointment not found")
+    appt, patient = row
+
+    appt.needs_confirmation = False
+    if appt.status == AppointmentStatus.SCHEDULED:
+        appt.status = AppointmentStatus.CONFIRMED
+    appt.confirmation_sent = True
 
     await db.commit()
     await db.refresh(appt)

@@ -19,8 +19,11 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { NewAppointmentDialog } from "@/components/calendar/new-appointment-dialog";
+import { RescheduleDialog } from "@/components/calendar/reschedule-dialog";
+import { WalkInDialog } from "@/components/queue/walk-in-dialog";
 import {
   useCalendarDay,
+  useConfirmAppointment,
   useJourneyEvent,
   type CalendarAppointment,
   type JourneyEvent as Journey,
@@ -83,6 +86,7 @@ interface ApptRowProps {
 
 function ApptRow({ appt, isoDate }: ApptRowProps) {
   const ev = useJourneyEvent(isoDate);
+  const confirmMut = useConfirmAppointment(isoDate);
 
   const fire = (event: Journey, label: string) => {
     ev.mutate(
@@ -95,6 +99,16 @@ function ApptRow({ appt, isoDate }: ApptRowProps) {
         },
       }
     );
+  };
+
+  const confirm = () => {
+    confirmMut.mutate(appt.id, {
+      onSuccess: () => toast.success(`${appt.patient_name} → confirmé`),
+      onError: (e: unknown) => {
+        const msg = e instanceof Error ? e.message : "Erreur";
+        toast.error(msg);
+      },
+    });
   };
 
   const isWalkIn = appt.kind === "walk_in";
@@ -169,10 +183,17 @@ function ApptRow({ appt, isoDate }: ApptRowProps) {
         <div className="mt-2 flex flex-wrap gap-1.5">
           {appt.status === "scheduled" || appt.status === "confirmed" ? (
             <>
+              {appt.needs_confirmation && (
+                <Button size="sm" variant="secondary" onClick={confirm} disabled={confirmMut.isPending}>
+                  <CheckCircle2 className="h-3 w-3" />
+                  Confirmer
+                </Button>
+              )}
               <Button size="sm" variant="secondary" onClick={() => fire("arrived", "Arrivé")} disabled={ev.isPending}>
                 <UserCheck className="h-3 w-3" />
                 Arrivé
               </Button>
+              <RescheduleDialog appt={appt} isoDate={isoDate} />
               <Button size="sm" variant="ghost" onClick={() => fire("no_show", "Absent")} disabled={ev.isPending}>
                 <XCircle className="h-3 w-3" />
                 Absent
@@ -238,7 +259,8 @@ export default function CalendarPage() {
             <ChevronRight className="h-4 w-4" />
           </Button>
           {isFetching && <Loader2 className="h-3 w-3 animate-spin text-[var(--text-muted)]" />}
-          <div className="ml-2">
+          <div className="ml-2 flex items-center gap-2">
+            <WalkInDialog triggerLabel="Arrivée sans RDV" />
             <NewAppointmentDialog isoDate={iso} />
           </div>
         </div>
