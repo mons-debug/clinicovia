@@ -88,15 +88,15 @@ const PERMISSION_MATRIX: Record<Role, Partial<Record<Module, Action[]>>> = {
     team: ["read"],
   },
   [ROLES.RECEPTIONIST]: {
+    // Front-desk view: queue, calendar, patients, invoices.
+    // Hide: pipeline, whatsapp inbox, ai_agents, campaigns, forms,
+    // doctors, analytics, ai_agents — pure operations only.
     dashboard: ["read"],
     patients: ["read", "create"],
     queue: ["full"],
     calendar: ["read", "edit"],
     invoices: ["read", "create", "edit"],
-    pipeline: ["read"],
-    whatsapp: ["read", "create"],
     appointments: ["full"],
-    forms: ["read"],
   },
   [ROLES.SALES_AGENT]: {
     dashboard: ["read"],
@@ -114,13 +114,16 @@ const PERMISSION_MATRIX: Record<Role, Partial<Record<Module, Action[]>>> = {
     forms: ["full"],
   },
   [ROLES.DOCTOR]: {
+    // Clinical view: patients, queue, calendar, plans.
+    // Hide: pipeline, whatsapp inbox, ai_agents, campaigns, forms,
+    // invoices (reception's job), settings — focus on care.
     dashboard: ["read"],
     patients: ["read", "edit"],
     queue: ["full"],
     calendar: ["read", "edit"],
-    invoices: ["read"],
     plans: ["full"],
     appointments: ["read", "edit"],
+    doctors: ["read"],
     analytics: ["read"],
   },
 };

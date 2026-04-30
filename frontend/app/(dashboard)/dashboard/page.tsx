@@ -17,6 +17,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useDashboardSummary } from "@/lib/api/dashboard";
+import { useAuthStore } from "@/stores/auth-store";
 
 const APPT_STATUS_LABEL: Record<string, string> = {
   scheduled: "Programmé",
@@ -60,6 +61,9 @@ function fmtTodayLong(): string {
 
 export default function DashboardPage() {
   const { data, isLoading } = useDashboardSummary();
+  const role = useAuthStore((s) => s.currentRole);
+  const isReception = role === "receptionist";
+  const isDoctor = role === "doctor";
 
   if (isLoading || !data) {
     return (
@@ -75,8 +79,10 @@ export default function DashboardPage() {
       ? Math.round(((m.revenue_mtd - m.revenue_last_month) / m.revenue_last_month) * 100)
       : null;
 
-  const kpis = [
-    {
+  // KPI cards — role-aware. Reception focuses on flow; doctor on
+  // clinical load; owner/manager sees the full picture.
+  const allKpis = {
+    rdv: {
       label: "Rendez-vous aujourd'hui",
       value: m.today_appointments.toString(),
       change:
@@ -87,7 +93,7 @@ export default function DashboardPage() {
       icon: CalendarIcon,
       href: "/calendar",
     },
-    {
+    queue: {
       label: "En salle d'attente",
       value: m.in_queue.toString(),
       change: m.in_queue === 0 ? "Aucun patient en cours" : "Patients en cours",
@@ -95,7 +101,7 @@ export default function DashboardPage() {
       icon: Clock,
       href: "/queue",
     },
-    {
+    newPatients: {
       label: "Nouveaux patients (7 j)",
       value: m.new_patients_week.toString(),
       change: "Cette semaine",
@@ -103,7 +109,7 @@ export default function DashboardPage() {
       icon: UserPlus,
       href: "/patients?tab=patients",
     },
-    {
+    leads: {
       label: "Leads WhatsApp (7 j)",
       value: m.leads_week.toString(),
       change: m.leads_total === 0 ? "Aucun lead actif" : `${m.leads_total} actifs au total`,
@@ -111,7 +117,7 @@ export default function DashboardPage() {
       icon: UserPlus,
       href: "/patients?tab=leads",
     },
-    {
+    plans: {
       label: "Plans actifs",
       value: m.active_plans.toString(),
       change: "Cures en cours",
@@ -119,7 +125,7 @@ export default function DashboardPage() {
       icon: Activity,
       href: "/patients",
     },
-    {
+    revenue: {
       label: "Recettes (MTD)",
       value: `${fmtMad(m.revenue_mtd)} ${m.currency}`,
       change:
@@ -132,7 +138,13 @@ export default function DashboardPage() {
       icon: DollarSign,
       href: "/invoices",
     },
-  ];
+  } as const;
+
+  const kpis = isReception
+    ? [allKpis.rdv, allKpis.queue, allKpis.newPatients]
+    : isDoctor
+    ? [allKpis.rdv, allKpis.queue, allKpis.plans]
+    : [allKpis.rdv, allKpis.queue, allKpis.newPatients, allKpis.leads, allKpis.plans, allKpis.revenue];
 
   return (
     <div className="space-y-6 p-6">
@@ -155,7 +167,7 @@ export default function DashboardPage() {
       </div>
 
       {/* KPI grid */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <div className={`grid grid-cols-1 gap-4 sm:grid-cols-2 ${kpis.length <= 3 ? "lg:grid-cols-3" : "lg:grid-cols-5"}`}>
         {kpis.map((k) => (
           <Link key={k.label} href={k.href}>
             <Card className="p-5 transition-shadow hover:shadow-card-hover">
