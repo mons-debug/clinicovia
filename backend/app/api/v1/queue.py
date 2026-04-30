@@ -309,7 +309,23 @@ async def call_patient(
             detail=f"Patient is not awaiting the doctor (status: {patient.intake_status.value})",
         )
 
-    patient.doctor_called_at = datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc)
+    patient.doctor_called_at = now
+
+    # Assign the calling doctor to today's unassigned walk-in appointment
+    # so this patient surfaces on that doctor's calendar + dashboard.
+    today = now.date()
+    appt_res = await db.execute(
+        select(Appointment).where(
+            Appointment.clinic_id == clinic_id,
+            Appointment.patient_id == patient_id,
+            Appointment.appointment_date == today,
+            Appointment.doctor_id.is_(None),
+        )
+    )
+    for appt in appt_res.scalars().all():
+        appt.doctor_id = user.id
+
     await db.commit()
     await db.refresh(patient)
     return PatientResponse.model_validate(patient)

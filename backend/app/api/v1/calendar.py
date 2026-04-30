@@ -247,6 +247,8 @@ async def journey_event(
         if not appt.arrived_at:
             appt.arrived_at = now
         appt.status = AppointmentStatus.IN_PROGRESS
+        if not appt.doctor_id:
+            appt.doctor_id = user.id
         patient.intake_status = IntakeStatus.IN_ROOM
         patient.intake_at = now
     elif event == "ended":
@@ -478,7 +480,7 @@ async def checkout_appointment(
             subtotal=float(body.amount),
             discount=0.0,
             tva_rate=0.0,
-            tva_amount=0.0,
+            tva=0.0,
             total=float(body.amount),
             currency="MAD",
             status=InvoiceStatus.DRAFT,
