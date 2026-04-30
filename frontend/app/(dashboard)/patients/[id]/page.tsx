@@ -23,12 +23,15 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { StatusBadge, getStatusVariant } from "@/components/shared/status-badge";
+import { Badge } from "@/components/ui/badge";
+import { NewPlanDialog } from "@/components/plans/new-plan-dialog";
 import {
   usePatient,
   usePatientNotes,
   usePatientActivities,
   useCreatePatientNote,
 } from "@/lib/api/patients";
+import { usePatientPlans, type TreatmentPlan } from "@/lib/api/plans";
 import { useConversations, useWhatsAppSessions, startConversation } from "@/lib/api/whatsapp";
 
 const tabs = [
@@ -69,6 +72,8 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
   const createNoteMutation = useCreatePatientNote(id);
   const { data: convsData } = useConversations({ patient_id: id });
   const patientConversations = convsData?.conversations || [];
+  const { data: plansData } = usePatientPlans(id);
+  const plans: TreatmentPlan[] = plansData?.plans ?? [];
 
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString("fr-FR", {
@@ -396,6 +401,68 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
                 <div className="mt-4">
                   <p className="text-xs text-text-muted">Intérêts traitement</p>
                   <p className="mt-0.5 text-sm font-medium text-text-primary">{p.treatment_interests}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Plans de traitement */}
+            <div className="rounded-xl border border-border bg-white p-5">
+              <div className="flex items-center justify-between">
+                <h3 className="text-base font-semibold text-text-primary">
+                  Plans de traitement
+                </h3>
+                <NewPlanDialog patientId={p.id} />
+              </div>
+              {plans.length === 0 ? (
+                <p className="mt-3 text-xs text-text-muted">
+                  Aucun plan pour ce patient. Créez-en un pour suivre les séances et le coût estimé.
+                </p>
+              ) : (
+                <div className="mt-4 space-y-3">
+                  {plans.map((plan) => {
+                    const completed = plan.sessions.filter((s) => s.status === "completed").length;
+                    const pct = plan.total_sessions > 0 ? Math.round((completed / plan.total_sessions) * 100) : 0;
+                    return (
+                      <Link
+                        key={plan.id}
+                        href={`/plans/${plan.id}`}
+                        className="block rounded-lg border border-border p-3 transition-colors hover:bg-gray-50"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <p className="truncate font-medium text-text-primary">{plan.title}</p>
+                              <Badge
+                                variant={
+                                  plan.status === "completed"
+                                    ? "success"
+                                    : plan.status === "cancelled"
+                                    ? "destructive"
+                                    : "default"
+                                }
+                              >
+                                {plan.status === "active" ? "Actif" : plan.status === "completed" ? "Terminé" : plan.status === "cancelled" ? "Annulé" : "Brouillon"}
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-text-muted">
+                              {completed} / {plan.total_sessions} séances ·{" "}
+                              {plan.estimated_total != null
+                                ? `${plan.estimated_total.toLocaleString("fr-FR")} ${plan.currency}`
+                                : "—"}
+                            </p>
+                          </div>
+                          <div className="w-32">
+                            <div className="h-1.5 overflow-hidden rounded-full bg-[var(--background)]">
+                              <div
+                                className="h-full rounded-full bg-[var(--primary)]"
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </Link>
+                    );
+                  })}
                 </div>
               )}
             </div>
