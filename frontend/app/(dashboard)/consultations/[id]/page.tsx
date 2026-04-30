@@ -10,12 +10,14 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { NewAppointmentDialog } from "@/components/calendar/new-appointment-dialog";
 import {
   useConsultation,
   useUpdateConsultation,
   useSignConsultation,
   type ConsultationStatus,
 } from "@/lib/api/consultations";
+import { usePatient } from "@/lib/api/patients";
 
 const STATUS_LABEL: Record<ConsultationStatus, string> = {
   draft: "Brouillon",
@@ -76,6 +78,13 @@ export default function ConsultationDetailPage(props: { params: Promise<{ id: st
 
   const isDraft = cons.status === "draft";
 
+  // Suggested follow-up date: +14 days from today (control / next session default)
+  const suggestedDate = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 14);
+    return d.toISOString().slice(0, 10);
+  })();
+
   const save = async () => {
     if (!isDraft) return;
     try {
@@ -127,6 +136,7 @@ export default function ConsultationDetailPage(props: { params: Promise<{ id: st
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
+            <FollowUpButton consultation={cons} suggestedDate={suggestedDate} />
             {isDraft && (
               <>
                 <Button variant="ghost" onClick={save} disabled={updateMut.isPending}>
@@ -175,5 +185,32 @@ export default function ConsultationDetailPage(props: { params: Promise<{ id: st
         ))}
       </Card>
     </div>
+  );
+}
+
+// ── Follow-up booking trigger ───────────────────────────────────────
+// Wraps NewAppointmentDialog with the consultation's patient pre-filled
+// and a sensible default visit date (+14 days). Shown on every consultation
+// regardless of draft / signed — the doctor's last move is "réservez le retour".
+
+function FollowUpButton({
+  consultation,
+  suggestedDate,
+}: {
+  consultation: { patient_id: string };
+  suggestedDate: string;
+}) {
+  const { data: patient } = usePatient(consultation.patient_id);
+  const label = patient ? `${patient.first_name} ${patient.last_name}` : "Patient";
+
+  return (
+    <NewAppointmentDialog
+      isoDate={suggestedDate}
+      triggerLabel="Programmer prochain RDV"
+      triggerVariant="outline"
+      prefillPatientId={consultation.patient_id}
+      prefillPatientLabel={label}
+      prefillKind="control"
+    />
   );
 }

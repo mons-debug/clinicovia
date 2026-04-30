@@ -39,19 +39,34 @@ const KIND_OPTIONS = [
 interface Props {
   isoDate: string;
   triggerLabel?: string;
+  triggerVariant?: "default" | "outline" | "secondary" | "ghost";
+  // Pre-fill with a known patient (skips the search box)
+  prefillPatientId?: string;
+  prefillPatientLabel?: string;
+  // Pre-fill suggested kind / default treatment string
+  prefillKind?: string;
+  prefillTreatment?: string;
 }
 
-export function NewAppointmentDialog({ isoDate, triggerLabel = "Nouveau RDV" }: Props) {
+export function NewAppointmentDialog({
+  isoDate,
+  triggerLabel = "Nouveau RDV",
+  triggerVariant = "default",
+  prefillPatientId,
+  prefillPatientLabel,
+  prefillKind,
+  prefillTreatment,
+}: Props) {
   const [open, setOpen] = useState(false);
 
-  const [patientSearch, setPatientSearch] = useState("");
-  const [patientId, setPatientId] = useState<string>("");
+  const [patientSearch, setPatientSearch] = useState(prefillPatientLabel ?? "");
+  const [patientId, setPatientId] = useState<string>(prefillPatientId ?? "");
   const [doctorId, setDoctorId] = useState<string>("");
   const [date, setDate] = useState<string>(isoDate);
   const [startTime, setStartTime] = useState<string>("10:00");
   const [duration, setDuration] = useState<number>(30);
-  const [kind, setKind] = useState<string>("consultation");
-  const [treatment, setTreatment] = useState<string>("");
+  const [kind, setKind] = useState<string>(prefillKind ?? "consultation");
+  const [treatment, setTreatment] = useState<string>(prefillTreatment ?? "");
   const [room, setRoom] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
 
@@ -59,6 +74,16 @@ export function NewAppointmentDialog({ isoDate, triggerLabel = "Nouveau RDV" }: 
   useEffect(() => {
     if (!open) setDate(isoDate);
   }, [isoDate, open]);
+
+  // Re-apply prefills when reopening (so the dialog stays sticky to the parent)
+  useEffect(() => {
+    if (open) {
+      if (prefillPatientId) setPatientId(prefillPatientId);
+      if (prefillPatientLabel) setPatientSearch(prefillPatientLabel);
+      if (prefillKind) setKind(prefillKind);
+      if (prefillTreatment !== undefined) setTreatment(prefillTreatment);
+    }
+  }, [open, prefillPatientId, prefillPatientLabel, prefillKind, prefillTreatment]);
 
   const { data: patientsData } = usePatients({
     search: patientSearch || undefined,
@@ -82,13 +107,13 @@ export function NewAppointmentDialog({ isoDate, triggerLabel = "Nouveau RDV" }: 
   }, [startTime, duration]);
 
   const reset = () => {
-    setPatientId("");
-    setPatientSearch("");
+    setPatientId(prefillPatientId ?? "");
+    setPatientSearch(prefillPatientLabel ?? "");
     setDoctorId("");
     setStartTime("10:00");
     setDuration(30);
-    setKind("consultation");
-    setTreatment("");
+    setKind(prefillKind ?? "consultation");
+    setTreatment(prefillTreatment ?? "");
     setRoom("");
     setNotes("");
   };
@@ -124,7 +149,7 @@ export function NewAppointmentDialog({ isoDate, triggerLabel = "Nouveau RDV" }: 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm">
+        <Button size="sm" variant={triggerVariant}>
           <Plus className="h-3 w-3" />
           {triggerLabel}
         </Button>
@@ -138,45 +163,54 @@ export function NewAppointmentDialog({ isoDate, triggerLabel = "Nouveau RDV" }: 
         </DialogHeader>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {/* Patient picker */}
-          <div className="sm:col-span-2 space-y-2">
-            <Label htmlFor="patient-search">Patient</Label>
-            <Input
-              id="patient-search"
-              placeholder="Rechercher par nom ou téléphone…"
-              value={patientSearch}
-              onChange={(e) => {
-                setPatientSearch(e.target.value);
-                setPatientId(""); // clear selection on new search
-              }}
-            />
-            {patients.length > 0 && !patientId && (
-              <div className="max-h-44 overflow-y-auto rounded-md border border-[var(--border)] bg-white">
-                {patients.slice(0, 8).map((p) => (
-                  <button
-                    type="button"
-                    key={p.id}
-                    onClick={() => {
-                      setPatientId(p.id);
-                      setPatientSearch(`${p.first_name} ${p.last_name}`);
-                    }}
-                    className="flex w-full items-center justify-between border-b border-[var(--line-soft,_#E2E8F0)] px-3 py-2 text-left text-sm hover:bg-[var(--background)]"
-                  >
-                    <span className="font-medium">
-                      {p.first_name} {p.last_name}
-                    </span>
-                    <span className="text-xs text-[var(--text-muted)]">
-                      {p.phone_country_code}
-                      {p.phone}
-                    </span>
-                  </button>
-                ))}
+          {/* Patient picker — collapsed when pre-filled */}
+          {prefillPatientId ? (
+            <div className="sm:col-span-2 space-y-2">
+              <Label>Patient</Label>
+              <div className="rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm">
+                <span className="font-medium">{prefillPatientLabel ?? "Patient sélectionné"}</span>
               </div>
-            )}
-            {patientId && (
-              <p className="text-xs text-[var(--success)]">✓ Patient sélectionné</p>
-            )}
-          </div>
+            </div>
+          ) : (
+            <div className="sm:col-span-2 space-y-2">
+              <Label htmlFor="patient-search">Patient</Label>
+              <Input
+                id="patient-search"
+                placeholder="Rechercher par nom ou téléphone…"
+                value={patientSearch}
+                onChange={(e) => {
+                  setPatientSearch(e.target.value);
+                  setPatientId(""); // clear selection on new search
+                }}
+              />
+              {patients.length > 0 && !patientId && (
+                <div className="max-h-44 overflow-y-auto rounded-md border border-[var(--border)] bg-white">
+                  {patients.slice(0, 8).map((p) => (
+                    <button
+                      type="button"
+                      key={p.id}
+                      onClick={() => {
+                        setPatientId(p.id);
+                        setPatientSearch(`${p.first_name} ${p.last_name}`);
+                      }}
+                      className="flex w-full items-center justify-between border-b border-[var(--line-soft,_#E2E8F0)] px-3 py-2 text-left text-sm hover:bg-[var(--background)]"
+                    >
+                      <span className="font-medium">
+                        {p.first_name} {p.last_name}
+                      </span>
+                      <span className="text-xs text-[var(--text-muted)]">
+                        {p.phone_country_code}
+                        {p.phone}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {patientId && (
+                <p className="text-xs text-[var(--success)]">✓ Patient sélectionné</p>
+              )}
+            </div>
+          )}
 
           {/* Date + time */}
           <div className="space-y-2">
