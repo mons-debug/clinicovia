@@ -46,6 +46,7 @@ export interface Patient {
   // Workflow
   intake_status: string;
   intake_at: string | null;
+  doctor_called_at?: string | null;
   requested_service: string | null;
   // Assignment + financial
   assigned_to: string | null;

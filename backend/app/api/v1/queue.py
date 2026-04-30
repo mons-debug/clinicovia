@@ -150,6 +150,10 @@ async def advance_intake(
     now = datetime.now(timezone.utc)
     patient.intake_status = target
     patient.intake_at = now
+    # Clear the doctor-call ping when patient actually moves into the room
+    # or out of the queue altogether — the ping is meaningless after that.
+    if target in (IntakeStatus.IN_ROOM, IntakeStatus.ACTIVE, IntakeStatus.ARCHIVED):
+        patient.doctor_called_at = None
     if target == IntakeStatus.ARCHIVED:
         patient.archived_at = now
         patient.is_active = False
@@ -242,3 +246,66 @@ async def walk_in_existing_patient(
         "doctor_name": "",
         "doctor_color": "#6B7280",
     })
+
+
+# ---------- Doctor → reception call signal -----------------------------
+
+@router.post("/{patient_id}/call", response_model=PatientResponse)
+async def call_patient(
+    patient_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Doctor pings reception that they want this patient next.
+
+    Sets doctor_called_at = now(). Reception's queue board picks this
+    up on the next poll (4 s) and pulses the card green + plays a chime.
+    Patient stays in AWAITING_DOCTOR — reception still has to confirm
+    the patient walked in via the standard "Entré en salle" advance.
+    """
+    clinic_id = _get_clinic_id(user)
+
+    res = await db.execute(
+        select(Patient)
+        .options(selectinload(Patient.tags))
+        .where(Patient.id == patient_id, Patient.clinic_id == clinic_id)
+    )
+    patient = res.scalar_one_or_none()
+    if not patient:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Patient not found")
+
+    # Only meaningful while the patient is awaiting the doctor
+    if patient.intake_status != IntakeStatus.AWAITING_DOCTOR:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Patient is not awaiting the doctor (status: {patient.intake_status.value})",
+        )
+
+    patient.doctor_called_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(patient)
+    return PatientResponse.model_validate(patient)
+
+
+@router.post("/{patient_id}/uncall", response_model=PatientResponse)
+async def uncall_patient(
+    patient_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Doctor cancels the call ping (changed mind, called wrong patient)."""
+    clinic_id = _get_clinic_id(user)
+
+    res = await db.execute(
+        select(Patient)
+        .options(selectinload(Patient.tags))
+        .where(Patient.id == patient_id, Patient.clinic_id == clinic_id)
+    )
+    patient = res.scalar_one_or_none()
+    if not patient:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Patient not found")
+
+    patient.doctor_called_at = None
+    await db.commit()
+    await db.refresh(patient)
+    return PatientResponse.model_validate(patient)

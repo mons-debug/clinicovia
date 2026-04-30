@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { toast } from "sonner";
 import {
   Phone,
@@ -11,6 +11,7 @@ import {
   UserCheck,
   Loader2,
   Sparkles,
+  BellRing,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -19,10 +20,44 @@ import { WalkInDialog } from "@/components/queue/walk-in-dialog";
 import {
   useQueue,
   useAdvanceIntake,
+  useCallPatient,
+  useUncallPatient,
   type IntakeStatus,
 } from "@/lib/api/queue";
 import type { Patient } from "@/lib/api/patients";
 import { cn } from "@/lib/utils";
+
+// ── Chime (reception alert when doctor calls) ────────────────────────
+// Programmatic — no asset, no autoplay-blocked file. Two short beeps.
+function playChime() {
+  if (typeof window === "undefined") return;
+  try {
+    const Ctor = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    const ctx = new Ctor();
+    const beep = (when: number, freq: number) => {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = "sine";
+      o.frequency.value = freq;
+      o.connect(g);
+      g.connect(ctx.destination);
+      g.gain.setValueAtTime(0, when);
+      g.gain.linearRampToValueAtTime(0.18, when + 0.04);
+      g.gain.linearRampToValueAtTime(0, when + 0.22);
+      o.start(when);
+      o.stop(when + 0.25);
+    };
+    beep(ctx.currentTime, 880);
+    beep(ctx.currentTime + 0.18, 1175);
+  } catch {
+    // ignore — sound is best-effort
+  }
+}
+
+function isCallRecent(calledAt: string | null | undefined): boolean {
+  if (!calledAt) return false;
+  return Date.now() - new Date(calledAt).getTime() < 5 * 60 * 1000;
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────
 
@@ -46,13 +81,16 @@ function initials(p: Patient): string {
 // ── Patient card ──────────────────────────────────────────────────────
 
 interface PatientCardProps {
-  patient: Patient & { intake_at?: string | null; requested_service?: string | null };
+  patient: Patient & { intake_at?: string | null; doctor_called_at?: string | null; requested_service?: string | null };
   primaryAction?: { label: string; to: IntakeStatus; variant?: "default" | "secondary" };
   secondaryAction?: { label: string; to: IntakeStatus; variant?: "secondary" | "ghost" };
+  showCallButton?: boolean;
 }
 
-function PatientCard({ patient: p, primaryAction, secondaryAction }: PatientCardProps) {
+function PatientCard({ patient: p, primaryAction, secondaryAction, showCallButton }: PatientCardProps) {
   const advance = useAdvanceIntake();
+  const callMut = useCallPatient();
+  const uncallMut = useUncallPatient();
 
   const handle = (to: IntakeStatus, label: string) => {
     advance.mutate(
@@ -67,8 +105,29 @@ function PatientCard({ patient: p, primaryAction, secondaryAction }: PatientCard
     );
   };
 
+  const called = isCallRecent(p.doctor_called_at);
+
+  const fireCall = () => {
+    callMut.mutate(p.id, {
+      onSuccess: () => toast.success(`Réception alertée pour ${p.first_name}`),
+      onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Erreur"),
+    });
+  };
+
+  const cancelCall = () => {
+    uncallMut.mutate(p.id, {
+      onSuccess: () => toast.success("Appel annulé"),
+      onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Erreur"),
+    });
+  };
+
   return (
-    <Card className="p-4 hover:shadow-card-hover transition-shadow">
+    <Card className={cn(
+      "p-4 transition-all",
+      called
+        ? "border-2 border-emerald-500 bg-emerald-50 shadow-lg ring-2 ring-emerald-300/60 animate-pulse"
+        : "hover:shadow-card-hover"
+    )}>
       <div className="flex items-start gap-3">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--primary-lighter)] text-sm font-semibold text-[var(--primary)]">
           {initials(p)}
@@ -102,6 +161,37 @@ function PatientCard({ patient: p, primaryAction, secondaryAction }: PatientCard
           )}
         </div>
       </div>
+
+      {/* Doctor → reception ping (only on EN ATTENTE cards) */}
+      {showCallButton && (
+        called ? (
+          <div className="mt-3 flex items-center justify-between rounded-md bg-emerald-100 px-3 py-2 text-xs font-semibold text-emerald-800">
+            <span className="inline-flex items-center gap-1.5">
+              <BellRing className="h-3.5 w-3.5" />
+              Patient appelé · réception alertée
+            </span>
+            <button
+              type="button"
+              onClick={cancelCall}
+              disabled={uncallMut.isPending}
+              className="text-emerald-700/70 underline hover:text-emerald-900"
+            >
+              Annuler
+            </button>
+          </div>
+        ) : (
+          <Button
+            size="sm"
+            variant="outline"
+            className="mt-3 w-full border-emerald-500 text-emerald-700 hover:bg-emerald-50"
+            disabled={callMut.isPending}
+            onClick={fireCall}
+          >
+            {callMut.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <BellRing className="h-3 w-3" />}
+            Appeler ce patient (alerter réception)
+          </Button>
+        )
+      )}
 
       {(primaryAction || secondaryAction) && (
         <div className="mt-3 flex gap-2">
@@ -195,6 +285,28 @@ function Column({ title, subtitle, count, accent, Icon, children, empty }: Colum
 export default function QueuePage() {
   const { data, isLoading, isError, refetch, isFetching } = useQueue(4000);
 
+  // Track which patients are currently flagged "called" so we can chime
+  // exactly once when a new call arrives (not on every poll).
+  const previouslyCalled = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!data) return;
+    const currentlyCalled = new Set<string>();
+    for (const p of data.awaiting_doctor) {
+      if (isCallRecent((p as Patient & { doctor_called_at?: string | null }).doctor_called_at)) {
+        currentlyCalled.add(p.id);
+      }
+    }
+    // Find IDs that are called now but weren't on the previous tick
+    const fresh: string[] = [];
+    currentlyCalled.forEach((id) => {
+      if (!previouslyCalled.current.has(id)) fresh.push(id);
+    });
+    if (fresh.length > 0) {
+      playChime();
+    }
+    previouslyCalled.current = currentlyCalled;
+  }, [data]);
+
   const totals = useMemo(() => {
     if (!data) return { total: 0 };
     return {
@@ -277,8 +389,9 @@ export default function QueuePage() {
             <PatientCard
               key={p.id}
               patient={p}
-              primaryAction={{ label: "Appeler en salle", to: "in_room" }}
+              primaryAction={{ label: "Patient entré en salle", to: "in_room" }}
               secondaryAction={{ label: "Retour accueil", to: "intake_pending", variant: "ghost" }}
+              showCallButton
             />
           ))}
         </Column>

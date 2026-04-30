@@ -46,6 +46,34 @@ export function useAdvanceIntake() {
   });
 }
 
+// Doctor → reception ping. POST /queue/:id/call sets doctor_called_at,
+// reception's queue board pulses green + chimes on the next 4-second poll.
+export function useCallPatient() {
+  const token = useAuthStore((s) => s.accessToken);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (patientId: string) =>
+      apiClient<Patient>(`/queue/${patientId}/call`, {
+        method: "POST",
+        token: token ?? undefined,
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["queue"] }),
+  });
+}
+
+export function useUncallPatient() {
+  const token = useAuthStore((s) => s.accessToken);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (patientId: string) =>
+      apiClient<Patient>(`/queue/${patientId}/uncall`, {
+        method: "POST",
+        token: token ?? undefined,
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["queue"] }),
+  });
+}
+
 // Existing-patient walk-in: creates a placeholder appointment (kind=walk_in)
 // and flips the patient into AWAITING_DOCTOR. Use this when a known patient
 // shows up without a prior booking (e.g. séances 2, 3, 4 of a treatment plan).
