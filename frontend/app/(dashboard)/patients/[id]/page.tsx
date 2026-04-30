@@ -29,6 +29,7 @@ import { NewInvoiceDialog } from "@/components/billing/new-invoice-dialog";
 import { NewPrescriptionDialog } from "@/components/prescriptions/new-prescription-dialog";
 import { CompleteDossierCard } from "@/components/patient/complete-dossier-card";
 import { PhotosCard } from "@/components/photos/photos-card";
+import { NewConsultationDialog } from "@/components/consultations/new-consultation-dialog";
 import {
   usePatient,
   usePatientNotes,
@@ -38,6 +39,7 @@ import {
 import { usePatientPlans, type TreatmentPlan } from "@/lib/api/plans";
 import { useInvoices, type Invoice as InvoiceType, type InvoiceStatus } from "@/lib/api/invoices";
 import { usePatientPrescriptions, type Prescription as PrescriptionType, type PrescriptionStatus } from "@/lib/api/prescriptions";
+import { usePatientConsultations, type Consultation as ConsultationType, type ConsultationStatus } from "@/lib/api/consultations";
 import { useConversations, useWhatsAppSessions, startConversation } from "@/lib/api/whatsapp";
 
 const tabs = [
@@ -84,6 +86,8 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
   const invoices: InvoiceType[] = invoicesData?.invoices ?? [];
   const { data: prescriptionsData } = usePatientPrescriptions(id);
   const prescriptions: PrescriptionType[] = prescriptionsData?.prescriptions ?? [];
+  const { data: consultationsData } = usePatientConsultations(id);
+  const consultations: ConsultationType[] = consultationsData?.consultations ?? [];
 
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString("fr-FR", {
@@ -475,6 +479,46 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
                             </div>
                           </div>
                         </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Consultations */}
+            <div className="rounded-xl border border-border bg-white p-5">
+              <div className="flex items-center justify-between">
+                <h3 className="text-base font-semibold text-text-primary">Consultations</h3>
+                <NewConsultationDialog patientId={p.id} />
+              </div>
+              {consultations.length === 0 ? (
+                <p className="mt-3 text-xs text-text-muted">
+                  Aucune consultation. Note SOAP au fauteuil.
+                </p>
+              ) : (
+                <div className="mt-4 space-y-2">
+                  {consultations.map((c) => {
+                    const statusLabel: Record<ConsultationStatus, string> = {
+                      draft: "Brouillon", signed: "Signée", cancelled: "Annulée",
+                    };
+                    const statusVariant: Record<ConsultationStatus, "outline" | "success" | "destructive"> = {
+                      draft: "outline", signed: "success", cancelled: "destructive",
+                    };
+                    return (
+                      <Link
+                        key={c.id}
+                        href={`/consultations/${c.id}`}
+                        className="block rounded-lg border border-border p-3 transition-colors hover:bg-gray-50"
+                      >
+                        <div className="flex items-center gap-2">
+                          <p className="truncate font-mono text-sm font-semibold text-text-primary">{c.number}</p>
+                          <Badge variant={statusVariant[c.status]}>{statusLabel[c.status]}</Badge>
+                        </div>
+                        <p className="text-xs text-text-muted">
+                          {new Date(c.visit_date).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}
+                          {c.chief_complaint && (<><span className="mx-1">·</span><span className="italic">{c.chief_complaint}</span></>)}
+                        </p>
                       </Link>
                     );
                   })}

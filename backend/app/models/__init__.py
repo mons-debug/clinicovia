@@ -8,6 +8,7 @@ from app.models.treatment_plan import TreatmentPlan, TreatmentSession
 from app.models.billing import Invoice, Payment, InvoiceCounter
 from app.models.prescription import Drug, Prescription, PrescriptionCounter
 from app.models.photo import BodyZone, PatientPhoto
+from app.models.consultation import Consultation, ConsultationCounter
 from app.models.form import Form, FormSubmission
 from app.models.whatsapp import WhatsAppSession, WhatsAppConversation, WhatsAppMessage
 from app.models.tracking import TrackingIntegration, EventMapping, ConversionEvent
@@ -40,6 +41,8 @@ __all__ = [
     "PrescriptionCounter",
     "BodyZone",
     "PatientPhoto",
+    "Consultation",
+    "ConsultationCounter",
     "Form",
     "FormSubmission",
     "WhatsAppSession",
