@@ -44,6 +44,7 @@ class PhotoResponse(BaseModel):
     patient_id: uuid.UUID
     plan_id: uuid.UUID | None
     appointment_id: uuid.UUID | None
+    session_id: uuid.UUID | None = None
     captured_by: uuid.UUID | None
     storage: str
     storage_key: str

@@ -27,6 +27,7 @@ export interface PatientPhoto {
   patient_id: string;
   plan_id: string | null;
   appointment_id: string | null;
+  session_id: string | null;
   captured_by: string | null;
   storage: string;
   storage_key: string;
@@ -102,6 +103,7 @@ export function useUploadPhoto() {
       consent_scope?: ConsentScope;
       plan_id?: string;
       appointment_id?: string;
+      session_id?: string;
       note?: string;
     }) => {
       const fd = new FormData();
@@ -113,6 +115,7 @@ export function useUploadPhoto() {
       if (input.consent_scope) fd.append("consent_scope", input.consent_scope);
       if (input.plan_id) fd.append("plan_id", input.plan_id);
       if (input.appointment_id) fd.append("appointment_id", input.appointment_id);
+      if (input.session_id) fd.append("session_id", input.session_id);
       if (input.note) fd.append("note", input.note);
 
       const res = await fetch(`${API_BASE_URL}/api/v1/photos/upload`, {

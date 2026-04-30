@@ -384,18 +384,30 @@ async def get_plan_timeline(
         )
         appts_by_id = {a.id: a for a in a_res.scalars().all()}
 
-    # Photos linked to any of these appointments
+    # Photos linked to any of these sessions OR their appointments.
+    # Prefer session_id (W9.5); fall back to appointment_id for older rows.
+    session_ids = [s.id for s in sessions]
+    photos_by_session: dict[uuid.UUID, list[PatientPhoto]] = {}
     photos_by_appt: dict[uuid.UUID, list[PatientPhoto]] = {}
-    if appt_ids:
+    if session_ids or appt_ids:
+        from sqlalchemy import or_
+        clauses = []
+        if session_ids:
+            clauses.append(PatientPhoto.session_id.in_(session_ids))
+        if appt_ids:
+            clauses.append(PatientPhoto.appointment_id.in_(appt_ids))
         ph_res = await db.execute(
             select(PatientPhoto).where(
                 PatientPhoto.clinic_id == clinic_id,
-                PatientPhoto.appointment_id.in_(appt_ids),
+                or_(*clauses),
                 PatientPhoto.deleted_at.is_(None),
             )
         )
         for ph in ph_res.scalars().all():
-            photos_by_appt.setdefault(ph.appointment_id, []).append(ph)
+            if ph.session_id:
+                photos_by_session.setdefault(ph.session_id, []).append(ph)
+            elif ph.appointment_id:
+                photos_by_appt.setdefault(ph.appointment_id, []).append(ph)
 
     # Prescriptions per appointment
     rx_by_appt: dict[uuid.UUID, list[Prescription]] = {}
@@ -421,7 +433,10 @@ async def get_plan_timeline(
     entries: list[SessionTimelineEntry] = []
     for s in sessions:
         appt = appts_by_id.get(s.appointment_id) if s.appointment_id else None
-        photos = photos_by_appt.get(s.appointment_id, []) if s.appointment_id else []
+        photos = list(photos_by_session.get(s.id, []))
+        if s.appointment_id and not photos:
+            # Fall back to legacy appointment_id-only links
+            photos.extend(photos_by_appt.get(s.appointment_id, []))
         rxs = rx_by_appt.get(s.appointment_id, []) if s.appointment_id else []
 
         entries.append(SessionTimelineEntry(

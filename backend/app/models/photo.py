@@ -103,6 +103,12 @@ class PatientPhoto(Base, TimestampMixin, TenantMixin):
     appointment_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("appointments.id", ondelete="SET NULL"), nullable=True
     )
+    # Direct session link — disambiguates when a photo belongs to a
+    # specific séance even before the appointment is booked. Falls back
+    # to appointment_id for older rows.
+    session_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("treatment_sessions.id", ondelete="SET NULL"), nullable=True
+    )
     captured_by: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
