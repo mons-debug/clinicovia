@@ -25,7 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-import { useCreateAppointment } from "@/lib/api/appointments";
+import { useCreateAppointment, useTreatments, type TreatmentResponse } from "@/lib/api/appointments";
 import { usePatients } from "@/lib/api/patients";
 import { useDoctors } from "@/lib/api/doctors";
 
@@ -67,6 +67,8 @@ export function NewAppointmentDialog({
   const [duration, setDuration] = useState<number>(30);
   const [kind, setKind] = useState<string>(prefillKind ?? "consultation");
   const [treatment, setTreatment] = useState<string>(prefillTreatment ?? "");
+  // Treatment picked from the catalog — drives auto-duration + specialty filter
+  const [treatmentId, setTreatmentId] = useState<string>("");
   const [room, setRoom] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
 
@@ -93,6 +95,36 @@ export function NewAppointmentDialog({
 
   const { data: doctorsData } = useDoctors({ page_size: 50 });
   const doctors = doctorsData?.doctors ?? [];
+
+  // Catalog of clinic services
+  const { data: treatmentsData } = useTreatments();
+  const treatments = treatmentsData?.treatments ?? [];
+
+  // Group treatments by category for the dropdown
+  const treatmentsByCategory = useMemo(() => {
+    const groups = new Map<string, TreatmentResponse[]>();
+    for (const t of treatments) {
+      const key = t.category ?? "Autre";
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(t);
+    }
+    return Array.from(groups.entries());
+  }, [treatments]);
+
+  // Selected treatment object (drives auto-duration + specialty filter)
+  const selectedTreatment = useMemo(
+    () => treatments.find((t) => t.id === treatmentId) ?? null,
+    [treatments, treatmentId]
+  );
+
+  // Doctors filtered by the selected treatment's specialty.
+  // No specialty constraint → show every doctor.
+  const filteredDoctors = useMemo(() => {
+    if (!selectedTreatment?.specialty) return doctors;
+    return doctors.filter(
+      (d) => !d.specialty || d.specialty === selectedTreatment.specialty
+    );
+  }, [doctors, selectedTreatment]);
 
   const createMut = useCreateAppointment();
   const qc = useQueryClient();
@@ -258,12 +290,57 @@ export function NewAppointmentDialog({
           </div>
           <div className="space-y-2">
             <Label htmlFor="treatment">Traitement</Label>
-            <Input
-              id="treatment"
-              placeholder="ex. Botox · Hydrafacial · Consultation"
-              value={treatment}
-              onChange={(e) => setTreatment(e.target.value)}
-            />
+            {treatments.length > 0 ? (
+              <Select
+                value={treatmentId || "_free"}
+                onValueChange={(v) => {
+                  if (v === "_free") {
+                    setTreatmentId("");
+                    return;
+                  }
+                  const t = treatments.find((x) => x.id === v);
+                  if (t) {
+                    setTreatmentId(t.id);
+                    setTreatment(t.name);
+                    setDuration(t.duration_minutes);
+                    // If the picked treatment is incompatible with the current doctor, clear doctor.
+                    if (t.specialty && doctorId) {
+                      const doc = doctors.find((d) => d.id === doctorId);
+                      if (doc && doc.specialty && doc.specialty !== t.specialty) {
+                        setDoctorId("");
+                      }
+                    }
+                  }
+                }}
+              >
+                <SelectTrigger id="treatment">
+                  <SelectValue placeholder="Choisir dans le catalogue…" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_free">Saisir manuellement…</SelectItem>
+                  {treatmentsByCategory.map(([cat, items]) => (
+                    <div key={cat}>
+                      <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+                        {cat}
+                      </div>
+                      {items.map((t) => (
+                        <SelectItem key={t.id} value={t.id}>
+                          {t.name} · {t.duration_minutes}min
+                        </SelectItem>
+                      ))}
+                    </div>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : null}
+            {(treatments.length === 0 || !treatmentId) && (
+              <Input
+                id="treatment-free"
+                placeholder="ex. Botox · Hydrafacial · Consultation"
+                value={treatment}
+                onChange={(e) => setTreatment(e.target.value)}
+              />
+            )}
           </div>
 
           {/* Doctor + room */}
@@ -275,13 +352,19 @@ export function NewAppointmentDialog({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">Non assigné</SelectItem>
-                {doctors.map((d) => (
+                {filteredDoctors.map((d) => (
                   <SelectItem key={d.id} value={d.id}>
                     Dr. {d.first_name} {d.last_name}
+                    {d.specialty ? ` · ${d.specialty === "aesthetic_medicine" ? "Méd. esthétique" : d.specialty === "plastic_surgery" ? "Chir. esthétique" : d.specialty}` : ""}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            {selectedTreatment?.specialty && filteredDoctors.length < doctors.length && (
+              <p className="text-[11px] text-[var(--text-muted)]">
+                Filtré sur la spécialité {selectedTreatment.specialty === "aesthetic_medicine" ? "Méd. esthétique" : "Chir. esthétique"}.
+              </p>
+            )}
           </div>
           <div className="space-y-2">
             <Label htmlFor="room">Salle</Label>
