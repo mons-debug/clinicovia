@@ -22,6 +22,22 @@ from app.models.appointment import Appointment, AppointmentStatus
 from app.models.patient import IntakeStatus, Patient
 from app.models.user import User
 from app.schemas.appointment import AppointmentResponse
+from app.services.whatsapp_notifications import (
+    notify_appointment_no_show,
+    notify_appointment_recall,
+    notify_appointment_rescheduled,
+    notify_appointment_status,
+    render_template,
+)
+
+
+async def _safe_notify(coro) -> None:
+    """Fire-and-forget WhatsApp notification — swallow errors so the
+    API call never fails just because the bridge is offline."""
+    try:
+        await coro
+    except Exception:
+        pass
 
 
 router = APIRouter()
@@ -203,6 +219,20 @@ async def journey_event(
     await db.commit()
     await db.refresh(appt)
 
+    # Fire WhatsApp template (best-effort, swallows errors)
+    if event == "no_show":
+        await _safe_notify(notify_appointment_no_show(
+            db, clinic_id, patient.id,
+            f"{patient.first_name} {patient.last_name}",
+            appt.treatment, appt.appointment_date, appt.start_time,
+        ))
+    elif event == "cancel":
+        await _safe_notify(notify_appointment_status(
+            db, clinic_id, patient.id,
+            f"{patient.first_name} {patient.last_name}",
+            appt.treatment, "cancelled", apt_date=appt.appointment_date,
+        ))
+
     return AppointmentResponse.model_validate({
         **appt.__dict__,
         "patient_name": f"{patient.first_name} {patient.last_name}",
@@ -255,6 +285,13 @@ async def reschedule(
     await db.commit()
     await db.refresh(appt)
 
+    # WhatsApp: send reschedule notice with the new slot
+    await _safe_notify(notify_appointment_rescheduled(
+        db, clinic_id, patient.id,
+        f"{patient.first_name} {patient.last_name}",
+        appt.treatment, appt.appointment_date, appt.start_time,
+    ))
+
     return AppointmentResponse.model_validate({
         **appt.__dict__,
         "patient_name": f"{patient.first_name} {patient.last_name}",
@@ -296,9 +333,123 @@ async def confirm_appointment(
     await db.commit()
     await db.refresh(appt)
 
+    # WhatsApp: send confirmation
+    await _safe_notify(notify_appointment_status(
+        db, clinic_id, patient.id,
+        f"{patient.first_name} {patient.last_name}",
+        appt.treatment, "confirmed",
+    ))
+
     return AppointmentResponse.model_validate({
         **appt.__dict__,
         "patient_name": f"{patient.first_name} {patient.last_name}",
+        "patient_phone": f"{patient.phone_country_code}{patient.phone}",
+        "patient_initials": f"{patient.first_name[:1]}{patient.last_name[:1]}".upper(),
+        "doctor_name": "",
+        "doctor_color": "#6B7280",
+    })
+
+
+# ---------- Manual template send + preview --------------------------
+
+class TemplateSendRequest(BaseModel):
+    template: str  # confirmation | reschedule | no_show | recall | reminder
+
+
+@router.get("/{appointment_id}/template/{template}")
+async def preview_template(
+    appointment_id: uuid.UUID,
+    template: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Render a WhatsApp template against this appointment without sending."""
+    clinic_id = _get_clinic_id(user)
+
+    result = await db.execute(
+        select(Appointment, Patient)
+        .join(Patient, Patient.id == Appointment.patient_id)
+        .where(
+            Appointment.id == appointment_id,
+            Appointment.clinic_id == clinic_id,
+        )
+    )
+    row = result.first()
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Appointment not found")
+    appt, patient = row
+
+    try:
+        text = render_template(
+            template,
+            patient_name=patient.first_name,
+            treatment=appt.treatment,
+            apt_date=appt.appointment_date,
+            apt_time=appt.start_time,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+    return {"template": template, "text": text}
+
+
+@router.post("/{appointment_id}/send-template", response_model=AppointmentResponse)
+async def send_template(
+    appointment_id: uuid.UUID,
+    body: TemplateSendRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Manually fire any of the 5 WhatsApp templates for this appointment.
+
+    Useful for J+15 recalls, repeat confirmations, or any case where
+    auto-fire didn't trigger (e.g. the bridge was offline at the time).
+    """
+    clinic_id = _get_clinic_id(user)
+
+    result = await db.execute(
+        select(Appointment, Patient)
+        .join(Patient, Patient.id == Appointment.patient_id)
+        .where(
+            Appointment.id == appointment_id,
+            Appointment.clinic_id == clinic_id,
+        )
+    )
+    row = result.first()
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Appointment not found")
+    appt, patient = row
+
+    full_name = f"{patient.first_name} {patient.last_name}"
+    t = body.template
+
+    if t == "confirmation":
+        await _safe_notify(notify_appointment_status(
+            db, clinic_id, patient.id, full_name, appt.treatment, "confirmed",
+        ))
+    elif t == "reschedule":
+        await _safe_notify(notify_appointment_rescheduled(
+            db, clinic_id, patient.id, full_name,
+            appt.treatment, appt.appointment_date, appt.start_time,
+        ))
+    elif t == "no_show":
+        await _safe_notify(notify_appointment_no_show(
+            db, clinic_id, patient.id, full_name,
+            appt.treatment, appt.appointment_date, appt.start_time,
+        ))
+    elif t == "recall":
+        await _safe_notify(notify_appointment_recall(
+            db, clinic_id, patient.id, full_name, appt.treatment,
+        ))
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unknown template: {t}",
+        )
+
+    return AppointmentResponse.model_validate({
+        **appt.__dict__,
+        "patient_name": full_name,
         "patient_phone": f"{patient.phone_country_code}{patient.phone}",
         "patient_initials": f"{patient.first_name[:1]}{patient.last_name[:1]}".upper(),
         "doctor_name": "",
