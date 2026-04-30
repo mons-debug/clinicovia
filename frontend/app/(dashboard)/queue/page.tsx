@@ -15,6 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { WalkInDialog } from "@/components/queue/walk-in-dialog";
 import {
   useQueue,
   useAdvanceIntake,
@@ -235,9 +236,12 @@ export default function QueuePage() {
             {totals.total} patient{totals.total > 1 ? "s" : ""} en cours · auto-actualisé toutes les 4 secondes
           </p>
         </div>
-        <div className="flex items-center gap-2 text-xs text-[var(--text-muted)]">
-          {isFetching && <Loader2 className="h-3 w-3 animate-spin" />}
-          <span>Synchronisation live</span>
+        <div className="flex items-center gap-3">
+          <span className="inline-flex items-center gap-2 text-xs text-[var(--text-muted)]">
+            {isFetching && <Loader2 className="h-3 w-3 animate-spin" />}
+            Synchronisation live
+          </span>
+          <WalkInDialog />
         </div>
       </div>
 

@@ -27,6 +27,7 @@ import { Badge } from "@/components/ui/badge";
 import { NewPlanDialog } from "@/components/plans/new-plan-dialog";
 import { NewInvoiceDialog } from "@/components/billing/new-invoice-dialog";
 import { NewPrescriptionDialog } from "@/components/prescriptions/new-prescription-dialog";
+import { CompleteDossierCard } from "@/components/patient/complete-dossier-card";
 import {
   usePatient,
   usePatientNotes,
@@ -293,6 +294,11 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
       {activeTab === "overview" && (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <div className="space-y-6 lg:col-span-2">
+            {/* Compléter le dossier — only while intake is incomplete */}
+            {p.intake_status && p.intake_status !== "active" && p.intake_status !== "archived" && (
+              <CompleteDossierCard patient={p} />
+            )}
+
             {/* Identité */}
             <div className="rounded-xl border border-border bg-white p-5">
               <h3 className="text-base font-semibold text-text-primary">Identité</h3>
