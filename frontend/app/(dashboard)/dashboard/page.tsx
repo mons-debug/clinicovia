@@ -101,7 +101,15 @@ export default function DashboardPage() {
       change: "Cette semaine",
       changeUp: true,
       icon: UserPlus,
-      href: "/patients",
+      href: "/patients?tab=patients",
+    },
+    {
+      label: "Leads WhatsApp (7 j)",
+      value: m.leads_week.toString(),
+      change: m.leads_total === 0 ? "Aucun lead actif" : `${m.leads_total} actifs au total`,
+      changeUp: true,
+      icon: UserPlus,
+      href: "/patients?tab=leads",
     },
     {
       label: "Plans actifs",

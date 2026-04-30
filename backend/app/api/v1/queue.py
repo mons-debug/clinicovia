@@ -17,14 +17,18 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
+from datetime import date as date_type, datetime, time as time_type, timezone
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.middleware.auth import get_current_user
+from app.models.appointment import Appointment, AppointmentKind, AppointmentStatus
 from app.models.patient import IntakeStatus, Patient
 from app.models.user import User
+from app.schemas.appointment import AppointmentResponse
 from app.schemas.patient import PatientResponse
 
 
@@ -157,3 +161,84 @@ async def advance_intake(
     await db.commit()
     await db.refresh(patient)
     return PatientResponse.model_validate(patient)
+
+
+# ---------- Walk-in (existing patient arrives without appointment) -----
+
+class WalkInRequest(BaseModel):
+    requested_service: str | None = None
+    note: str | None = None
+
+
+@router.post("/{patient_id}/walk-in", response_model=AppointmentResponse, status_code=status.HTTP_201_CREATED)
+async def walk_in_existing_patient(
+    patient_id: uuid.UUID,
+    body: WalkInRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Existing patient arrives without an appointment.
+
+    Creates a placeholder Appointment with kind=walk_in, status=
+    checked_in, doctor_id=null (assigned when called in), start at
+    current rounded hour, end null. Calendar shows it under "today"
+    with a dashed-border badge so reception sees true load.
+
+    Patient.intake_status flips to AWAITING_DOCTOR so they appear in
+    the queue board's En attente column immediately.
+    """
+    clinic_id = _get_clinic_id(user)
+
+    res = await db.execute(
+        select(Patient).where(
+            Patient.id == patient_id,
+            Patient.clinic_id == clinic_id,
+        )
+    )
+    patient = res.scalar_one_or_none()
+    if not patient:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Patient not found")
+
+    now = datetime.now(timezone.utc)
+    today = now.date()
+
+    # Round start to the nearest 15 min so it sits cleanly on the grid
+    rounded = now.replace(second=0, microsecond=0)
+    minute = (rounded.minute // 15) * 15
+    rounded = rounded.replace(minute=minute)
+
+    appt = Appointment(
+        clinic_id=clinic_id,
+        patient_id=patient_id,
+        doctor_id=None,
+        appointment_date=today,
+        start_time=rounded.timetz().replace(tzinfo=None),
+        end_time=time_type(23, 59),  # placeholder — overwritten on Terminer
+        duration_minutes=30,
+        treatment=(body.requested_service or "Walk-in").strip(),
+        kind=AppointmentKind.WALK_IN,
+        status=AppointmentStatus.CHECKED_IN,
+        notes=body.note,
+        is_first_visit=False,
+        arrived_at=now,
+    )
+    db.add(appt)
+    await db.flush()
+
+    # Sync the patient into the queue board
+    patient.intake_status = IntakeStatus.AWAITING_DOCTOR
+    patient.intake_at = now
+    if body.requested_service:
+        patient.requested_service = body.requested_service
+
+    await db.commit()
+    await db.refresh(appt)
+
+    return AppointmentResponse.model_validate({
+        **appt.__dict__,
+        "patient_name": f"{patient.first_name} {patient.last_name}",
+        "patient_phone": f"{patient.phone_country_code}{patient.phone}",
+        "patient_initials": f"{patient.first_name[:1]}{patient.last_name[:1]}".upper(),
+        "doctor_name": "",
+        "doctor_color": "#6B7280",
+    })

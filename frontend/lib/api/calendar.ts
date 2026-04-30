@@ -22,6 +22,8 @@ export interface CalendarAppointment {
   status: string;
   room?: string | null;
   notes?: string | null;
+  is_first_visit?: boolean;
+  needs_confirmation?: boolean;
   arrived_at?: string | null;
   started_at?: string | null;
   ended_at?: string | null;

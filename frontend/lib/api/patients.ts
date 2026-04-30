@@ -147,6 +147,7 @@ export interface ListPatientsParams {
   search?: string;
   status?: string;
   source?: string;
+  tab?: "all" | "leads" | "patients" | "active";
   sort_by?: string;
   sort_dir?: string;
 }
@@ -164,6 +165,7 @@ export async function listPatients(params: ListPatientsParams = {}): Promise<Pat
   if (params.search) searchParams.set("search", params.search);
   if (params.status) searchParams.set("status", params.status);
   if (params.source) searchParams.set("source", params.source);
+  if (params.tab && params.tab !== "all") searchParams.set("tab", params.tab);
   if (params.sort_by) searchParams.set("sort_by", params.sort_by);
   if (params.sort_dir) searchParams.set("sort_dir", params.sort_dir);
 

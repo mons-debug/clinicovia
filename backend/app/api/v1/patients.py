@@ -8,7 +8,7 @@ from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.models.user import User
-from app.models.patient import Patient, PatientNote, PatientActivity, PatientTag, PatientStatus
+from app.models.patient import Patient, PatientNote, PatientActivity, PatientTag, PatientStatus, IntakeStatus
 from app.schemas.patient import (
     PatientCreate,
     PatientUpdate,
@@ -45,6 +45,12 @@ async def list_patients(
     search: str | None = None,
     status_filter: str | None = Query(None, alias="status"),
     source: str | None = None,
+    # Lifecycle tab — "leads" / "patients" / "active" / "all"
+    # leads     = intake_status = LEAD (not yet visited)
+    # patients  = intake_status != LEAD AND != ARCHIVED (visited at least once)
+    # active    = patient.status = ACTIVE
+    # all       = no lifecycle filter
+    tab: str | None = None,
     sort_by: str = "created_at",
     sort_dir: str = "desc",
     user: User = Depends(get_current_user),
@@ -68,6 +74,16 @@ async def list_patients(
                 Patient.phone.ilike(term),
             )
         )
+
+    # Lifecycle tab
+    if tab == "leads":
+        query = query.where(Patient.intake_status == IntakeStatus.LEAD)
+    elif tab == "patients":
+        query = query.where(
+            Patient.intake_status.notin_([IntakeStatus.LEAD, IntakeStatus.ARCHIVED])
+        )
+    elif tab == "active":
+        query = query.where(Patient.status == PatientStatus.ACTIVE)
 
     # Filters
     if status_filter:

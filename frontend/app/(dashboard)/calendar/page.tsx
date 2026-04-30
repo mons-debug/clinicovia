@@ -97,15 +97,23 @@ function ApptRow({ appt, isoDate }: ApptRowProps) {
     );
   };
 
+  const isWalkIn = appt.kind === "walk_in";
+  const cardClass = cn(
+    "flex items-stretch gap-3 rounded-lg bg-white p-3 transition-shadow hover:shadow-card-hover",
+    isWalkIn
+      ? "border-2 border-dashed border-[var(--primary)]"
+      : "border border-[var(--border)]"
+  );
+
   return (
-    <div className="flex items-stretch gap-3 rounded-lg border border-[var(--border)] bg-white p-3 transition-shadow hover:shadow-card-hover">
+    <div className={cardClass}>
       {/* Time column */}
       <div className="flex w-16 flex-col items-end justify-start border-r border-[var(--line-soft,_#E2E8F0)] pr-3 text-right">
         <p className="font-mono text-sm font-bold text-[var(--text-primary)]">
-          {fmtTime(appt.start_time)}
+          {isWalkIn ? "—" : fmtTime(appt.start_time)}
         </p>
         <p className="text-[10px] text-[var(--text-muted)]">
-          {appt.duration_minutes}min
+          {isWalkIn ? "walk-in" : `${appt.duration_minutes}min`}
         </p>
       </div>
 
@@ -113,9 +121,26 @@ function ApptRow({ appt, isoDate }: ApptRowProps) {
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
-            <p className="truncate font-semibold text-[var(--text-primary)]">
-              {appt.patient_name}
-            </p>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <p className="truncate font-semibold text-[var(--text-primary)]">
+                {appt.patient_name}
+              </p>
+              {appt.is_first_visit && (
+                <Badge variant="default" className="bg-[var(--primary)] text-[10px]">
+                  ⭐ 1ʳᵉ visite
+                </Badge>
+              )}
+              {isWalkIn && (
+                <Badge variant="warning" className="text-[10px]">
+                  ⚡ Walk-in
+                </Badge>
+              )}
+              {appt.needs_confirmation && (
+                <Badge variant="outline" className="border-[var(--warning)] text-[var(--warning)] text-[10px]">
+                  ⏳ À confirmer
+                </Badge>
+              )}
+            </div>
             <p className="truncate text-xs text-[var(--text-secondary)]">{appt.treatment}</p>
             <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[var(--text-muted)]">
               {appt.room && (

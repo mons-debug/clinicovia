@@ -20,10 +20,12 @@ class AppointmentStatus(str, PyEnum):
 
 
 class AppointmentKind(str, PyEnum):
-    """Type of visit — drives default duration and billing rules."""
+    """Type of visit — drives default duration, billing rules, and
+    visual treatment on the calendar."""
     CONSULTATION = "consultation"   # first visit / new-indication evaluation
     SESSION = "session"             # treatment session inside a plan
     CONTROL = "control"             # follow-up / check-in
+    WALK_IN = "walk_in"             # same-day arrival without prior booking
     OTHER = "other"
 
 
@@ -62,6 +64,10 @@ class Appointment(Base, TimestampMixin, TenantMixin):
     arrived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Tentative bookings — reception hasn't called the patient back to
+    # lock the time. Surfaces in the "À-confirmer" panel.
+    needs_confirmation: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     # Reminders
     reminder_sent: Mapped[bool] = mapped_column(Boolean, default=False)

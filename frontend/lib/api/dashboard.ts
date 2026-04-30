@@ -9,6 +9,8 @@ export interface DashboardSummary {
     today_appointments_delta: number;
     in_queue: number;
     new_patients_week: number;
+    leads_week: number;
+    leads_total: number;
     active_plans: number;
     revenue_mtd: number;
     revenue_last_month: number;

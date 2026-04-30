@@ -125,12 +125,32 @@ async def dashboard_summary(
         )
     )).scalar_one()
 
-    # New patients this week
+    # New patients this week (excluding leads — leads tracked separately)
     new_week = (await db.execute(
         select(func.count(Patient.id)).where(
             Patient.clinic_id == clinic_id,
             Patient.is_active == True,  # noqa: E712
+            Patient.intake_status != IntakeStatus.LEAD,
             func.date(Patient.created_at) >= week_ago,
+        )
+    )).scalar_one()
+
+    # WhatsApp leads this week (still in LEAD state)
+    leads_week = (await db.execute(
+        select(func.count(Patient.id)).where(
+            Patient.clinic_id == clinic_id,
+            Patient.is_active == True,  # noqa: E712
+            Patient.intake_status == IntakeStatus.LEAD,
+            func.date(Patient.created_at) >= week_ago,
+        )
+    )).scalar_one()
+
+    # Total active leads (not yet visited)
+    leads_total = (await db.execute(
+        select(func.count(Patient.id)).where(
+            Patient.clinic_id == clinic_id,
+            Patient.is_active == True,  # noqa: E712
+            Patient.intake_status == IntakeStatus.LEAD,
         )
     )).scalar_one()
 
@@ -216,6 +236,8 @@ async def dashboard_summary(
             "today_appointments_delta": today_appts - yest_appts,
             "in_queue": in_queue,
             "new_patients_week": new_week,
+            "leads_week": leads_week,
+            "leads_total": leads_total,
             "active_plans": active_plans,
             "revenue_mtd": float(revenue_mtd),
             "revenue_last_month": float(revenue_last_month),

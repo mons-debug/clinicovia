@@ -46,7 +46,17 @@ class ChannelPref(str, PyEnum):
 
 
 class IntakeStatus(str, PyEnum):
-    """Reception ↔ doctor workflow state for the salle d'attente."""
+    """Patient lifecycle.
+
+    LEAD is the marketing-funnel state: an inbound (WhatsApp / website
+    form) that hasn't physically arrived yet. Leads are excluded from
+    the queue board + calendar — they live only in the patients
+    "Leads" tab and the WhatsApp inbox until they walk in or book.
+
+    The four "in-clinic" states drive the salle d'attente flow.
+    ACTIVE = registered patient currently outside the clinic.
+    """
+    LEAD = "lead"                        # WA / form lead, no visit yet
     INTAKE_PENDING = "intake_pending"   # reception filled the short form, patient waiting
     AWAITING_DOCTOR = "awaiting_doctor"  # queued for doctor review
     IN_ROOM = "in_room"                  # doctor called the patient in

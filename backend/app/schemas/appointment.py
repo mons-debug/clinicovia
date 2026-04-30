@@ -48,9 +48,12 @@ class AppointmentResponse(BaseModel):
     end_time: time
     duration_minutes: int
     treatment: str
+    kind: str = "consultation"
     status: str
+    room: str | None = None
     notes: str | None
     is_first_visit: bool
+    needs_confirmation: bool = False
     created_at: datetime
     updated_at: datetime
     model_config = {"from_attributes": True}

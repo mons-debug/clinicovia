@@ -145,7 +145,12 @@ async def _auto_attach_patient(db: AsyncSession, conv: WhatsAppConversation) -> 
                 language_pref="fr",
                 lead_source=LeadSource.WHATSAPP,
                 status=PatientStatus.NEW,
-                intake_status=IntakeStatus.INTAKE_PENDING,
+                # LEAD = chatting on WhatsApp, hasn't physically arrived
+                # yet. Stays out of /queue board + /calendar; visible only
+                # in /patients?filter=leads, the WA inbox, and the
+                # "Leads (7j)" dashboard KPI. Calendar "Arrivé" event
+                # promotes them to awaiting_doctor on first visit.
+                intake_status=IntakeStatus.LEAD,
                 requested_service="Demande WhatsApp",
                 whatsapp_id=conv.jid,
             )
