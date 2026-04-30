@@ -5,22 +5,25 @@ import Link from "next/link";
 import { toast } from "sonner";
 import {
   ArrowLeft,
-  CheckCircle2,
   CalendarClock,
+  CheckCircle2,
+  FileText,
+  Image as ImageIcon,
   Loader2,
   PlayCircle,
-  SkipForward,
+  Receipt,
   RotateCcw,
+  SkipForward,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
-  usePlan,
   useAdvanceSession,
+  usePlanTimeline,
   type SessionStatus,
-  type TreatmentSession,
+  type SessionTimelineEntry,
 } from "@/lib/api/plans";
 
 const STATUS_LABEL: Record<SessionStatus, string> = {
@@ -39,11 +42,29 @@ const STATUS_VARIANT: Record<SessionStatus, "outline" | "secondary" | "warning" 
   skipped: "destructive",
 };
 
+const APPT_STATUS_LABEL: Record<string, string> = {
+  scheduled: "Programmé",
+  confirmed: "Confirmé",
+  checked_in: "Arrivé",
+  in_progress: "En cours",
+  completed: "Terminé",
+  cancelled: "Annulé",
+  no_show: "Absent",
+};
+
 const PLAN_STATUS_LABEL: Record<string, string> = {
   draft: "Brouillon",
   active: "Actif",
   completed: "Terminé",
   cancelled: "Annulé",
+};
+
+const INVOICE_STATUS_LABEL: Record<string, string> = {
+  draft: "Brouillon",
+  issued: "Émise",
+  partially_paid: "Partiellement payée",
+  paid: "Payée",
+  cancelled: "Annulée",
 };
 
 function fmt(d: string | null): string {
@@ -56,13 +77,14 @@ function fmt(d: string | null): string {
   });
 }
 
-function SessionRow({
-  session,
+function SessionCard({
+  entry,
   planId,
 }: {
-  session: TreatmentSession;
+  entry: SessionTimelineEntry;
   planId: string;
 }) {
+  const { session, appointment, photos, prescriptions } = entry;
   const advance = useAdvanceSession(planId);
 
   const fire = (to: SessionStatus, label: string) =>
@@ -94,74 +116,141 @@ function SessionRow({
   };
 
   return (
-    <div className="flex items-center gap-4 rounded-lg border border-[var(--border)] bg-white p-4">
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--primary-lighter)] font-mono text-sm font-bold text-[var(--primary)]">
-        {session.session_number}
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="font-semibold text-[var(--text-primary)]">
-            Séance {session.session_number}
-          </p>
-          <Badge variant={STATUS_VARIANT[session.status]}>
-            {STATUS_LABEL[session.status]}
-          </Badge>
+    <Card className="p-4">
+      {/* Top row — number + status + actions */}
+      <div className="flex items-start gap-4">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--primary-lighter)] font-mono text-sm font-bold text-[var(--primary)]">
+          {session.session_number}
         </div>
-        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--text-muted)]">
-          <span className="inline-flex items-center gap-1">
-            <CalendarClock className="h-3 w-3" />
-            {fmt(session.planned_for)}
-          </span>
-          {session.outcome_score != null && (
-            <span>Score {session.outcome_score}/10</span>
-          )}
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="font-semibold text-[var(--text-primary)]">
+              Séance {session.session_number}
+            </p>
+            <Badge variant={STATUS_VARIANT[session.status]}>
+              {STATUS_LABEL[session.status]}
+            </Badge>
+            {appointment && (
+              <Link
+                href={`/calendar?date=${appointment.appointment_date}`}
+                className="inline-flex items-center gap-1 rounded-md bg-[var(--background)] px-2 py-0.5 text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+              >
+                <CalendarClock className="h-3 w-3" />
+                {fmt(appointment.appointment_date)} · {appointment.start_time}
+                <span className="text-[var(--text-muted)]">·</span>
+                <span>{APPT_STATUS_LABEL[appointment.status] ?? appointment.status}</span>
+              </Link>
+            )}
+            {!appointment && session.planned_for && (
+              <span className="inline-flex items-center gap-1 text-[11px] text-[var(--text-muted)]">
+                <CalendarClock className="h-3 w-3" />
+                Prévue pour le {fmt(session.planned_for)}
+              </span>
+            )}
+            {session.outcome_score != null && (
+              <span className="text-[11px] text-[var(--text-muted)]">
+                Score {session.outcome_score}/10
+              </span>
+            )}
+          </div>
           {session.outcome_note && (
-            <span className="truncate max-w-[40ch]">{session.outcome_note}</span>
+            <p className="mt-1 text-xs text-[var(--text-secondary)]">{session.outcome_note}</p>
           )}
         </div>
-      </div>
-      <div className="flex flex-wrap gap-1.5">
-        {session.status === "planned" && (
-          <>
-            <Button size="sm" variant="secondary" disabled={advance.isPending} onClick={() => fire("scheduled", "Programmée")}>
-              Programmer
+        <div className="flex flex-wrap gap-1.5">
+          {session.status === "planned" && (
+            <>
+              <Button size="sm" variant="secondary" disabled={advance.isPending} onClick={() => fire("scheduled", "Programmée")}>
+                Programmer
+              </Button>
+              <Button size="sm" variant="ghost" disabled={advance.isPending} onClick={() => fire("skipped", "Sautée")}>
+                <SkipForward className="h-3 w-3" />
+              </Button>
+            </>
+          )}
+          {session.status === "scheduled" && (
+            <>
+              <Button size="sm" variant="default" disabled={advance.isPending} onClick={() => fire("in_progress", "En cours")}>
+                <PlayCircle className="h-3 w-3" />
+                Commencer
+              </Button>
+              <Button size="sm" variant="ghost" disabled={advance.isPending} onClick={() => fire("planned", "Planifiée")}>
+                <RotateCcw className="h-3 w-3" />
+              </Button>
+            </>
+          )}
+          {session.status === "in_progress" && (
+            <Button size="sm" variant="default" disabled={advance.isPending} onClick={completeWithScore}>
+              <CheckCircle2 className="h-3 w-3" />
+              Terminer
             </Button>
-            <Button size="sm" variant="ghost" disabled={advance.isPending} onClick={() => fire("skipped", "Sautée")}>
-              <SkipForward className="h-3 w-3" />
-            </Button>
-          </>
-        )}
-        {session.status === "scheduled" && (
-          <>
-            <Button size="sm" variant="default" disabled={advance.isPending} onClick={() => fire("in_progress", "En cours")}>
-              <PlayCircle className="h-3 w-3" />
-              Commencer
-            </Button>
+          )}
+          {session.status === "skipped" && (
             <Button size="sm" variant="ghost" disabled={advance.isPending} onClick={() => fire("planned", "Planifiée")}>
               <RotateCcw className="h-3 w-3" />
+              Réactiver
             </Button>
-          </>
-        )}
-        {session.status === "in_progress" && (
-          <Button size="sm" variant="default" disabled={advance.isPending} onClick={completeWithScore}>
-            <CheckCircle2 className="h-3 w-3" />
-            Terminer
-          </Button>
-        )}
-        {session.status === "skipped" && (
-          <Button size="sm" variant="ghost" disabled={advance.isPending} onClick={() => fire("planned", "Planifiée")}>
-            <RotateCcw className="h-3 w-3" />
-            Réactiver
-          </Button>
-        )}
+          )}
+        </div>
       </div>
-    </div>
+
+      {/* Inline photos + Rx — only when there's something to show */}
+      {(photos.length > 0 || prescriptions.length > 0) && (
+        <div className="mt-4 grid grid-cols-1 gap-3 border-t border-[var(--line-soft,_#E2E8F0)] pt-3 lg:grid-cols-2">
+          {photos.length > 0 && (
+            <div>
+              <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
+                <ImageIcon className="h-3 w-3" />
+                Photos · {photos.length}
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {photos.slice(0, 6).map((p) => (
+                  <span
+                    key={p.id}
+                    className="inline-flex items-center gap-1 rounded-md bg-[var(--background)] px-2 py-1 text-[10px] text-[var(--text-secondary)]"
+                  >
+                    {p.zone_slug} · {p.stage}
+                  </span>
+                ))}
+                {photos.length > 6 && (
+                  <span className="text-[10px] text-[var(--text-muted)]">
+                    +{photos.length - 6}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+          {prescriptions.length > 0 && (
+            <div>
+              <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
+                <FileText className="h-3 w-3" />
+                Ordonnances · {prescriptions.length}
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {prescriptions.map((rx) => (
+                  <Link
+                    key={rx.id}
+                    href={`/prescriptions/${rx.id}`}
+                    className="inline-flex items-center gap-1 rounded-md border border-[var(--border)] bg-white px-2 py-1 font-mono text-[10px] text-[var(--text-secondary)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
+                  >
+                    {rx.number}
+                    {rx.status === "signed" && (
+                      <CheckCircle2 className="h-3 w-3 text-[var(--success)]" />
+                    )}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </Card>
   );
 }
 
 export default function PlanDetailPage(props: { params: Promise<{ id: string }> }) {
   const { id } = use(props.params);
-  const { data: plan, isLoading, isError } = usePlan(id);
+  const { data: timeline, isLoading, isError } = usePlanTimeline(id);
 
   if (isLoading) {
     return (
@@ -170,7 +259,7 @@ export default function PlanDetailPage(props: { params: Promise<{ id: string }> 
       </div>
     );
   }
-  if (isError || !plan) {
+  if (isError || !timeline) {
     return (
       <div className="space-y-3 p-6">
         <Link href="/patients" className="inline-flex items-center gap-1.5 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
@@ -182,6 +271,7 @@ export default function PlanDetailPage(props: { params: Promise<{ id: string }> 
     );
   }
 
+  const { plan, sessions, invoices } = timeline;
   const completed = plan.sessions.filter((s) => s.status === "completed").length;
   const skipped = plan.sessions.filter((s) => s.status === "skipped").length;
   const pct = plan.total_sessions > 0
@@ -190,7 +280,6 @@ export default function PlanDetailPage(props: { params: Promise<{ id: string }> 
 
   return (
     <div className="space-y-6 p-6">
-      {/* Back nav */}
       <Link
         href={`/patients/${plan.patient_id}`}
         className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]"
@@ -233,7 +322,7 @@ export default function PlanDetailPage(props: { params: Promise<{ id: string }> 
           )}
         </div>
 
-        {/* Progress bar */}
+        {/* Progress */}
         <div className="mt-6">
           <div className="mb-2 flex items-center justify-between text-xs text-[var(--text-secondary)]">
             <span>Progression</span>
@@ -257,15 +346,42 @@ export default function PlanDetailPage(props: { params: Promise<{ id: string }> 
         )}
       </Card>
 
-      {/* Sessions */}
+      {/* Séances — each card is plan-centric (appt + photos + Rx inline) */}
       <div className="space-y-3">
         <h2 className="text-sm font-bold uppercase tracking-wide text-[var(--text-primary)]">
           Séances
         </h2>
-        {plan.sessions.map((s) => (
-          <SessionRow key={s.id} session={s} planId={plan.id} />
+        {sessions.map((entry) => (
+          <SessionCard key={entry.session.id} entry={entry} planId={plan.id} />
         ))}
       </div>
+
+      {/* Plan-level invoices */}
+      {invoices.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-[var(--text-primary)]">
+            <Receipt className="h-3.5 w-3.5" />
+            Factures
+          </h2>
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+            {invoices.map((inv) => (
+              <Link
+                key={inv.id}
+                href={`/invoices/${inv.id}`}
+                className="flex items-center justify-between rounded-lg border border-[var(--border)] bg-white p-3 text-sm hover:border-[var(--primary)]"
+              >
+                <span className="flex items-center gap-2">
+                  <span className="font-mono font-bold text-[var(--text-primary)]">{inv.number}</span>
+                  <Badge variant="outline">{INVOICE_STATUS_LABEL[inv.status] ?? inv.status}</Badge>
+                </span>
+                <span className="font-mono font-bold text-[var(--text-primary)]">
+                  {inv.total.toLocaleString("fr-FR")} {inv.currency}
+                </span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

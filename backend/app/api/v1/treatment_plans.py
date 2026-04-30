@@ -13,13 +13,18 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.middleware.auth import get_current_user
+from app.models.appointment import Appointment
+from app.models.billing import Invoice
 from app.models.patient import Patient
+from app.models.photo import PatientPhoto
+from app.models.prescription import Prescription
 from app.models.treatment_plan import (
     IntervalUnit,
     PlanStatus,
@@ -293,3 +298,172 @@ async def advance_session(
         await db.refresh(session_row)
 
     return SessionResponse.model_validate(session_row)
+
+
+# ---------- Plan timeline (séance-centric view) ------------------------
+
+class TimelineAppointment(BaseModel):
+    id: uuid.UUID
+    appointment_date: str  # YYYY-MM-DD
+    start_time: str        # HH:MM
+    status: str
+    treatment: str
+    room: str | None = None
+
+
+class TimelinePhoto(BaseModel):
+    id: uuid.UUID
+    zone_slug: str
+    stage: str
+    storage_key: str
+
+
+class TimelinePrescription(BaseModel):
+    id: uuid.UUID
+    number: str
+    status: str
+    created_at: str
+
+
+class TimelineInvoice(BaseModel):
+    id: uuid.UUID
+    number: str
+    status: str
+    total: float
+    currency: str
+
+
+class SessionTimelineEntry(BaseModel):
+    session: SessionResponse
+    appointment: TimelineAppointment | None = None
+    photos: list[TimelinePhoto] = []
+    prescriptions: list[TimelinePrescription] = []
+
+
+class PlanTimelineResponse(BaseModel):
+    plan: PlanResponse
+    sessions: list[SessionTimelineEntry]
+    invoices: list[TimelineInvoice]   # plan-level (no per-session link yet)
+
+
+@router.get("/{plan_id}/timeline", response_model=PlanTimelineResponse)
+async def get_plan_timeline(
+    plan_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Plan + séance-by-séance bundle with linked appointment, photos,
+    prescriptions, and plan-level invoices. Drives the patient-detail
+    plan card."""
+    clinic_id = _get_clinic_id(user)
+
+    # Load plan + sessions
+    plan_res = await db.execute(
+        select(TreatmentPlan)
+        .options(selectinload(TreatmentPlan.sessions))
+        .where(
+            TreatmentPlan.id == plan_id,
+            TreatmentPlan.clinic_id == clinic_id,
+        )
+    )
+    plan = plan_res.scalar_one_or_none()
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    sessions = sorted(plan.sessions, key=lambda s: s.session_number)
+    appt_ids = [s.appointment_id for s in sessions if s.appointment_id]
+
+    # Resolve appointments
+    appts_by_id: dict[uuid.UUID, Appointment] = {}
+    if appt_ids:
+        a_res = await db.execute(
+            select(Appointment).where(
+                Appointment.clinic_id == clinic_id,
+                Appointment.id.in_(appt_ids),
+            )
+        )
+        appts_by_id = {a.id: a for a in a_res.scalars().all()}
+
+    # Photos linked to any of these appointments
+    photos_by_appt: dict[uuid.UUID, list[PatientPhoto]] = {}
+    if appt_ids:
+        ph_res = await db.execute(
+            select(PatientPhoto).where(
+                PatientPhoto.clinic_id == clinic_id,
+                PatientPhoto.appointment_id.in_(appt_ids),
+                PatientPhoto.deleted_at.is_(None),
+            )
+        )
+        for ph in ph_res.scalars().all():
+            photos_by_appt.setdefault(ph.appointment_id, []).append(ph)
+
+    # Prescriptions per appointment
+    rx_by_appt: dict[uuid.UUID, list[Prescription]] = {}
+    if appt_ids:
+        rx_res = await db.execute(
+            select(Prescription).where(
+                Prescription.clinic_id == clinic_id,
+                Prescription.appointment_id.in_(appt_ids),
+            )
+        )
+        for rx in rx_res.scalars().all():
+            rx_by_appt.setdefault(rx.appointment_id, []).append(rx)
+
+    # Plan-level invoices
+    inv_res = await db.execute(
+        select(Invoice).where(
+            Invoice.clinic_id == clinic_id,
+            Invoice.plan_id == plan_id,
+        )
+    )
+    invoices = list(inv_res.scalars().all())
+
+    entries: list[SessionTimelineEntry] = []
+    for s in sessions:
+        appt = appts_by_id.get(s.appointment_id) if s.appointment_id else None
+        photos = photos_by_appt.get(s.appointment_id, []) if s.appointment_id else []
+        rxs = rx_by_appt.get(s.appointment_id, []) if s.appointment_id else []
+
+        entries.append(SessionTimelineEntry(
+            session=SessionResponse.model_validate(s),
+            appointment=(
+                TimelineAppointment(
+                    id=appt.id,
+                    appointment_date=appt.appointment_date.isoformat(),
+                    start_time=appt.start_time.strftime("%H:%M"),
+                    status=appt.status.value,
+                    treatment=appt.treatment,
+                    room=appt.room,
+                ) if appt else None
+            ),
+            photos=[
+                TimelinePhoto(
+                    id=p.id,
+                    zone_slug=p.zone_slug,
+                    stage=p.stage.value,
+                    storage_key=p.storage_key,
+                ) for p in photos
+            ],
+            prescriptions=[
+                TimelinePrescription(
+                    id=r.id,
+                    number=r.number,
+                    status=r.status.value,
+                    created_at=r.created_at.isoformat() if r.created_at else "",
+                ) for r in rxs
+            ],
+        ))
+
+    return PlanTimelineResponse(
+        plan=PlanResponse.model_validate(plan),
+        sessions=entries,
+        invoices=[
+            TimelineInvoice(
+                id=inv.id,
+                number=inv.number,
+                status=inv.status.value,
+                total=float(inv.total),
+                currency=inv.currency,
+            ) for inv in invoices
+        ],
+    )

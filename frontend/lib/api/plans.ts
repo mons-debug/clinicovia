@@ -91,6 +91,62 @@ export function usePlan(planId: string | undefined) {
   });
 }
 
+// ── Plan timeline (séance-centric view) ─────────────────────────
+
+export interface TimelineAppointment {
+  id: string;
+  appointment_date: string;
+  start_time: string;
+  status: string;
+  treatment: string;
+  room: string | null;
+}
+
+export interface TimelinePhoto {
+  id: string;
+  zone_slug: string;
+  stage: string;
+  storage_key: string;
+}
+
+export interface TimelinePrescription {
+  id: string;
+  number: string;
+  status: string;
+  created_at: string;
+}
+
+export interface TimelineInvoice {
+  id: string;
+  number: string;
+  status: string;
+  total: number;
+  currency: string;
+}
+
+export interface SessionTimelineEntry {
+  session: TreatmentSession;
+  appointment: TimelineAppointment | null;
+  photos: TimelinePhoto[];
+  prescriptions: TimelinePrescription[];
+}
+
+export interface PlanTimeline {
+  plan: TreatmentPlan;
+  sessions: SessionTimelineEntry[];
+  invoices: TimelineInvoice[];
+}
+
+export function usePlanTimeline(planId: string | undefined) {
+  const token = useAuthStore((s) => s.accessToken);
+  return useQuery({
+    queryKey: ["plans", "timeline", planId],
+    queryFn: () =>
+      apiClient<PlanTimeline>(`/plans/${planId}/timeline`, { token: token ?? undefined }),
+    enabled: !!planId,
+  });
+}
+
 export function useCreatePlan() {
   const token = useAuthStore((s) => s.accessToken);
   const qc = useQueryClient();
