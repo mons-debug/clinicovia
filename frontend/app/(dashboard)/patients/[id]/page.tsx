@@ -28,6 +28,8 @@ import { NewPlanDialog } from "@/components/plans/new-plan-dialog";
 import { NewInvoiceDialog } from "@/components/billing/new-invoice-dialog";
 import { NewPrescriptionDialog } from "@/components/prescriptions/new-prescription-dialog";
 import { CompleteDossierCard } from "@/components/patient/complete-dossier-card";
+import { IdentityEditCard } from "@/components/patient/identity-edit-card";
+import { ClinicalEditCard } from "@/components/patient/clinical-edit-card";
 import { PhotosCard } from "@/components/photos/photos-card";
 import { NewConsultationDialog } from "@/components/consultations/new-consultation-dialog";
 import {
@@ -304,74 +306,31 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
               <CompleteDossierCard patient={p} />
             )}
 
-            {/* Identité */}
-            <div className="rounded-xl border border-border bg-white p-5">
-              <h3 className="text-base font-semibold text-text-primary">Identité</h3>
-              <div className="mt-4 grid grid-cols-2 gap-4">
-                {[
-                  { label: "Nom complet", value: `${p.first_name} ${p.last_name}` },
-                  { label: "Sexe", value: p.gender ? p.gender.charAt(0).toUpperCase() + p.gender.slice(1) : "—" },
-                  { label: "Date de naissance", value: p.date_of_birth ? formatDate(p.date_of_birth) : "—" },
-                  { label: "CNIE", value: p.cnie || "—" },
-                  { label: "Ville", value: [p.city, p.country].filter(Boolean).join(", ") || "—" },
-                  { label: "Adresse", value: p.email || "—" },
-                ].map((item) => (
-                  <div key={item.label}>
-                    <p className="text-xs text-text-muted">{item.label}</p>
-                    <p className="mt-0.5 text-sm font-medium text-text-primary">{item.value}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
+            {/* Identité — always-on, role-gated edit (reception) */}
+            <IdentityEditCard patient={p} />
 
-            {/* Dossier clinique */}
-            <div className="rounded-xl border border-border bg-white p-5">
-              <h3 className="text-base font-semibold text-text-primary">Dossier clinique</h3>
-              <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-3">
-                <div>
-                  <p className="text-xs text-text-muted">Phototype</p>
-                  <p className="mt-0.5 text-sm font-medium text-text-primary">
-                    {p.fitzpatrick ? `Fitzpatrick ${p.fitzpatrick}` : "—"}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-text-muted">Poids</p>
-                  <p className="mt-0.5 text-sm font-medium text-text-primary">
-                    {p.weight_kg != null ? `${p.weight_kg} kg` : "—"}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-text-muted">Taille</p>
-                  <p className="mt-0.5 text-sm font-medium text-text-primary">
-                    {p.height_cm != null ? `${p.height_cm} cm` : "—"}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-text-muted">IMC</p>
-                  <p className="mt-0.5 text-sm font-medium text-text-primary">
-                    {p.bmi != null ? p.bmi : "—"}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-text-muted">Tabac</p>
-                  <p className="mt-0.5 text-sm font-medium text-text-primary">
-                    {p.smoker == null ? "—" : p.smoker ? "Oui" : "Non"}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-text-muted">Statut salle</p>
-                  <p className="mt-0.5 text-sm font-medium text-text-primary">
-                    {INTAKE_LABEL[p.intake_status] || p.intake_status}
-                  </p>
+            {/* Dossier clinique — always-on, role-gated edit (doctor) */}
+            <ClinicalEditCard patient={p} />
+
+            {/* Demande à l'accueil + statut salle (read-only summary) */}
+            {(p.requested_service || p.intake_status) && (
+              <div className="rounded-xl border border-border bg-white p-5">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs text-text-muted">Statut salle d&apos;attente</p>
+                    <p className="mt-0.5 text-sm font-medium text-text-primary">
+                      {INTAKE_LABEL[p.intake_status] || p.intake_status}
+                    </p>
+                  </div>
+                  {p.requested_service && (
+                    <div>
+                      <p className="text-xs font-medium text-[var(--primary)]">Demande à l&apos;accueil</p>
+                      <p className="mt-0.5 text-sm text-[var(--text-primary)]">{p.requested_service}</p>
+                    </div>
+                  )}
                 </div>
               </div>
-              {p.requested_service && (
-                <div className="mt-4 rounded-lg bg-[var(--primary-lighter)] p-3">
-                  <p className="text-xs font-medium text-[var(--primary)]">Demande à l&apos;accueil</p>
-                  <p className="mt-0.5 text-sm text-[var(--primary)]">{p.requested_service}</p>
-                </div>
-              )}
-            </div>
+            )}
 
             {/* Préférences & attribution */}
             <div className="rounded-xl border border-border bg-white p-5">
