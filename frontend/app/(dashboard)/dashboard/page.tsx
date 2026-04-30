@@ -1,242 +1,262 @@
 "use client";
 
-import { Calendar, UserPlus, DollarSign, Clock, Plus, Activity } from "lucide-react";
+import Link from "next/link";
+import {
+  Calendar as CalendarIcon,
+  UserPlus,
+  DollarSign,
+  Clock,
+  Activity,
+  Loader2,
+  ArrowUpRight,
+  ArrowDownRight,
+  ClipboardList,
+} from "lucide-react";
 
-// Mock data — will be replaced with API calls
-const kpiData = [
-  {
-    label: "Today's Appointments",
-    value: "14",
-    change: "+3 vs yesterday",
-    changeType: "up" as const,
-    icon: Calendar,
-    color: "#3B82F6",
-    bgColor: "#EFF6FF",
-  },
-  {
-    label: "New Leads",
-    value: "23",
-    change: "+18%",
-    changeType: "up" as const,
-    icon: UserPlus,
-    color: "#10B981",
-    bgColor: "#ECFDF5",
-  },
-  {
-    label: "Revenue (MTD)",
-    value: "$48,320",
-    change: "+12%",
-    changeType: "up" as const,
-    icon: DollarSign,
-    color: "#059669",
-    bgColor: "#ECFDF5",
-  },
-  {
-    label: "Avg Response Time",
-    value: "12s",
-    change: "-8s faster",
-    changeType: "up" as const,
-    icon: Clock,
-    color: "#F59E0B",
-    bgColor: "#FFFBEB",
-  },
-  {
-    label: "Conversions Sent",
-    value: "--",
-    change: "View details",
-    changeType: "up" as const,
-    icon: Activity,
-    color: "#8B5CF6",
-    bgColor: "#F5F3FF",
-  },
-];
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { useDashboardSummary } from "@/lib/api/dashboard";
 
-const recentConversations = [
-  { name: "Fatima Al-Rashid", message: "Thanks, can I book for next...", time: "2m", unread: 3 },
-  { name: "Ahmad Hassan", message: "What's the cost for FUE?", time: "5m", unread: 1 },
-  { name: "Maryam Al-Sayed", message: "I'd like to schedule a consult...", time: "12m", unread: 0 },
-  { name: "Omar Khalil", message: "Is Dr. Sarah available tomorrow?", time: "1h", unread: 0 },
-  { name: "Noor Ali", message: "Thank you for the information", time: "2h", unread: 0 },
-];
+const APPT_STATUS_LABEL: Record<string, string> = {
+  scheduled: "Programmé",
+  confirmed: "Confirmé",
+  checked_in: "Arrivé",
+  in_progress: "En cours",
+  completed: "Terminé",
+  cancelled: "Annulé",
+  no_show: "Absent",
+};
 
-const todayAppointments = [
-  { time: "09:00", patient: "Fatima Al-Rashid", treatment: "Botox", doctor: "Dr. Sarah", status: "Confirmed" },
-  { time: "10:00", patient: "Ahmad Hassan", treatment: "Consultation", doctor: "Dr. Ali", status: "Checked In" },
-  { time: "11:30", patient: "Maryam Al-Sayed", treatment: "Laser", doctor: "Dr. Noor", status: "Pending" },
-  { time: "14:00", patient: "Omar Khalil", treatment: "Hair Transplant", doctor: "Dr. Ahmad", status: "Confirmed" },
-];
+const APPT_STATUS_VARIANT: Record<string, "default" | "outline" | "secondary" | "warning" | "success" | "destructive"> = {
+  scheduled: "outline",
+  confirmed: "secondary",
+  checked_in: "warning",
+  in_progress: "default",
+  completed: "success",
+  cancelled: "destructive",
+  no_show: "destructive",
+};
 
-const quickActions = ["New Patient", "Book Appointment", "Start Campaign"];
+function fmtMad(value: number): string {
+  return new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(value);
+}
+
+function greeting(): string {
+  const h = new Date().getHours();
+  if (h < 12) return "Bonjour";
+  if (h < 18) return "Bon après-midi";
+  return "Bonsoir";
+}
+
+function fmtTodayLong(): string {
+  return new Date().toLocaleDateString("fr-FR", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}
 
 export default function DashboardPage() {
+  const { data, isLoading } = useDashboardSummary();
+
+  if (isLoading || !data) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center text-[var(--text-muted)]">
+        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Chargement…
+      </div>
+    );
+  }
+
+  const m = data.metrics;
+  const revenueDeltaPct =
+    m.revenue_last_month > 0
+      ? Math.round(((m.revenue_mtd - m.revenue_last_month) / m.revenue_last_month) * 100)
+      : null;
+
+  const kpis = [
+    {
+      label: "Rendez-vous aujourd'hui",
+      value: m.today_appointments.toString(),
+      change:
+        m.today_appointments_delta >= 0
+          ? `+${m.today_appointments_delta} vs hier`
+          : `${m.today_appointments_delta} vs hier`,
+      changeUp: m.today_appointments_delta >= 0,
+      icon: CalendarIcon,
+      href: "/calendar",
+    },
+    {
+      label: "En salle d'attente",
+      value: m.in_queue.toString(),
+      change: m.in_queue === 0 ? "Aucun patient en cours" : "Patients en cours",
+      changeUp: true,
+      icon: Clock,
+      href: "/queue",
+    },
+    {
+      label: "Nouveaux patients (7 j)",
+      value: m.new_patients_week.toString(),
+      change: "Cette semaine",
+      changeUp: true,
+      icon: UserPlus,
+      href: "/patients",
+    },
+    {
+      label: "Plans actifs",
+      value: m.active_plans.toString(),
+      change: "Cures en cours",
+      changeUp: true,
+      icon: Activity,
+      href: "/patients",
+    },
+    {
+      label: "Recettes (MTD)",
+      value: `${fmtMad(m.revenue_mtd)} ${m.currency}`,
+      change:
+        revenueDeltaPct === null
+          ? "—"
+          : revenueDeltaPct >= 0
+          ? `+${revenueDeltaPct}% vs mois dernier`
+          : `${revenueDeltaPct}% vs mois dernier`,
+      changeUp: (revenueDeltaPct ?? 0) >= 0,
+      icon: DollarSign,
+      href: "/invoices",
+    },
+  ];
+
   return (
-    <div className="space-y-6">
-      {/* Welcome + Quick Actions */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="space-y-6 p-6">
+      {/* Greeting + quick actions */}
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-text-primary">Good morning, Dr. Ahmad</h1>
-          <p className="mt-0.5 text-sm text-text-secondary">Saturday, March 28, 2026</p>
+          <h1 className="text-2xl font-bold capitalize text-[var(--text-primary)]">
+            {greeting()}, {data.user.first_name}
+          </h1>
+          <p className="text-sm text-[var(--text-secondary)] capitalize">{fmtTodayLong()}</p>
         </div>
-        <div className="flex gap-2">
-          {quickActions.map((action) => (
-            <button
-              key={action}
-              className="flex items-center gap-1.5 rounded-lg border border-border bg-white px-3 py-1.5 text-sm font-medium text-text-primary transition-colors hover:bg-gray-50"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              {action}
-            </button>
-          ))}
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="default" size="sm">
+            <Link href="/queue"><UserPlus className="h-3 w-3" />Walk-in</Link>
+          </Button>
+          <Button asChild variant="secondary" size="sm">
+            <Link href="/calendar"><CalendarIcon className="h-3 w-3" />Calendrier</Link>
+          </Button>
+          <Button asChild variant="secondary" size="sm">
+            <Link href="/patients/new"><UserPlus className="h-3 w-3" />Nouveau patient</Link>
+          </Button>
         </div>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {kpiData.map((kpi) => {
-          const Icon = kpi.icon;
-          return (
-            <div
-              key={kpi.label}
-              className="rounded-xl border border-border bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
-            >
+      {/* KPI grid */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        {kpis.map((k) => (
+          <Link key={k.label} href={k.href}>
+            <Card className="p-5 transition-shadow hover:shadow-card-hover">
               <div className="flex items-start justify-between">
-                <div
-                  className="flex h-10 w-10 items-center justify-center rounded-lg"
-                  style={{ backgroundColor: kpi.bgColor }}
-                >
-                  <Icon className="h-5 w-5" style={{ color: kpi.color }} />
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--primary-lighter)] text-[var(--primary)]">
+                  <k.icon className="h-5 w-5" />
                 </div>
                 <span
-                  className="rounded-full px-2 py-0.5 text-xs font-medium"
-                  style={{ backgroundColor: "#ECFDF5", color: "#10B981" }}
+                  className={`inline-flex items-center text-xs font-medium ${
+                    k.changeUp ? "text-[var(--success)]" : "text-[var(--danger)]"
+                  }`}
                 >
-                  {kpi.change}
+                  {k.changeUp ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
                 </span>
               </div>
-              <p className="mt-4 text-sm text-text-secondary">{kpi.label}</p>
-              <p className="mt-1 text-2xl font-bold text-text-primary">{kpi.value}</p>
-            </div>
-          );
-        })}
+              <p className="mt-3 text-2xl font-bold text-[var(--text-primary)]">{k.value}</p>
+              <p className="text-xs text-[var(--text-secondary)]">{k.label}</p>
+              <p className="mt-1 text-[11px] text-[var(--text-muted)]">{k.change}</p>
+            </Card>
+          </Link>
+        ))}
       </div>
 
-      {/* Row 2 — Pipeline + WhatsApp */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
-        {/* Pipeline Overview */}
-        <div className="rounded-xl border border-border bg-white p-5 shadow-sm lg:col-span-3">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        {/* Today's appointments */}
+        <Card className="p-6 lg:col-span-2">
           <div className="flex items-center justify-between">
-            <h3 className="text-base font-semibold text-text-primary">Pipeline Overview</h3>
-            <span className="text-xs text-text-muted">This month</span>
+            <h3 className="text-base font-semibold text-[var(--text-primary)]">
+              Rendez-vous du jour
+            </h3>
+            <Link href="/calendar" className="text-xs font-medium text-[var(--primary)] hover:underline">
+              Voir tout →
+            </Link>
           </div>
-          <div className="mt-5 space-y-3">
-            {[
-              { stage: "New Lead", count: 34, value: "$45K", pct: 100 },
-              { stage: "Contacted", count: 28, value: "$38K", pct: 82 },
-              { stage: "Qualified", count: 15, value: "$28K", pct: 44 },
-              { stage: "Booked", count: 12, value: "$22K", pct: 35 },
-              { stage: "Completed", count: 8, value: "$18K", pct: 24 },
-            ].map((item) => (
-              <div key={item.stage} className="flex items-center gap-3">
-                <span className="w-24 shrink-0 text-xs font-medium text-text-secondary">
-                  {item.stage}
-                </span>
-                <div className="flex-1">
-                  <div className="h-7 rounded-lg bg-gray-100">
-                    <div
-                      className="flex h-full items-center justify-between rounded-lg px-3 text-xs font-semibold text-white transition-all"
-                      style={{
-                        width: `${item.pct}%`,
-                        backgroundColor: "#0D4F6C",
-                        opacity: 0.55 + (item.pct / 100) * 0.45,
-                      }}
-                    >
-                      <span>{item.count}</span>
-                      <span>{item.value}</span>
-                    </div>
+          {data.today_appointments.length === 0 ? (
+            <div className="mt-4 rounded-md border border-dashed border-[var(--border)] p-8 text-center">
+              <CalendarIcon className="mx-auto h-6 w-6 text-[var(--text-muted)]" />
+              <p className="mt-2 text-sm text-[var(--text-muted)]">Aucun rendez-vous programmé aujourd&apos;hui</p>
+              <Link href="/calendar" className="mt-2 inline-block text-xs font-medium text-[var(--primary)] hover:underline">
+                Programmer un rendez-vous →
+              </Link>
+            </div>
+          ) : (
+            <div className="mt-4 divide-y divide-[var(--line-soft,_#E2E8F0)]">
+              {data.today_appointments.map((a) => (
+                <Link
+                  key={a.id}
+                  href={`/patients/${a.patient_id}`}
+                  className="flex items-center gap-4 py-3 transition-colors hover:bg-[var(--background)]"
+                >
+                  <span className="font-mono text-sm font-bold text-[var(--text-primary)] w-12">
+                    {a.start_time}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-medium text-[var(--text-primary)]">{a.patient_name}</p>
+                    <p className="truncate text-xs text-[var(--text-muted)]">
+                      {a.treatment}
+                      {a.room && <span> · Salle {a.room}</span>}
+                    </p>
                   </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Recent WhatsApp */}
-        <div className="rounded-xl border border-border bg-white p-5 shadow-sm lg:col-span-2">
-          <div className="flex items-center justify-between">
-            <h3 className="text-base font-semibold text-text-primary">Recent WhatsApp</h3>
-            <a href="/whatsapp" className="text-xs font-medium transition-opacity hover:opacity-80" style={{ color: "var(--primary-light)" }}>
-              View All
-            </a>
-          </div>
-          <div className="mt-4 space-y-1">
-            {recentConversations.map((conv) => (
-              <div
-                key={conv.name}
-                className="flex cursor-pointer items-center gap-3 rounded-lg p-2.5 transition-colors hover:bg-gray-50"
-              >
-                <div
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
-                  style={{ backgroundColor: "#0D4F6C" }}
-                >
-                  {conv.name.split(" ").map((n) => n[0]).join("")}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className={`truncate text-sm ${conv.unread ? "font-semibold" : "font-medium"} text-text-primary`}>
-                    {conv.name}
-                  </p>
-                  <p className="truncate text-xs text-text-secondary">{conv.message}</p>
-                </div>
-                <div className="flex flex-col items-end gap-1">
-                  <span className="text-[10px] text-text-muted">{conv.time}</span>
-                  {conv.unread > 0 && (
-                    <span
-                      className="flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-bold text-white"
-                      style={{ backgroundColor: "#25D366" }}
-                    >
-                      {conv.unread}
-                    </span>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Row 3 — Today's Appointments */}
-      <div className="rounded-xl border border-border bg-white p-5 shadow-sm">
-        <div className="flex items-center justify-between">
-          <h3 className="text-base font-semibold text-text-primary">Today&apos;s Appointments</h3>
-          <span className="text-xs text-text-secondary">
-            {todayAppointments.length} scheduled today
-          </span>
-        </div>
-        <div className="mt-4 divide-y divide-border">
-          {todayAppointments.map((apt, i) => (
-            <div key={i} className="flex items-center gap-4 py-3">
-              <span className="w-14 shrink-0 text-sm font-semibold tabular-nums text-text-primary">
-                {apt.time}
-              </span>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-text-primary">{apt.patient}</p>
-                <p className="text-xs text-text-secondary">
-                  {apt.treatment} &middot; {apt.doctor}
-                </p>
-              </div>
-              <span
-                className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                  apt.status === "Confirmed"
-                    ? "bg-blue-50 text-blue-700"
-                    : apt.status === "Checked In"
-                      ? "bg-emerald-50 text-emerald-700"
-                      : "bg-amber-50 text-amber-700"
-                }`}
-              >
-                {apt.status}
-              </span>
+                  <Badge variant={APPT_STATUS_VARIANT[a.status] ?? "outline"}>
+                    {APPT_STATUS_LABEL[a.status] ?? a.status}
+                  </Badge>
+                </Link>
+              ))}
             </div>
-          ))}
-        </div>
+          )}
+        </Card>
+
+        {/* Recent patients */}
+        <Card className="p-6">
+          <div className="flex items-center justify-between">
+            <h3 className="text-base font-semibold text-[var(--text-primary)]">
+              Patients récents
+            </h3>
+            <Link href="/patients" className="text-xs font-medium text-[var(--primary)] hover:underline">
+              Voir tous →
+            </Link>
+          </div>
+          {data.recent_patients.length === 0 ? (
+            <p className="mt-3 text-xs text-[var(--text-muted)]">Aucun patient pour l&apos;instant.</p>
+          ) : (
+            <div className="mt-4 space-y-3">
+              {data.recent_patients.map((p) => (
+                <Link
+                  key={p.id}
+                  href={`/patients/${p.id}`}
+                  className="flex items-start gap-3 rounded-md p-2 transition-colors hover:bg-[var(--background)]"
+                >
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--primary-lighter)] text-xs font-bold text-[var(--primary)]">
+                    {p.name.split(" ").map((s) => s[0]).slice(0, 2).join("").toUpperCase()}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-[var(--text-primary)]">{p.name}</p>
+                    <p className="truncate text-xs text-[var(--text-muted)]">{p.phone}</p>
+                  </div>
+                  {p.intake_status && p.intake_status !== "active" && (
+                    <Badge variant="warning" className="text-[10px]">
+                      <ClipboardList className="h-2.5 w-2.5" />
+                    </Badge>
+                  )}
+                </Link>
+              ))}
+            </div>
+          )}
+        </Card>
       </div>
     </div>
   );
