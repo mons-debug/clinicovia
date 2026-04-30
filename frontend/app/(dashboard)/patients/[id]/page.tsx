@@ -25,6 +25,7 @@ import { toast } from "sonner";
 import { StatusBadge, getStatusVariant } from "@/components/shared/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { NewPlanDialog } from "@/components/plans/new-plan-dialog";
+import { NewInvoiceDialog } from "@/components/billing/new-invoice-dialog";
 import {
   usePatient,
   usePatientNotes,
@@ -32,6 +33,7 @@ import {
   useCreatePatientNote,
 } from "@/lib/api/patients";
 import { usePatientPlans, type TreatmentPlan } from "@/lib/api/plans";
+import { useInvoices, type Invoice as InvoiceType, type InvoiceStatus } from "@/lib/api/invoices";
 import { useConversations, useWhatsAppSessions, startConversation } from "@/lib/api/whatsapp";
 
 const tabs = [
@@ -74,6 +76,8 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
   const patientConversations = convsData?.conversations || [];
   const { data: plansData } = usePatientPlans(id);
   const plans: TreatmentPlan[] = plansData?.plans ?? [];
+  const { data: invoicesData } = useInvoices({ patientId: id });
+  const invoices: InvoiceType[] = invoicesData?.invoices ?? [];
 
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString("fr-FR", {
@@ -459,6 +463,73 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
                               />
                             </div>
                           </div>
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Factures */}
+            <div className="rounded-xl border border-border bg-white p-5">
+              <div className="flex items-center justify-between">
+                <h3 className="text-base font-semibold text-text-primary">Factures</h3>
+                <NewInvoiceDialog patientId={p.id} />
+              </div>
+              {invoices.length === 0 ? (
+                <p className="mt-3 text-xs text-text-muted">
+                  Aucune facture pour ce patient.
+                </p>
+              ) : (
+                <div className="mt-4 space-y-2">
+                  {invoices.map((inv) => {
+                    const statusLabel: Record<InvoiceStatus, string> = {
+                      draft: "Brouillon",
+                      issued: "Émise",
+                      partial: "Partiel",
+                      paid: "Payée",
+                      cancelled: "Annulée",
+                      refunded: "Remboursée",
+                    };
+                    const statusVariant: Record<InvoiceStatus, "default" | "outline" | "warning" | "success" | "destructive"> = {
+                      draft: "outline",
+                      issued: "default",
+                      partial: "warning",
+                      paid: "success",
+                      cancelled: "destructive",
+                      refunded: "destructive",
+                    };
+                    return (
+                      <Link
+                        key={inv.id}
+                        href={`/invoices/${inv.id}`}
+                        className="flex items-center justify-between rounded-lg border border-border p-3 transition-colors hover:bg-gray-50"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <p className="truncate font-mono text-sm font-semibold text-text-primary">
+                              {inv.number}
+                            </p>
+                            <Badge variant={statusVariant[inv.status]}>
+                              {statusLabel[inv.status]}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-text-muted">
+                            {new Date(inv.issue_date).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}
+                            {" · "}
+                            {inv.line_items.length} ligne{inv.line_items.length > 1 ? "s" : ""}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-mono text-sm font-bold">
+                            {inv.total.toLocaleString("fr-FR")} {inv.currency}
+                          </p>
+                          {inv.total_paid > 0 && inv.total_paid < inv.total && (
+                            <p className="text-xs text-[var(--warning)]">
+                              {(inv.total - inv.total_paid).toLocaleString("fr-FR")} restant
+                            </p>
+                          )}
                         </div>
                       </Link>
                     );
