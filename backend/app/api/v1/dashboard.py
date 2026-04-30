@@ -9,6 +9,7 @@ from app.database import get_db
 from app.middleware.auth import get_current_user
 from app.models.appointment import Appointment, AppointmentStatus
 from app.models.billing import Invoice, InvoiceStatus
+from app.models.clinic import Role
 from app.models.patient import IntakeStatus, Patient, PatientStatus
 from app.models.treatment_plan import PlanStatus, TreatmentPlan
 from app.models.user import User
@@ -21,6 +22,11 @@ def _get_clinic_id(user: User) -> uuid.UUID:
     if not membership:
         return uuid.uuid4()  # fallback - won't match anything
     return membership.clinic_id
+
+
+def _is_doctor(user: User) -> bool:
+    membership = next((m for m in user.memberships if m.is_active), None)
+    return membership is not None and membership.role == Role.DOCTOR
 
 
 @router.get("/stats")
@@ -88,29 +94,37 @@ async def dashboard_summary(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """One-shot dashboard payload with the metrics the home page actually shows."""
+    """One-shot dashboard payload with the metrics the home page actually shows.
+
+    When the logged-in user is a DOCTOR, today_appointments, plans, and
+    the appointment list are filtered by doctor_id = user.id so each
+    doctor only sees their own workload. Reception / owner see everything.
+    """
     clinic_id = _get_clinic_id(user)
+    doctor_only = _is_doctor(user)
     today = date.today()
     week_ago = today - timedelta(days=7)
     month_start = today.replace(day=1)
 
     # Today's appointments (any status except cancelled / no_show)
-    today_appts = (await db.execute(
-        select(func.count(Appointment.id)).where(
-            Appointment.clinic_id == clinic_id,
-            Appointment.appointment_date == today,
-            Appointment.status.notin_([AppointmentStatus.CANCELLED, AppointmentStatus.NO_SHOW]),
-        )
-    )).scalar_one()
+    today_q = select(func.count(Appointment.id)).where(
+        Appointment.clinic_id == clinic_id,
+        Appointment.appointment_date == today,
+        Appointment.status.notin_([AppointmentStatus.CANCELLED, AppointmentStatus.NO_SHOW]),
+    )
+    if doctor_only:
+        today_q = today_q.where(Appointment.doctor_id == user.id)
+    today_appts = (await db.execute(today_q)).scalar_one()
 
     # Yesterday's appointments — for delta
-    yest_appts = (await db.execute(
-        select(func.count(Appointment.id)).where(
-            Appointment.clinic_id == clinic_id,
-            Appointment.appointment_date == today - timedelta(days=1),
-            Appointment.status.notin_([AppointmentStatus.CANCELLED, AppointmentStatus.NO_SHOW]),
-        )
-    )).scalar_one()
+    yest_q = select(func.count(Appointment.id)).where(
+        Appointment.clinic_id == clinic_id,
+        Appointment.appointment_date == today - timedelta(days=1),
+        Appointment.status.notin_([AppointmentStatus.CANCELLED, AppointmentStatus.NO_SHOW]),
+    )
+    if doctor_only:
+        yest_q = yest_q.where(Appointment.doctor_id == user.id)
+    yest_appts = (await db.execute(yest_q)).scalar_one()
 
     # Patients in queue (intake_pending + awaiting_doctor + in_room)
     in_queue = (await db.execute(
@@ -155,12 +169,13 @@ async def dashboard_summary(
     )).scalar_one()
 
     # Active treatment plans
-    active_plans = (await db.execute(
-        select(func.count(TreatmentPlan.id)).where(
-            TreatmentPlan.clinic_id == clinic_id,
-            TreatmentPlan.status == PlanStatus.ACTIVE,
-        )
-    )).scalar_one()
+    plans_q = select(func.count(TreatmentPlan.id)).where(
+        TreatmentPlan.clinic_id == clinic_id,
+        TreatmentPlan.status == PlanStatus.ACTIVE,
+    )
+    if doctor_only:
+        plans_q = plans_q.where(TreatmentPlan.doctor_id == user.id)
+    active_plans = (await db.execute(plans_q)).scalar_one()
 
     # Revenue MTD — sum total_paid on issued/partial/paid invoices this month
     revenue_mtd = (await db.execute(
@@ -184,7 +199,7 @@ async def dashboard_summary(
     )).scalar_one()
 
     # Today's appointments — full list with patient info for the side panel
-    today_list_res = await db.execute(
+    today_list_q = (
         select(Appointment, Patient)
         .join(Patient, Patient.id == Appointment.patient_id)
         .where(
@@ -194,6 +209,9 @@ async def dashboard_summary(
         .order_by(Appointment.start_time.asc())
         .limit(10)
     )
+    if doctor_only:
+        today_list_q = today_list_q.where(Appointment.doctor_id == user.id)
+    today_list_res = await db.execute(today_list_q)
     today_appointments = [
         {
             "id": str(appt.id),
@@ -207,13 +225,27 @@ async def dashboard_summary(
         for appt, p in today_list_res.all()
     ]
 
-    # Recent patients
-    rp_res = await db.execute(
-        select(Patient)
-        .where(Patient.clinic_id == clinic_id, Patient.is_active == True)  # noqa: E712
-        .order_by(Patient.created_at.desc())
-        .limit(5)
-    )
+    # Recent patients — for doctors, show only patients they've treated
+    if doctor_only:
+        rp_res = await db.execute(
+            select(Patient)
+            .join(Appointment, Appointment.patient_id == Patient.id)
+            .where(
+                Patient.clinic_id == clinic_id,
+                Patient.is_active == True,  # noqa: E712
+                Appointment.doctor_id == user.id,
+            )
+            .group_by(Patient.id)
+            .order_by(func.max(Appointment.appointment_date).desc())
+            .limit(5)
+        )
+    else:
+        rp_res = await db.execute(
+            select(Patient)
+            .where(Patient.clinic_id == clinic_id, Patient.is_active == True)  # noqa: E712
+            .order_by(Patient.created_at.desc())
+            .limit(5)
+        )
     recent_patients_list = [
         {
             "id": str(p.id),
