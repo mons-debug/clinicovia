@@ -13,6 +13,8 @@ class AppointmentCreate(BaseModel):
     end_time: time
     duration_minutes: int = 30
     treatment: str = Field(min_length=1, max_length=255)
+    kind: str | None = "consultation"
+    room: str | None = Field(None, max_length=64)
     notes: str | None = None
 
 

@@ -64,6 +64,8 @@ export interface AppointmentCreateInput {
   end_time: string;
   duration_minutes?: number;
   treatment: string;
+  kind?: string;
+  room?: string | null;
   notes?: string | null;
 }
 

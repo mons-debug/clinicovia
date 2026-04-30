@@ -206,6 +206,8 @@ async def create_appointment(
         end_time=body.end_time,
         duration_minutes=body.duration_minutes,
         treatment=body.treatment,
+        kind=(body.kind or "consultation"),
+        room=body.room,
         notes=body.notes,
         is_first_visit=is_first,
     )

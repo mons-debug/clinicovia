@@ -18,6 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { NewAppointmentDialog } from "@/components/calendar/new-appointment-dialog";
 import {
   useCalendarDay,
   useJourneyEvent,
@@ -212,6 +213,9 @@ export default function CalendarPage() {
             <ChevronRight className="h-4 w-4" />
           </Button>
           {isFetching && <Loader2 className="h-3 w-3 animate-spin text-[var(--text-muted)]" />}
+          <div className="ml-2">
+            <NewAppointmentDialog isoDate={iso} />
+          </div>
         </div>
       </div>
 
