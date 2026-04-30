@@ -47,6 +47,30 @@ export type JourneyEvent = "arrived" | "started" | "ended" | "cancel" | "no_show
 
 // ── Hooks ──────────────────────────────────────────────────────
 
+export interface DayCount {
+  date: string;
+  total: number;
+  by_status: Record<string, number>;
+}
+
+export interface CalendarRange {
+  days: DayCount[];
+}
+
+export function useCalendarRange(fromIso: string, toIso: string) {
+  const token = useAuthStore((s) => s.accessToken);
+  return useQuery({
+    queryKey: ["calendar", "range", fromIso, toIso],
+    queryFn: () =>
+      apiClient<CalendarRange>(
+        `/calendar/range?from=${encodeURIComponent(fromIso)}&to=${encodeURIComponent(toIso)}`,
+        { token: token ?? undefined }
+      ),
+    enabled: !!fromIso && !!toIso,
+    staleTime: 60_000,
+  });
+}
+
 export function useCalendarDay(isoDate: string, refetchMs = 10_000) {
   const token = useAuthStore((s) => s.accessToken);
   return useQuery({

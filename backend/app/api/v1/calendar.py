@@ -153,6 +153,58 @@ async def get_day(
     )
 
 
+class DayCount(BaseModel):
+    date: date_type
+    total: int
+    by_status: dict[str, int]
+
+
+class RangeResponse(BaseModel):
+    days: list[DayCount]
+
+
+@router.get("/range", response_model=RangeResponse)
+async def get_range(
+    from_date: date_type = Query(..., alias="from"),
+    to_date: date_type = Query(..., alias="to"),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Daily counts for a date range — drives the month-view grid."""
+    clinic_id = _get_clinic_id(user)
+
+    if (to_date - from_date).days > 60:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Range too large (max 60 days)",
+        )
+
+    result = await db.execute(
+        select(Appointment.appointment_date, Appointment.status)
+        .where(
+            Appointment.clinic_id == clinic_id,
+            Appointment.appointment_date >= from_date,
+            Appointment.appointment_date <= to_date,
+        )
+    )
+
+    # Bucket per date
+    days: dict[date_type, dict[str, int]] = {}
+    for d, st in result.all():
+        bucket = days.setdefault(d, {})
+        bucket[st.value] = bucket.get(st.value, 0) + 1
+
+    # Fill every day in the range so the UI doesn't have to handle gaps
+    out: list[DayCount] = []
+    cur = from_date
+    while cur <= to_date:
+        bucket = days.get(cur, {})
+        out.append(DayCount(date=cur, total=sum(bucket.values()), by_status=bucket))
+        cur = cur + timedelta(days=1)
+
+    return RangeResponse(days=out)
+
+
 @router.post("/{appointment_id}/event", response_model=AppointmentResponse)
 async def journey_event(
     appointment_id: uuid.UUID,

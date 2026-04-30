@@ -20,6 +20,8 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { NewAppointmentDialog } from "@/components/calendar/new-appointment-dialog";
 import { RescheduleDialog } from "@/components/calendar/reschedule-dialog";
+import { MonthView } from "@/components/calendar/month-view";
+import { WeekView } from "@/components/calendar/week-view";
 import { WalkInDialog } from "@/components/queue/walk-in-dialog";
 import {
   useCalendarDay,
@@ -50,6 +52,23 @@ function fmtDateLong(iso: string): string {
     month: "long",
     year: "numeric",
   });
+}
+
+function fmtMonthLong(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+}
+
+function fmtWeekRange(iso: string): string {
+  const d = new Date(iso);
+  const dow = (d.getDay() + 6) % 7;
+  const monday = new Date(d);
+  monday.setDate(d.getDate() - dow);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  const fmt = (x: Date) =>
+    x.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+  return `Semaine du ${fmt(monday)} au ${fmt(sunday)}`;
 }
 
 function fmtTime(t: string): string {
@@ -221,14 +240,31 @@ function ApptRow({ appt, isoDate }: ApptRowProps) {
 
 // ── Page ──────────────────────────────────────────────────────────────
 
+type ViewMode = "day" | "week" | "month";
+
 export default function CalendarPage() {
   const [iso, setIso] = useState<string>(isoToday());
-  const { data, isLoading, isError, refetch, isFetching } = useCalendarDay(iso);
+  const [view, setView] = useState<ViewMode>("day");
+  const { data, isLoading, isError, refetch, isFetching } = useCalendarDay(iso, view === "day" ? 10_000 : 60_000);
 
   const totals = useMemo(() => {
     if (!data) return 0;
     return Object.values(data.counts).reduce((a, b) => a + b, 0);
   }, [data]);
+
+  // Step navigation respects the current view
+  const stepShift = (delta: number) => {
+    if (view === "day") setIso(shiftDate(iso, delta));
+    else if (view === "week") setIso(shiftDate(iso, delta * 7));
+    else {
+      const d = new Date(iso);
+      d.setMonth(d.getMonth() + delta);
+      setIso(d.toISOString().slice(0, 10));
+    }
+  };
+
+  const headerTitle =
+    view === "day" ? fmtDateLong(iso) : view === "week" ? fmtWeekRange(iso) : fmtMonthLong(iso);
 
   return (
     <div className="space-y-6 p-6">
@@ -236,14 +272,36 @@ export default function CalendarPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold capitalize text-[var(--text-primary)]">
-            {fmtDateLong(iso)}
+            {headerTitle}
           </h1>
           <p className="text-sm text-[var(--text-secondary)]">
-            {totals} rendez-vous · synchronisation toutes les 10 s
+            {view === "day"
+              ? `${totals} rendez-vous · synchronisation toutes les 10 s`
+              : view === "week"
+              ? "Vue semaine — clic sur un jour pour ouvrir"
+              : "Vue mois — clic sur un jour pour ouvrir"}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setIso(shiftDate(iso, -1))}>
+          {/* View switcher */}
+          <div className="flex overflow-hidden rounded-md border border-[var(--border)]">
+            {(["day", "week", "month"] as ViewMode[]).map((v) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setView(v)}
+                className={cn(
+                  "px-3 py-1.5 text-xs font-medium transition-colors",
+                  view === v
+                    ? "bg-[var(--primary)] text-white"
+                    : "bg-white text-[var(--text-secondary)] hover:bg-[var(--background)]"
+                )}
+              >
+                {v === "day" ? "Jour" : v === "week" ? "Semaine" : "Mois"}
+              </button>
+            ))}
+          </div>
+          <Button variant="outline" size="sm" onClick={() => stepShift(-1)}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <Button
@@ -255,10 +313,10 @@ export default function CalendarPage() {
             <CalendarIcon className="h-3 w-3" />
             Aujourd&apos;hui
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setIso(shiftDate(iso, 1))}>
+          <Button variant="outline" size="sm" onClick={() => stepShift(1)}>
             <ChevronRight className="h-4 w-4" />
           </Button>
-          {isFetching && <Loader2 className="h-3 w-3 animate-spin text-[var(--text-muted)]" />}
+          {isFetching && view === "day" && <Loader2 className="h-3 w-3 animate-spin text-[var(--text-muted)]" />}
           <div className="ml-2 flex items-center gap-2">
             <WalkInDialog triggerLabel="Arrivée sans RDV" />
             <NewAppointmentDialog isoDate={iso} />
@@ -266,8 +324,8 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {/* Status counts */}
-      {data && (
+      {/* Status counts (day view only) */}
+      {view === "day" && data && (
         <div className="flex flex-wrap gap-2">
           {Object.entries(data.counts)
             .filter(([, n]) => n > 0)
@@ -279,8 +337,27 @@ export default function CalendarPage() {
         </div>
       )}
 
-      {/* Body */}
-      {isLoading ? (
+      {/* Week view */}
+      {view === "week" && (
+        <WeekView
+          isoDate={iso}
+          onPickDate={setIso}
+          onSwitchToDay={() => setView("day")}
+        />
+      )}
+
+      {/* Month view */}
+      {view === "month" && (
+        <MonthView
+          isoDate={iso}
+          onPickDate={setIso}
+          onSwitchToDay={() => setView("day")}
+        />
+      )}
+
+      {/* Day body */}
+      {view === "day" && (
+        isLoading ? (
         <div className="flex min-h-[40vh] items-center justify-center text-[var(--text-muted)]">
           <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Chargement du calendrier…
         </div>
@@ -355,6 +432,7 @@ export default function CalendarPage() {
             </>
           )}
         </div>
+      )
       )}
     </div>
   );
