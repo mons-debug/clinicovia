@@ -86,6 +86,12 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    label: "Salle d'attente",
+    href: "/queue",
+    icon: ClipboardList,
+    module: "queue",
+  },
+  {
     label: "Pipeline",
     href: "/pipeline",
     icon: Kanban,

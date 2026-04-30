@@ -1,0 +1,310 @@
+"use client";
+
+import { useMemo } from "react";
+import { toast } from "sonner";
+import {
+  Phone,
+  Clock,
+  ArrowRight,
+  CheckCircle2,
+  DoorOpen,
+  UserCheck,
+  Loader2,
+  Sparkles,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  useQueue,
+  useAdvanceIntake,
+  type IntakeStatus,
+} from "@/lib/api/queue";
+import type { Patient } from "@/lib/api/patients";
+import { cn } from "@/lib/utils";
+
+// ── Helpers ───────────────────────────────────────────────────────────
+
+function formatWait(intakeAt: string | null | undefined): string {
+  if (!intakeAt) return "—";
+  const minutes = Math.max(
+    0,
+    Math.round((Date.now() - new Date(intakeAt).getTime()) / 60_000)
+  );
+  if (minutes < 1) return "à l'instant";
+  if (minutes < 60) return `${minutes} min`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m === 0 ? `${h} h` : `${h} h ${m}`;
+}
+
+function initials(p: Patient): string {
+  return `${p.first_name[0] ?? ""}${p.last_name[0] ?? ""}`.toUpperCase();
+}
+
+// ── Patient card ──────────────────────────────────────────────────────
+
+interface PatientCardProps {
+  patient: Patient & { intake_at?: string | null; requested_service?: string | null };
+  primaryAction?: { label: string; to: IntakeStatus; variant?: "default" | "secondary" };
+  secondaryAction?: { label: string; to: IntakeStatus; variant?: "secondary" | "ghost" };
+}
+
+function PatientCard({ patient: p, primaryAction, secondaryAction }: PatientCardProps) {
+  const advance = useAdvanceIntake();
+
+  const handle = (to: IntakeStatus, label: string) => {
+    advance.mutate(
+      { patientId: p.id, to },
+      {
+        onSuccess: () => toast.success(`${p.first_name} → ${label}`),
+        onError: (e: unknown) => {
+          const msg = e instanceof Error ? e.message : "Erreur";
+          toast.error(msg);
+        },
+      }
+    );
+  };
+
+  return (
+    <Card className="p-4 hover:shadow-card-hover transition-shadow">
+      <div className="flex items-start gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--primary-lighter)] text-sm font-semibold text-[var(--primary)]">
+          {initials(p)}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <p className="truncate font-semibold text-[var(--text-primary)]">
+              {p.first_name} {p.last_name}
+            </p>
+            {p.lead_source === "whatsapp" && (
+              <Badge variant="outline" className="text-[10px] border-[var(--whatsapp)] text-[var(--whatsapp)]">
+                WA
+              </Badge>
+            )}
+          </div>
+          <div className="mt-0.5 flex items-center gap-3 text-xs text-[var(--text-muted)]">
+            <span className="flex items-center gap-1">
+              <Phone className="h-3 w-3" />
+              {p.phone_country_code} {p.phone}
+            </span>
+            <span className="flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              {formatWait((p as Patient & { intake_at?: string | null }).intake_at)}
+            </span>
+          </div>
+          {(p as Patient & { requested_service?: string | null }).requested_service && (
+            <p className="mt-2 inline-flex items-center gap-1 rounded-md bg-[var(--background)] px-2 py-1 text-xs text-[var(--text-secondary)]">
+              <Sparkles className="h-3 w-3" />
+              {(p as Patient & { requested_service?: string | null }).requested_service}
+            </p>
+          )}
+        </div>
+      </div>
+
+      {(primaryAction || secondaryAction) && (
+        <div className="mt-3 flex gap-2">
+          {primaryAction && (
+            <Button
+              size="sm"
+              variant={primaryAction.variant ?? "default"}
+              className="flex-1"
+              disabled={advance.isPending}
+              onClick={() => handle(primaryAction.to, primaryAction.label)}
+            >
+              {advance.isPending ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <>
+                  {primaryAction.label}
+                  <ArrowRight className="h-3 w-3" />
+                </>
+              )}
+            </Button>
+          )}
+          {secondaryAction && (
+            <Button
+              size="sm"
+              variant={secondaryAction.variant ?? "ghost"}
+              onClick={() => handle(secondaryAction.to, secondaryAction.label)}
+              disabled={advance.isPending}
+            >
+              {secondaryAction.label}
+            </Button>
+          )}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// ── Column ────────────────────────────────────────────────────────────
+
+interface ColumnProps {
+  title: string;
+  subtitle: string;
+  count: number;
+  accent: string;
+  Icon: React.ComponentType<{ className?: string }>;
+  children: React.ReactNode;
+  empty: string;
+}
+
+function Column({ title, subtitle, count, accent, Icon, children, empty }: ColumnProps) {
+  const isEmpty = count === 0;
+  return (
+    <div className="flex flex-col rounded-xl border border-[var(--border)] bg-[var(--background)] p-4">
+      <div className="mb-4 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div
+            className={cn(
+              "flex h-8 w-8 items-center justify-center rounded-lg",
+              accent
+            )}
+          >
+            <Icon className="h-4 w-4" />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold uppercase tracking-wide text-[var(--text-primary)]">
+              {title}
+            </h3>
+            <p className="text-xs text-[var(--text-muted)]">{subtitle}</p>
+          </div>
+        </div>
+        <Badge variant="secondary" className="font-mono">
+          {count}
+        </Badge>
+      </div>
+
+      <div className="flex flex-col gap-3">
+        {isEmpty ? (
+          <div className="rounded-lg border border-dashed border-[var(--border)] p-6 text-center text-xs text-[var(--text-muted)]">
+            {empty}
+          </div>
+        ) : (
+          children
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Page ──────────────────────────────────────────────────────────────
+
+export default function QueuePage() {
+  const { data, isLoading, isError, refetch, isFetching } = useQueue(4000);
+
+  const totals = useMemo(() => {
+    if (!data) return { total: 0 };
+    return {
+      total:
+        data.counts.intake_pending +
+        data.counts.awaiting_doctor +
+        data.counts.in_room,
+    };
+  }, [data]);
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center text-[var(--text-muted)]">
+        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Chargement de la salle d&apos;attente…
+      </div>
+    );
+  }
+
+  if (isError || !data) {
+    return (
+      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 text-[var(--text-muted)]">
+        <p>Impossible de charger la salle d&apos;attente.</p>
+        <Button variant="outline" size="sm" onClick={() => refetch()}>
+          Réessayer
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 p-6">
+      {/* Header */}
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-[var(--text-primary)]">
+            Salle d&apos;attente
+          </h1>
+          <p className="text-sm text-[var(--text-secondary)]">
+            {totals.total} patient{totals.total > 1 ? "s" : ""} en cours · auto-actualisé toutes les 4 secondes
+          </p>
+        </div>
+        <div className="flex items-center gap-2 text-xs text-[var(--text-muted)]">
+          {isFetching && <Loader2 className="h-3 w-3 animate-spin" />}
+          <span>Synchronisation live</span>
+        </div>
+      </div>
+
+      {/* Three columns */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <Column
+          title="À l'accueil"
+          subtitle="Réception remplit la fiche"
+          count={data.counts.intake_pending}
+          accent="bg-amber-50 text-amber-700"
+          Icon={UserCheck}
+          empty="Aucun patient à l'accueil"
+        >
+          {data.intake_pending.map((p) => (
+            <PatientCard
+              key={p.id}
+              patient={p}
+              primaryAction={{ label: "Salle d'attente", to: "awaiting_doctor" }}
+              secondaryAction={{ label: "Annuler", to: "archived" }}
+            />
+          ))}
+        </Column>
+
+        <Column
+          title="En attente"
+          subtitle="Prêt pour le médecin"
+          count={data.counts.awaiting_doctor}
+          accent="bg-blue-50 text-blue-700"
+          Icon={Clock}
+          empty="Personne n'attend le médecin"
+        >
+          {data.awaiting_doctor.map((p) => (
+            <PatientCard
+              key={p.id}
+              patient={p}
+              primaryAction={{ label: "Appeler en salle", to: "in_room" }}
+              secondaryAction={{ label: "Retour accueil", to: "intake_pending", variant: "ghost" }}
+            />
+          ))}
+        </Column>
+
+        <Column
+          title="En consultation"
+          subtitle="Médecin avec le patient"
+          count={data.counts.in_room}
+          accent="bg-emerald-50 text-emerald-700"
+          Icon={DoorOpen}
+          empty="Aucune consultation en cours"
+        >
+          {data.in_room.map((p) => (
+            <PatientCard
+              key={p.id}
+              patient={p}
+              primaryAction={{ label: "Terminer", to: "active" }}
+              secondaryAction={{ label: "Renvoyer en attente", to: "awaiting_doctor", variant: "ghost" }}
+            />
+          ))}
+        </Column>
+      </div>
+
+      {/* Done strip */}
+      <div className="rounded-lg border border-[var(--line-soft,_#E2E8F0)] bg-white p-4 text-xs text-[var(--text-muted)]">
+        <span className="inline-flex items-center gap-1">
+          <CheckCircle2 className="h-3 w-3 text-[var(--success)]" />
+          Les consultations terminées passent au statut « actif » et sortent de cette vue.
+        </span>
+      </div>
+    </div>
+  );
+}
