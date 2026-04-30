@@ -44,6 +44,13 @@ class PlanCreate(BaseModel):
     doctor_id: uuid.UUID | None = None
     notes: str | None = None
     start_at: datetime | None = None  # if omitted, defaults to now
+    # Smart calendar: when true, auto-create N appointments (one per
+    # session) at the configured default hour, each linked to its
+    # session via session.appointment_id. Reception confirms hours.
+    auto_schedule: bool = False
+    default_hour: int = Field(10, ge=7, le=20)
+    default_minute: int = Field(0, ge=0, le=59)
+    default_duration_minutes: int = Field(30, ge=15, le=240)
 
 
 class PlanUpdate(BaseModel):

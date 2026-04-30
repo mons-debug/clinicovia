@@ -43,6 +43,8 @@ export function NewPlanDialog({ patientId, triggerLabel = "Nouveau plan" }: Prop
   const [intervalUnit, setIntervalUnit] = useState<"days" | "weeks" | "months">("weeks");
   const [estimatedTotal, setEstimatedTotal] = useState<string>("");
   const [notes, setNotes] = useState("");
+  const [autoSchedule, setAutoSchedule] = useState(true);
+  const [defaultHour, setDefaultHour] = useState(10);
 
   const create = useCreatePlan();
 
@@ -54,6 +56,8 @@ export function NewPlanDialog({ patientId, triggerLabel = "Nouveau plan" }: Prop
     setIntervalUnit("weeks");
     setEstimatedTotal("");
     setNotes("");
+    setAutoSchedule(true);
+    setDefaultHour(10);
   };
 
   const submit = async () => {
@@ -69,8 +73,14 @@ export function NewPlanDialog({ patientId, triggerLabel = "Nouveau plan" }: Prop
         interval_unit: intervalUnit,
         estimated_total: estimatedTotal ? Number(estimatedTotal) : null,
         notes: notes.trim() || null,
+        auto_schedule: autoSchedule,
+        default_hour: defaultHour,
       });
-      toast.success(`Plan créé · ${plan.total_sessions} séances`);
+      toast.success(
+        autoSchedule
+          ? `Plan créé · ${plan.total_sessions} séances + RDV programmés`
+          : `Plan créé · ${plan.total_sessions} séances`
+      );
       reset();
       setOpen(false);
       router.push(`/plans/${plan.id}`);
@@ -171,6 +181,43 @@ export function NewPlanDialog({ patientId, triggerLabel = "Nouveau plan" }: Prop
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
             />
+          </div>
+
+          {/* Smart-calendar auto-schedule */}
+          <div className="sm:col-span-2 rounded-lg border border-[var(--border)] bg-[var(--background)] p-3">
+            <label className="flex items-start gap-3 text-sm">
+              <input
+                type="checkbox"
+                checked={autoSchedule}
+                onChange={(e) => setAutoSchedule(e.target.checked)}
+                className="mt-0.5 h-4 w-4 accent-[var(--primary)]"
+              />
+              <span className="flex-1">
+                <span className="font-medium text-[var(--text-primary)]">
+                  Programmer automatiquement les séances dans le calendrier
+                </span>
+                <span className="block text-xs text-[var(--text-muted)] mt-0.5">
+                  Crée {totalSessions} rendez-vous · à confirmer (réception verrouille l&apos;heure avec le patient).
+                </span>
+              </span>
+            </label>
+            {autoSchedule && (
+              <div className="mt-3 flex items-center gap-3 pl-7">
+                <Label htmlFor="default-hour" className="text-xs whitespace-nowrap">
+                  Heure par défaut
+                </Label>
+                <Input
+                  id="default-hour"
+                  type="number"
+                  min={7}
+                  max={20}
+                  value={defaultHour}
+                  onChange={(e) => setDefaultHour(Number(e.target.value) || 10)}
+                  className="w-20"
+                />
+                <span className="text-xs text-[var(--text-muted)]">h00 — modifiable par séance</span>
+              </div>
+            )}
           </div>
         </div>
 

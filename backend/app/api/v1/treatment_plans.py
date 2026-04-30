@@ -147,6 +147,7 @@ async def create_plan(
 
     # Auto-generate session placeholders
     delta = _interval_to_timedelta(body.interval_value, unit)
+    sessions_created: list[TreatmentSession] = []
     for i in range(1, body.total_sessions + 1):
         s = TreatmentSession(
             clinic_id=clinic_id,
@@ -156,6 +157,42 @@ async def create_plan(
             status=SessionStatus.PLANNED,
         )
         db.add(s)
+        sessions_created.append(s)
+    await db.flush()
+
+    # Smart-calendar: auto-create one appointment per session at the
+    # configured default hour. Each session.appointment_id is back-linked
+    # so the calendar / plan-timeline view ties them together.
+    if body.auto_schedule:
+        from datetime import time as _time
+        from app.models.appointment import Appointment, AppointmentKind, AppointmentStatus
+        start_t = _time(body.default_hour, body.default_minute)
+        # end_time = start + duration (clamped within the same day)
+        total_min = body.default_hour * 60 + body.default_minute + body.default_duration_minutes
+        end_h = min(23, total_min // 60)
+        end_m = min(59, total_min % 60)
+        end_t = _time(end_h, end_m)
+        treatment_label = body.primary_service or body.title
+        for s in sessions_created:
+            appt = Appointment(
+                clinic_id=clinic_id,
+                patient_id=body.patient_id,
+                doctor_id=body.doctor_id,
+                appointment_date=s.planned_for.date() if s.planned_for else start.date(),
+                start_time=start_t,
+                end_time=end_t,
+                duration_minutes=body.default_duration_minutes,
+                treatment=treatment_label,
+                kind=AppointmentKind.SESSION,
+                status=AppointmentStatus.SCHEDULED,
+                needs_confirmation=True,  # reception confirms hour with patient
+                notes=f"Plan « {plan.title} » — séance {s.session_number}/{body.total_sessions}",
+            )
+            db.add(appt)
+            await db.flush()
+            s.appointment_id = appt.id
+            # Mark séance as scheduled (not just planned) since calendar slot exists
+            s.status = SessionStatus.SCHEDULED
 
     await db.commit()
 

@@ -18,12 +18,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { NewAppointmentDialog } from "@/components/calendar/new-appointment-dialog";
 import { RescheduleDialog } from "@/components/calendar/reschedule-dialog";
 import { TerminerDialog } from "@/components/calendar/terminer-dialog";
 import { MonthView } from "@/components/calendar/month-view";
 import { WeekView } from "@/components/calendar/week-view";
-import { WalkInDialog } from "@/components/queue/walk-in-dialog";
+import { QuickAddMenu } from "@/components/calendar/quick-add-menu";
 import {
   useCalendarDay,
   useConfirmAppointment,
@@ -315,9 +314,8 @@ export default function CalendarPage() {
             <ChevronRight className="h-4 w-4" />
           </Button>
           {isFetching && view === "day" && <Loader2 className="h-3 w-3 animate-spin text-[var(--text-muted)]" />}
-          <div className="ml-2 flex items-center gap-2">
-            <WalkInDialog triggerLabel="Arrivée sans RDV" />
-            <NewAppointmentDialog isoDate={iso} />
+          <div className="ml-2">
+            <QuickAddMenu isoDate={iso} />
           </div>
         </div>
       </div>

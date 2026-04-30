@@ -64,6 +64,10 @@ export interface PlanCreateInput {
   doctor_id?: string | null;
   notes?: string | null;
   start_at?: string | null;
+  auto_schedule?: boolean;
+  default_hour?: number;
+  default_minute?: number;
+  default_duration_minutes?: number;
 }
 
 // ── Hooks ──────────────────────────────────────────────────────
