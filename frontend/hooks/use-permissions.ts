@@ -7,6 +7,10 @@ type Action = "read" | "create" | "edit" | "delete" | "full";
 type Module =
   | "dashboard"
   | "patients"
+  | "queue"
+  | "calendar"
+  | "invoices"
+  | "plans"
   | "pipeline"
   | "whatsapp"
   | "ai_agents"
@@ -26,6 +30,10 @@ const PERMISSION_MATRIX: Record<Role, Partial<Record<Module, Action[]>>> = {
   [ROLES.SUPER_ADMIN]: {
     dashboard: ["full"],
     patients: ["full"],
+    queue: ["full"],
+    calendar: ["full"],
+    invoices: ["full"],
+    plans: ["full"],
     pipeline: ["full"],
     whatsapp: ["full"],
     ai_agents: ["full"],
@@ -43,6 +51,10 @@ const PERMISSION_MATRIX: Record<Role, Partial<Record<Module, Action[]>>> = {
   [ROLES.CLINIC_OWNER]: {
     dashboard: ["full"],
     patients: ["full"],
+    queue: ["full"],
+    calendar: ["full"],
+    invoices: ["full"],
+    plans: ["full"],
     pipeline: ["full"],
     whatsapp: ["full"],
     ai_agents: ["full"],
@@ -59,6 +71,10 @@ const PERMISSION_MATRIX: Record<Role, Partial<Record<Module, Action[]>>> = {
   [ROLES.MANAGER]: {
     dashboard: ["full"],
     patients: ["full"],
+    queue: ["full"],
+    calendar: ["full"],
+    invoices: ["full"],
+    plans: ["full"],
     pipeline: ["full"],
     whatsapp: ["full"],
     ai_agents: ["full"],
@@ -74,6 +90,9 @@ const PERMISSION_MATRIX: Record<Role, Partial<Record<Module, Action[]>>> = {
   [ROLES.RECEPTIONIST]: {
     dashboard: ["read"],
     patients: ["read", "create"],
+    queue: ["full"],
+    calendar: ["read", "edit"],
+    invoices: ["read", "create", "edit"],
     pipeline: ["read"],
     whatsapp: ["read", "create"],
     appointments: ["full"],
@@ -96,7 +115,11 @@ const PERMISSION_MATRIX: Record<Role, Partial<Record<Module, Action[]>>> = {
   },
   [ROLES.DOCTOR]: {
     dashboard: ["read"],
-    patients: ["read"],
+    patients: ["read", "edit"],
+    queue: ["full"],
+    calendar: ["read", "edit"],
+    invoices: ["read"],
+    plans: ["full"],
     appointments: ["read", "edit"],
     analytics: ["read"],
   },

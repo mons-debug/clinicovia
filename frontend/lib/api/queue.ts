@@ -26,7 +26,7 @@ export function useQueue(refetchMs = 4000) {
   return useQuery({
     queryKey: ["queue"],
     queryFn: () =>
-      apiClient<QueueBoard>("/api/v1/queue", { token: token ?? undefined }),
+      apiClient<QueueBoard>("/queue", { token: token ?? undefined }),
     refetchInterval: refetchMs,
     refetchIntervalInBackground: false,
   });
