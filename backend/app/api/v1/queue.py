@@ -186,6 +186,12 @@ async def advance_intake(
 class WalkInRequest(BaseModel):
     requested_service: str | None = None
     note: str | None = None
+    # When true (default): existing patient arrives → flip to AWAITING_DOCTOR.
+    # When false: new patient just registered (still INTAKE_PENDING) — only
+    # create the calendar entry, leave intake_status untouched. Used so the
+    # new-patient walk-in flow can also surface on the calendar.
+    flip_to_awaiting: bool = True
+    is_first_visit: bool = False
 
 
 @router.post("/{patient_id}/walk-in", response_model=AppointmentResponse, status_code=status.HTTP_201_CREATED)
@@ -225,6 +231,11 @@ async def walk_in_existing_patient(
     minute = (rounded.minute // 15) * 15
     rounded = rounded.replace(minute=minute)
 
+    # Status depends on whether reception is "checking them in" right
+    # now (existing patient → CHECKED_IN) vs "they just walked through
+    # the door, still filling form" (new patient → SCHEDULED).
+    appt_status = AppointmentStatus.CHECKED_IN if body.flip_to_awaiting else AppointmentStatus.SCHEDULED
+
     appt = Appointment(
         clinic_id=clinic_id,
         patient_id=patient_id,
@@ -235,17 +246,20 @@ async def walk_in_existing_patient(
         duration_minutes=30,
         treatment=(body.requested_service or "Walk-in").strip(),
         kind=AppointmentKind.WALK_IN,
-        status=AppointmentStatus.CHECKED_IN,
+        status=appt_status,
         notes=body.note,
-        is_first_visit=False,
-        arrived_at=now,
+        is_first_visit=body.is_first_visit,
+        arrived_at=now if body.flip_to_awaiting else None,
     )
     db.add(appt)
     await db.flush()
 
-    # Sync the patient into the queue board
-    patient.intake_status = IntakeStatus.AWAITING_DOCTOR
-    patient.intake_at = now
+    # Only flip to AWAITING_DOCTOR if reception explicitly said the
+    # patient is ready (existing-patient path). For new patients still
+    # filling the dossier, keep them at INTAKE_PENDING.
+    if body.flip_to_awaiting:
+        patient.intake_status = IntakeStatus.AWAITING_DOCTOR
+        patient.intake_at = now
     if body.requested_service:
         patient.requested_service = body.requested_service
 

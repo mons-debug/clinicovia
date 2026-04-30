@@ -109,7 +109,7 @@ export function WalkInDialog({ triggerLabel = "Walk-in" }: { triggerLabel?: stri
     if (!phone.trim()) return toast.error("Téléphone requis");
 
     try {
-      await createNew.mutateAsync({
+      const created = await createNew.mutateAsync({
         first_name: firstName.trim(),
         last_name: lastName.trim(),
         phone: phone.trim(),
@@ -120,9 +120,25 @@ export function WalkInDialog({ triggerLabel = "Walk-in" }: { triggerLabel?: stri
         requested_service: requestedService.trim() || null,
         intake_status: "intake_pending",
       });
-      toast.success(`${firstName} ${lastName} ajouté(e) à la salle d'attente`);
+
+      // Also create a kind=walk_in calendar entry so the day's load is
+      // visible everywhere — but keep patient at INTAKE_PENDING since
+      // the dossier isn't complete yet.
+      try {
+        await walkInExisting.mutateAsync({
+          patientId: created.id,
+          requestedService: requestedService.trim() || null,
+          flipToAwaiting: false,
+          isFirstVisit: true,
+        });
+      } catch {
+        // Best-effort: if calendar entry fails, the patient is still in queue.
+      }
+
+      toast.success(`${firstName} ${lastName} ajouté(e) à la salle d'attente + calendrier`);
       qc.invalidateQueries({ queryKey: ["queue"] });
       qc.invalidateQueries({ queryKey: ["patients"] });
+      qc.invalidateQueries({ queryKey: ["calendar"] });
       reset();
       setOpen(false);
     } catch (e) {

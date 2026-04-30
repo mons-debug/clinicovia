@@ -80,6 +80,10 @@ export function useUncallPatient() {
 // Existing-patient walk-in: creates a placeholder appointment (kind=walk_in)
 // and flips the patient into AWAITING_DOCTOR. Use this when a known patient
 // shows up without a prior booking (e.g. séances 2, 3, 4 of a treatment plan).
+//
+// New-patient walk-in path: pass flip_to_awaiting=false. Then the appointment
+// is still created (calendar shows the load) but the patient stays at
+// INTAKE_PENDING so reception can finish filling the dossier.
 export function useWalkInExistingPatient() {
   const token = useAuthStore((s) => s.accessToken);
   const qc = useQueryClient();
@@ -88,16 +92,22 @@ export function useWalkInExistingPatient() {
       patientId,
       requestedService,
       note,
+      flipToAwaiting,
+      isFirstVisit,
     }: {
       patientId: string;
       requestedService?: string | null;
       note?: string | null;
+      flipToAwaiting?: boolean;
+      isFirstVisit?: boolean;
     }) =>
       apiClient<unknown>(`/queue/${patientId}/walk-in`, {
         method: "POST",
         body: JSON.stringify({
           requested_service: requestedService ?? null,
           note: note ?? null,
+          flip_to_awaiting: flipToAwaiting ?? true,
+          is_first_visit: isFirstVisit ?? false,
         }),
         token: token ?? undefined,
       }),
