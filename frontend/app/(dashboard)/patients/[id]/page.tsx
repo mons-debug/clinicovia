@@ -30,6 +30,7 @@ import { NewPrescriptionDialog } from "@/components/prescriptions/new-prescripti
 import { CompleteDossierCard } from "@/components/patient/complete-dossier-card";
 import { IdentityEditCard } from "@/components/patient/identity-edit-card";
 import { ClinicalEditCard } from "@/components/patient/clinical-edit-card";
+import { ScreeningCard } from "@/components/patient/screening-card";
 import { PhotosCard } from "@/components/photos/photos-card";
 import { NewConsultationDialog } from "@/components/consultations/new-consultation-dialog";
 import {
@@ -311,6 +312,9 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
 
             {/* Dossier clinique — always-on, role-gated edit (doctor) */}
             <ClinicalEditCard patient={p} />
+
+            {/* Screening pré-traitement — 19-flag checklist (doctor edits) */}
+            <ScreeningCard patientId={p.id} />
 
             {/* Demande à l'accueil + statut salle (read-only summary) */}
             {(p.requested_service || p.intake_status) && (
