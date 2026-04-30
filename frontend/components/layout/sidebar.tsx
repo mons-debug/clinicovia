@@ -163,16 +163,6 @@ const NAV_GROUPS: NavGroup[] = [
     module: "doctors",
   },
   {
-    label: "Appointments",
-    href: "/appointments",
-    icon: Calendar,
-    module: "appointments",
-    children: [
-      { label: "Calendar", href: "/appointments", icon: Calendar },
-      { label: "Book New", href: "/appointments/new", icon: CalendarPlus },
-    ],
-  },
-  {
     label: "Analytics",
     href: "/analytics",
     icon: BarChart2,

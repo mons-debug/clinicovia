@@ -70,7 +70,10 @@ services:
     environment:
       - NEXT_PUBLIC_API_URL=http://localhost:8000
       - NEXT_PUBLIC_BRIDGE_URL=http://localhost:3002
-      - WATCHPACK_POLLING=true
+      # OrbStack/VirtioFS supports native inotify — polling slows
+      # Turbopack down significantly. If you swap to plain Docker
+      # Desktop on macOS, set WATCHPACK_POLLING=true.
+      - NEXT_TELEMETRY_DISABLED=1
     depends_on:
       - backend
 
