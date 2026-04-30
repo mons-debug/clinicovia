@@ -37,7 +37,7 @@ export function useAdvanceIntake() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ patientId, to }: { patientId: string; to: IntakeStatus }) =>
-      apiClient<Patient>(`/api/v1/queue/${patientId}/advance`, {
+      apiClient<Patient>(`/queue/${patientId}/advance`, {
         method: "POST",
         body: JSON.stringify({ to_status: to }),
         token: token ?? undefined,

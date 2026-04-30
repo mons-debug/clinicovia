@@ -122,17 +122,29 @@ export function WalkInDialog({ triggerLabel = "Walk-in" }: { triggerLabel?: stri
           <div className="sm:col-span-2 space-y-2">
             <Label htmlFor="wi-phone">Téléphone</Label>
             <div className="flex gap-2">
-              <Input
-                id="wi-code"
-                className="w-24"
-                value={phoneCode}
-                onChange={(e) => setPhoneCode(e.target.value)}
-              />
+              <Select value={phoneCode} onValueChange={setPhoneCode}>
+                <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="+212">🇲🇦 +212</SelectItem>
+                  <SelectItem value="+33">🇫🇷 +33</SelectItem>
+                  <SelectItem value="+34">🇪🇸 +34</SelectItem>
+                  <SelectItem value="+971">🇦🇪 +971</SelectItem>
+                  <SelectItem value="+966">🇸🇦 +966</SelectItem>
+                  <SelectItem value="+1">🇺🇸 +1</SelectItem>
+                  <SelectItem value="+44">🇬🇧 +44</SelectItem>
+                </SelectContent>
+              </Select>
               <Input
                 id="wi-phone"
-                placeholder="6 12 34 56 78"
+                placeholder="6 12 34 56 78 (sans le 0 initial)"
+                inputMode="tel"
                 value={phone}
-                onChange={(e) => setPhone(e.target.value)}
+                onChange={(e) => {
+                  // strip non-digits and a single leading 0 (Maroc convention)
+                  let v = e.target.value.replace(/\D/g, "");
+                  if (v.startsWith("0")) v = v.slice(1);
+                  setPhone(v);
+                }}
                 className="flex-1"
               />
             </div>
