@@ -30,6 +30,14 @@ def _get_clinic_id(user: User) -> uuid.UUID:
     return membership.clinic_id
 
 
+def _compute_bmi(weight_kg: float | None, height_cm: float | None) -> float | None:
+    """Standard BMI = weight(kg) / height(m)^2. Returns None if either input is missing."""
+    if not weight_kg or not height_cm or height_cm <= 0:
+        return None
+    h_m = height_cm / 100.0
+    return round(weight_kg / (h_m * h_m), 1)
+
+
 @router.get("", response_model=PatientListResponse)
 async def list_patients(
     page: int = Query(1, ge=1),
@@ -113,6 +121,8 @@ async def create_patient(
             detail="A patient with this phone number already exists in your clinic",
         )
 
+    bmi = _compute_bmi(body.weight_kg, body.height_cm)
+
     patient = Patient(
         clinic_id=clinic_id,
         first_name=body.first_name,
@@ -122,11 +132,24 @@ async def create_patient(
         phone_country_code=body.phone_country_code,
         gender=body.gender,
         date_of_birth=body.date_of_birth,
+        cnie=body.cnie,
         city=body.city,
         country=body.country,
         address=body.address,
+        language_pref=(body.language_pref or "fr"),
+        channel_pref=(body.channel_pref or "whatsapp"),
+        fitzpatrick=body.fitzpatrick,
+        weight_kg=body.weight_kg,
+        height_cm=body.height_cm,
+        bmi=bmi,
+        smoker=body.smoker,
         lead_source=body.lead_source,
         treatment_interests=body.treatment_interests,
+        source_campaign=body.source_campaign,
+        source_medium=body.source_medium,
+        first_touch_at=body.first_touch_at,
+        intake_status=(body.intake_status or "active"),
+        requested_service=body.requested_service,
         assigned_to=body.assigned_to,
         internal_notes=body.internal_notes,
     )
