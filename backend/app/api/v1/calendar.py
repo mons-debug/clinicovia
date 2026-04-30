@@ -19,6 +19,7 @@ from sqlalchemy.orm import selectinload
 from app.database import get_db
 from app.middleware.auth import get_current_user
 from app.models.appointment import Appointment, AppointmentStatus
+from app.models.billing import Invoice, InvoiceStatus
 from app.models.patient import IntakeStatus, Patient
 from app.models.user import User
 from app.schemas.appointment import AppointmentResponse
@@ -391,6 +392,121 @@ async def confirm_appointment(
         f"{patient.first_name} {patient.last_name}",
         appt.treatment, "confirmed",
     ))
+
+    return AppointmentResponse.model_validate({
+        **appt.__dict__,
+        "patient_name": f"{patient.first_name} {patient.last_name}",
+        "patient_phone": f"{patient.phone_country_code}{patient.phone}",
+        "patient_initials": f"{patient.first_name[:1]}{patient.last_name[:1]}".upper(),
+        "doctor_name": "",
+        "doctor_color": "#6B7280",
+    })
+
+
+# ---------- Checkout: doctor → reception handoff ---------------------
+
+class CheckoutRequest(BaseModel):
+    amount: float                   # MAD to invoice; can be 0 (no charge)
+    follow_up_weeks: int | None = None
+    notes: str | None = None        # for reception
+
+
+@router.post("/{appointment_id}/checkout", response_model=AppointmentResponse)
+async def checkout_appointment(
+    appointment_id: uuid.UUID,
+    body: CheckoutRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """End-of-consultation handoff: doctor signs off + bills + (optionally)
+    schedules a follow-up. Reception picks up the patient in
+    "À encaisser" column.
+
+    Effects:
+      - Appointment → COMPLETED, ended_at = now
+      - Patient → CHECKOUT_PENDING (visible to reception with amount)
+      - Invoice draft created (amount > 0 only) — line item = treatment
+      - Follow-up appointment auto-scheduled if follow_up_weeks given
+        (same patient, same doctor, default hour 10:00, 30 min,
+         needs_confirmation=true so reception calls back to lock)
+    """
+    clinic_id = _get_clinic_id(user)
+
+    res = await db.execute(
+        select(Appointment, Patient)
+        .join(Patient, Patient.id == Appointment.patient_id)
+        .where(
+            Appointment.id == appointment_id,
+            Appointment.clinic_id == clinic_id,
+        )
+    )
+    row = res.first()
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Appointment not found")
+    appt, patient = row
+
+    now = datetime.now(timezone.utc)
+
+    # 1. Close the appointment
+    appt.ended_at = now
+    if not appt.started_at:
+        appt.started_at = now
+    if not appt.arrived_at:
+        appt.arrived_at = now
+    appt.status = AppointmentStatus.COMPLETED
+
+    # 2. Move patient to checkout queue
+    patient.intake_status = IntakeStatus.CHECKOUT_PENDING
+    patient.intake_at = now
+    patient.doctor_called_at = None
+
+    # 3. Create invoice draft (skip if amount is zero)
+    if body.amount and body.amount > 0:
+        line_items = [{
+            "label": appt.treatment,
+            "quantity": 1,
+            "unit_price": float(body.amount),
+            "total": float(body.amount),
+        }]
+        inv = Invoice(
+            clinic_id=clinic_id,
+            patient_id=patient.id,
+            issued_by=user.id,
+            number=f"DRAFT-{uuid.uuid4().hex[:8].upper()}",
+            issue_date=now.date(),
+            line_items=line_items,
+            subtotal=float(body.amount),
+            discount=0.0,
+            tva_rate=0.0,
+            tva_amount=0.0,
+            total=float(body.amount),
+            currency="MAD",
+            status=InvoiceStatus.DRAFT,
+            notes=body.notes,
+        )
+        db.add(inv)
+
+    # 4. Auto-schedule follow-up
+    if body.follow_up_weeks and body.follow_up_weeks > 0:
+        follow_date = (now + timedelta(weeks=body.follow_up_weeks)).date()
+        follow = Appointment(
+            clinic_id=clinic_id,
+            patient_id=patient.id,
+            doctor_id=appt.doctor_id,
+            appointment_date=follow_date,
+            start_time=time_type(10, 0),  # default hour, reception confirms
+            end_time=time_type(10, 30),
+            duration_minutes=30,
+            treatment=appt.treatment,    # same line of care unless changed
+            kind=appt.kind,
+            status=AppointmentStatus.SCHEDULED,
+            needs_confirmation=True,     # so reception sees orange badge
+            notes=body.notes,
+        )
+        db.add(follow)
+
+    await db.commit()
+    await db.refresh(appt)
 
     return AppointmentResponse.model_validate({
         **appt.__dict__,

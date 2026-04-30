@@ -60,6 +60,7 @@ class IntakeStatus(str, PyEnum):
     INTAKE_PENDING = "intake_pending"   # reception filled the short form, patient waiting
     AWAITING_DOCTOR = "awaiting_doctor"  # queued for doctor review
     IN_ROOM = "in_room"                  # doctor called the patient in
+    CHECKOUT_PENDING = "checkout_pending"  # consult done — at reception for payment
     ACTIVE = "active"                    # dossier complete, normal patient
     ARCHIVED = "archived"
 

@@ -139,6 +139,35 @@ export function useReschedule(isoDate: string) {
   });
 }
 
+export interface CheckoutArgs {
+  appointmentId: string;
+  amount: number;
+  follow_up_weeks?: number | null;
+  notes?: string | null;
+}
+
+export function useCheckoutAppointment(isoDate: string) {
+  const token = useAuthStore((s) => s.accessToken);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (args: CheckoutArgs) =>
+      apiClient<CalendarAppointment>(`/calendar/${args.appointmentId}/checkout`, {
+        method: "POST",
+        body: JSON.stringify({
+          amount: args.amount,
+          follow_up_weeks: args.follow_up_weeks ?? null,
+          notes: args.notes ?? null,
+        }),
+        token: token ?? undefined,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["calendar", "day", isoDate] });
+      qc.invalidateQueries({ queryKey: ["queue"] });
+      qc.invalidateQueries({ queryKey: ["invoices"] });
+    },
+  });
+}
+
 export function useConfirmAppointment(isoDate: string) {
   const token = useAuthStore((s) => s.accessToken);
   const qc = useQueryClient();

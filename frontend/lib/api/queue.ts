@@ -7,6 +7,7 @@ export type IntakeStatus =
   | "intake_pending"
   | "awaiting_doctor"
   | "in_room"
+  | "checkout_pending"
   | "active"
   | "archived";
 
@@ -14,10 +15,12 @@ export interface QueueBoard {
   intake_pending: Patient[];
   awaiting_doctor: Patient[];
   in_room: Patient[];
+  checkout_pending: Patient[];
   counts: {
     intake_pending: number;
     awaiting_doctor: number;
     in_room: number;
+    checkout_pending: number;
   };
 }
 

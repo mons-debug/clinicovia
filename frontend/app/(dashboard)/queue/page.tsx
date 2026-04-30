@@ -12,6 +12,7 @@ import {
   Loader2,
   Sparkles,
   BellRing,
+  Receipt,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -308,12 +309,14 @@ export default function QueuePage() {
   }, [data]);
 
   const totals = useMemo(() => {
-    if (!data) return { total: 0 };
+    if (!data) return { total: 0, checkout: 0 };
     return {
       total:
         data.counts.intake_pending +
         data.counts.awaiting_doctor +
-        data.counts.in_room,
+        data.counts.in_room +
+        (data.counts.checkout_pending ?? 0),
+      checkout: data.counts.checkout_pending ?? 0,
     };
   }, [data]);
 
@@ -357,8 +360,8 @@ export default function QueuePage() {
         </div>
       </div>
 
-      {/* Three columns */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      {/* Four columns — left-to-right is the patient flow */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         <Column
           title="À l'accueil"
           subtitle="Réception remplit la fiche"
@@ -408,8 +411,25 @@ export default function QueuePage() {
             <PatientCard
               key={p.id}
               patient={p}
-              primaryAction={{ label: "Terminer", to: "active" }}
               secondaryAction={{ label: "Renvoyer en attente", to: "awaiting_doctor", variant: "ghost" }}
+            />
+          ))}
+        </Column>
+
+        <Column
+          title="À encaisser"
+          subtitle="Consultation finie · paiement"
+          count={data.counts.checkout_pending ?? 0}
+          accent="bg-rose-50 text-rose-700"
+          Icon={Receipt}
+          empty="Personne à encaisser"
+        >
+          {(data.checkout_pending ?? []).map((p) => (
+            <PatientCard
+              key={p.id}
+              patient={p}
+              primaryAction={{ label: "Payé / clôturé", to: "active" }}
+              secondaryAction={{ label: "Renvoyer au médecin", to: "in_room", variant: "ghost" }}
             />
           ))}
         </Column>
@@ -419,7 +439,7 @@ export default function QueuePage() {
       <div className="rounded-lg border border-[var(--line-soft,_#E2E8F0)] bg-white p-4 text-xs text-[var(--text-muted)]">
         <span className="inline-flex items-center gap-1">
           <CheckCircle2 className="h-3 w-3 text-[var(--success)]" />
-          Les consultations terminées passent au statut « actif » et sortent de cette vue.
+          Le médecin clôture la consultation depuis le calendrier (Terminer) — le patient passe à « À encaisser » jusqu&apos;à paiement.
         </span>
       </div>
     </div>

@@ -48,7 +48,17 @@ def _get_clinic_id(user: User) -> uuid.UUID:
 TRANSITIONS: dict[IntakeStatus, set[IntakeStatus]] = {
     IntakeStatus.INTAKE_PENDING: {IntakeStatus.AWAITING_DOCTOR, IntakeStatus.ARCHIVED},
     IntakeStatus.AWAITING_DOCTOR: {IntakeStatus.IN_ROOM, IntakeStatus.INTAKE_PENDING, IntakeStatus.ARCHIVED},
-    IntakeStatus.IN_ROOM: {IntakeStatus.ACTIVE, IntakeStatus.AWAITING_DOCTOR, IntakeStatus.ARCHIVED},
+    IntakeStatus.IN_ROOM: {
+        IntakeStatus.CHECKOUT_PENDING,  # normal happy path: consultation → reception
+        IntakeStatus.ACTIVE,             # bypass payment (free follow-up, etc.)
+        IntakeStatus.AWAITING_DOCTOR,   # mistake — patient back to waiting
+        IntakeStatus.ARCHIVED,
+    },
+    IntakeStatus.CHECKOUT_PENDING: {
+        IntakeStatus.ACTIVE,             # paid → done
+        IntakeStatus.IN_ROOM,            # doctor called them back
+        IntakeStatus.ARCHIVED,
+    },
     IntakeStatus.ACTIVE: {IntakeStatus.AWAITING_DOCTOR, IntakeStatus.ARCHIVED},
     IntakeStatus.ARCHIVED: set(),  # terminal
 }
@@ -60,6 +70,7 @@ class QueueBoard(BaseModel):
     intake_pending: list[PatientResponse]
     awaiting_doctor: list[PatientResponse]
     in_room: list[PatientResponse]
+    checkout_pending: list[PatientResponse]
     counts: dict[str, int]
 
 
@@ -93,15 +104,18 @@ async def get_queue(
     pending = await _bucket(IntakeStatus.INTAKE_PENDING)
     awaiting = await _bucket(IntakeStatus.AWAITING_DOCTOR)
     in_room = await _bucket(IntakeStatus.IN_ROOM)
+    checkout = await _bucket(IntakeStatus.CHECKOUT_PENDING)
 
     return QueueBoard(
         intake_pending=[PatientResponse.model_validate(p) for p in pending],
         awaiting_doctor=[PatientResponse.model_validate(p) for p in awaiting],
         in_room=[PatientResponse.model_validate(p) for p in in_room],
+        checkout_pending=[PatientResponse.model_validate(p) for p in checkout],
         counts={
             "intake_pending": len(pending),
             "awaiting_doctor": len(awaiting),
             "in_room": len(in_room),
+            "checkout_pending": len(checkout),
         },
     )
 

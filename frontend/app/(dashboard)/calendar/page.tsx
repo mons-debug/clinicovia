@@ -20,6 +20,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { NewAppointmentDialog } from "@/components/calendar/new-appointment-dialog";
 import { RescheduleDialog } from "@/components/calendar/reschedule-dialog";
+import { TerminerDialog } from "@/components/calendar/terminer-dialog";
 import { MonthView } from "@/components/calendar/month-view";
 import { WeekView } from "@/components/calendar/week-view";
 import { WalkInDialog } from "@/components/queue/walk-in-dialog";
@@ -227,10 +228,7 @@ function ApptRow({ appt, isoDate }: ApptRowProps) {
               Commencer
             </Button>
           ) : appt.status === "in_progress" ? (
-            <Button size="sm" variant="default" onClick={() => fire("ended", "Terminé")} disabled={ev.isPending}>
-              <CheckCircle2 className="h-3 w-3" />
-              Terminer
-            </Button>
+            <TerminerDialog appt={appt} isoDate={isoDate} />
           ) : null}
         </div>
       </div>
