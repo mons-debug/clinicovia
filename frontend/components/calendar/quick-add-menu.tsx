@@ -13,12 +13,16 @@ interface Props {
 }
 
 // Single calendar CTA replacing the noisy "Arrivée sans RDV" + "Nouveau
-// RDV" duo. Click "Ajouter" → small popover with two grouped actions.
-// The popover panel hosts the existing dialog triggers, so each tile
-// itself opens its proper dialog on click.
+// RDV" duo. Click "Ajouter ▾" → small popover with two grouped tiles.
+//
+// The dialogs live OUTSIDE the popover (rendered with hidden triggers)
+// so closing the popover doesn't unmount them. Clicking a tile fires
+// the hidden trigger via ref and closes the popover.
 export function QuickAddMenu({ isoDate }: Props) {
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const walkInTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const newApptTriggerRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -38,6 +42,18 @@ export function QuickAddMenu({ isoDate }: Props) {
     };
   }, [open]);
 
+  const fireWalkIn = () => {
+    setOpen(false);
+    // Click the hidden trigger after the popover state flips so React
+    // can finish its render before Radix opens the dialog.
+    setTimeout(() => walkInTriggerRef.current?.click(), 0);
+  };
+
+  const fireNewAppt = () => {
+    setOpen(false);
+    setTimeout(() => newApptTriggerRef.current?.click(), 0);
+  };
+
   return (
     <div ref={wrapperRef} className="relative inline-block">
       <Button size="sm" onClick={() => setOpen((s) => !s)}>
@@ -47,39 +63,52 @@ export function QuickAddMenu({ isoDate }: Props) {
       </Button>
 
       {open && (
-        <div
-          className="absolute right-0 top-full z-50 mt-1 w-72 overflow-hidden rounded-lg border border-[var(--border)] bg-white shadow-lg"
-          onClick={() => setOpen(false)}
-        >
-          {/* Patient maintenant — opens WalkInDialog */}
-          <div className="flex items-start gap-3 px-3 py-2.5 transition-colors hover:bg-[var(--background)]">
+        <div className="absolute right-0 top-full z-50 mt-1 w-72 overflow-hidden rounded-lg border border-[var(--border)] bg-white shadow-lg">
+          <button
+            type="button"
+            onClick={fireWalkIn}
+            className="flex w-full items-start gap-3 px-3 py-2.5 text-left transition-colors hover:bg-[var(--background)]"
+          >
             <UserPlus className="mt-1 h-4 w-4 shrink-0 text-[var(--primary)]" />
-            <div className="flex-1">
-              <p className="text-sm font-medium text-[var(--text-primary)]">
+            <span className="flex-1">
+              <span className="block text-sm font-medium text-[var(--text-primary)]">
                 Patient arrive maintenant
-              </p>
-              <p className="mb-1.5 text-[11px] text-[var(--text-muted)]">
+              </span>
+              <span className="block text-[11px] text-[var(--text-muted)]">
                 Walk-in · ajout direct en salle d&apos;attente
-              </p>
-              <WalkInDialog triggerLabel="Ouvrir" />
-            </div>
-          </div>
+              </span>
+            </span>
+          </button>
           <div className="h-px bg-[var(--line-soft,_#E2E8F0)]" />
-          {/* Programmer un RDV — opens NewAppointmentDialog */}
-          <div className="flex items-start gap-3 px-3 py-2.5 transition-colors hover:bg-[var(--background)]">
+          <button
+            type="button"
+            onClick={fireNewAppt}
+            className="flex w-full items-start gap-3 px-3 py-2.5 text-left transition-colors hover:bg-[var(--background)]"
+          >
             <CalendarPlus className="mt-1 h-4 w-4 shrink-0 text-[var(--primary)]" />
-            <div className="flex-1">
-              <p className="text-sm font-medium text-[var(--text-primary)]">
+            <span className="flex-1">
+              <span className="block text-sm font-medium text-[var(--text-primary)]">
                 Programmer un RDV
-              </p>
-              <p className="mb-1.5 text-[11px] text-[var(--text-muted)]">
+              </span>
+              <span className="block text-[11px] text-[var(--text-muted)]">
                 Date + heure futures
-              </p>
-              <NewAppointmentDialog isoDate={isoDate} triggerLabel="Ouvrir" triggerVariant="outline" />
-            </div>
-          </div>
+              </span>
+            </span>
+          </button>
         </div>
       )}
+
+      {/* Always-mounted dialogs with hidden triggers — opening one of
+          these from a popover tile is then just a synthetic click.
+          The dialogs persist regardless of popover state. */}
+      <span className="hidden">
+        <span ref={(el) => { walkInTriggerRef.current = el?.querySelector("button") as HTMLButtonElement | null; }}>
+          <WalkInDialog triggerLabel="" />
+        </span>
+        <span ref={(el) => { newApptTriggerRef.current = el?.querySelector("button") as HTMLButtonElement | null; }}>
+          <NewAppointmentDialog isoDate={isoDate} triggerLabel="" />
+        </span>
+      </span>
     </div>
   );
 }
