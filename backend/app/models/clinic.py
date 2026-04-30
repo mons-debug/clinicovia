@@ -51,6 +51,12 @@ class Clinic(Base, TimestampMixin):
     currency: Mapped[str] = mapped_column(String(10), default="MAD")
     language: Mapped[str] = mapped_column(String(10), default="fr")
 
+    # Moroccan legal IDs (printed on factures + ordonnances)
+    ice: Mapped[str | None] = mapped_column(String(32), nullable=True)  # Identifiant Commun de l'Entreprise
+    if_number: Mapped[str | None] = mapped_column(String(32), nullable=True)  # Identifiant Fiscal
+    rc_number: Mapped[str | None] = mapped_column(String(32), nullable=True)  # Registre du Commerce
+    cnss: Mapped[str | None] = mapped_column(String(32), nullable=True)  # Caisse Nationale de Sécurité Sociale
+
     # Subscription
     plan: Mapped[SubscriptionPlan] = mapped_column(
         Enum(SubscriptionPlan), default=SubscriptionPlan.TRIAL

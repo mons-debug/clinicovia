@@ -5,6 +5,7 @@ from app.models.patient import Patient, PatientNote, PatientActivity, PatientTag
 from app.models.pipeline import Deal, DealActivity
 from app.models.appointment import Appointment, Treatment
 from app.models.treatment_plan import TreatmentPlan, TreatmentSession
+from app.models.billing import Invoice, Payment, InvoiceCounter
 from app.models.form import Form, FormSubmission
 from app.models.whatsapp import WhatsAppSession, WhatsAppConversation, WhatsAppMessage
 from app.models.tracking import TrackingIntegration, EventMapping, ConversionEvent
@@ -29,6 +30,9 @@ __all__ = [
     "Treatment",
     "TreatmentPlan",
     "TreatmentSession",
+    "Invoice",
+    "Payment",
+    "InvoiceCounter",
     "Form",
     "FormSubmission",
     "WhatsAppSession",
