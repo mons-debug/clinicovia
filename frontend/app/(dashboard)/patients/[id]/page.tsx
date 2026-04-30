@@ -28,6 +28,7 @@ import { NewPlanDialog } from "@/components/plans/new-plan-dialog";
 import { NewInvoiceDialog } from "@/components/billing/new-invoice-dialog";
 import { NewPrescriptionDialog } from "@/components/prescriptions/new-prescription-dialog";
 import { CompleteDossierCard } from "@/components/patient/complete-dossier-card";
+import { PhotosCard } from "@/components/photos/photos-card";
 import {
   usePatient,
   usePatientNotes,
@@ -480,6 +481,9 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
                 </div>
               )}
             </div>
+
+            {/* Photos cliniques */}
+            <PhotosCard patientId={p.id} />
 
             {/* Ordonnances */}
             <div className="rounded-xl border border-border bg-white p-5">
