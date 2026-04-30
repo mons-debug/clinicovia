@@ -21,6 +21,10 @@ class User(Base, TimestampMixin):
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False)
     is_super_admin: Mapped[bool] = mapped_column(Boolean, default=False)
 
+    # Doctor-specific. Free-form so we can add new specialties without
+    # migrations. Refine uses: "aesthetic_medicine" | "plastic_surgery".
+    specialty: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
     # Relationships
     memberships = relationship("ClinicMembership", back_populates="user", cascade="all, delete-orphan")
 

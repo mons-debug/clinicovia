@@ -69,7 +69,7 @@ def _doctor_to_response(user: User, membership: ClinicMembership | None = None) 
         last_name=user.last_name,
         phone=user.phone,
         avatar_url=user.avatar_url,
-        specialty="",  # Can be extended later with a specialty field
+        specialty=user.specialty or "",
         is_active=membership.is_active if membership else user.is_active,
         created_at=user.created_at.isoformat() if user.created_at else "",
     )
@@ -159,6 +159,7 @@ async def create_doctor(
         first_name=body.first_name,
         last_name=body.last_name,
         phone=body.phone,
+        specialty=body.specialty or None,
         is_verified=True,
     )
     db.add(new_user)
@@ -225,8 +226,7 @@ async def update_doctor(
     doctor = membership.user
     update_data = body.model_dump(exclude_unset=True)
     for key, value in update_data.items():
-        if key != "specialty":  # specialty not on User model yet
-            setattr(doctor, key, value)
+        setattr(doctor, key, value)
 
     await db.commit()
     await db.refresh(doctor)

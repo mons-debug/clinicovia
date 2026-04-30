@@ -84,4 +84,8 @@ class Treatment(Base, TimestampMixin, TenantMixin):
     price: Mapped[float] = mapped_column(default=0.0)
     currency: Mapped[str] = mapped_column(String(10), default="MAD")
     category: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    # Specialty gate — only doctors with this specialty can perform this
+    # treatment. Free-form (NULL = any doctor). Refine values:
+    # "aesthetic_medicine" | "plastic_surgery".
+    specialty: Mapped[str | None] = mapped_column(String(64), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)

@@ -84,6 +84,7 @@ class TreatmentResponse(BaseModel):
     price: float
     currency: str
     category: str | None
+    specialty: str | None = None
     model_config = {"from_attributes": True}
 
 
