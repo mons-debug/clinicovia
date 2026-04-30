@@ -92,6 +92,12 @@ const NAV_GROUPS: NavGroup[] = [
     module: "queue",
   },
   {
+    label: "Calendrier",
+    href: "/calendar",
+    icon: Calendar,
+    module: "calendar",
+  },
+  {
     label: "Pipeline",
     href: "/pipeline",
     icon: Kanban,
