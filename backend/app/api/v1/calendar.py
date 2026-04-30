@@ -19,7 +19,7 @@ from sqlalchemy.orm import selectinload
 from app.database import get_db
 from app.middleware.auth import get_current_user
 from app.models.appointment import Appointment, AppointmentStatus
-from app.models.patient import Patient
+from app.models.patient import IntakeStatus, Patient
 from app.models.user import User
 from app.schemas.appointment import AppointmentResponse
 
@@ -162,20 +162,30 @@ async def journey_event(
     if event == "arrived":
         appt.arrived_at = now
         appt.status = AppointmentStatus.CHECKED_IN
+        # Sync patient into the queue board
+        patient.intake_status = IntakeStatus.AWAITING_DOCTOR
+        patient.intake_at = now
     elif event == "started":
         appt.started_at = now
         if not appt.arrived_at:
             appt.arrived_at = now
         appt.status = AppointmentStatus.IN_PROGRESS
+        patient.intake_status = IntakeStatus.IN_ROOM
+        patient.intake_at = now
     elif event == "ended":
         appt.ended_at = now
         if not appt.started_at:
             appt.started_at = now
         appt.status = AppointmentStatus.COMPLETED
+        # Patient leaves the queue — back to ACTIVE (out of board buckets)
+        patient.intake_status = IntakeStatus.ACTIVE
+        patient.intake_at = now
     elif event == "cancel":
         appt.status = AppointmentStatus.CANCELLED
+        patient.intake_status = IntakeStatus.ACTIVE
     elif event == "no_show":
         appt.status = AppointmentStatus.NO_SHOW
+        patient.intake_status = IntakeStatus.ACTIVE
     else:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

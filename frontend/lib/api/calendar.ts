@@ -69,6 +69,11 @@ export function useJourneyEvent(isoDate: string) {
         body: JSON.stringify({ event }),
         token: token ?? undefined,
       }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["calendar", "day", isoDate] }),
+    onSuccess: () => {
+      // Calendar day refresh
+      qc.invalidateQueries({ queryKey: ["calendar", "day", isoDate] });
+      // Queue board reflects the patient's intake_status change instantly
+      qc.invalidateQueries({ queryKey: ["queue"] });
+    },
   });
 }
