@@ -23,9 +23,11 @@ import { NewConsultationDialog } from "@/components/consultations/new-consultati
 import { NewPrescriptionDialog } from "@/components/prescriptions/new-prescription-dialog";
 import { NewPlanDialog } from "@/components/plans/new-plan-dialog";
 import { NewInvoiceDialog } from "@/components/billing/new-invoice-dialog";
+import { IdentityEditCard } from "@/components/patient/identity-edit-card";
 import { useSessionContext } from "@/lib/api/session-context";
 import { usePatientPlans } from "@/lib/api/plans";
-import { usePatientConsents, useCreateConsent } from "@/lib/api/consents";
+import { usePatientConsultations } from "@/lib/api/consultations";
+import { useInvoices } from "@/lib/api/invoices";
 import type { Patient } from "@/lib/api/patients";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -92,6 +94,10 @@ export function DoctorBento({ patientId, patientName, patient }: Props) {
   const { data: ctx } = useSessionContext(patientId);
   const { data: plansData } = usePatientPlans(patientId);
   const plans = plansData?.plans ?? [];
+  const { data: consultsData } = usePatientConsultations(patientId);
+  const consults = consultsData?.consultations ?? [];
+  const { data: invoicesData } = useInvoices({ patientId });
+  const invoices = invoicesData?.invoices ?? [];
   const [openSection, setOpenSection] = useState<string | null>(null);
 
   if (!ctx?.active) return null;
@@ -122,6 +128,18 @@ export function DoctorBento({ patientId, patientName, patient }: Props) {
 
       {/* Accordion tiles — click to expand, click again to collapse */}
       <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
+        <AccordionTile
+          title="Identité patient"
+          Icon={ClipboardCheck}
+          accent="bg-slate-100 text-slate-700"
+          status={patient.first_name + " " + patient.last_name}
+          statusColor="gray"
+          expanded={openSection === "identity"}
+          onToggle={() => toggle("identity")}
+        >
+          <IdentityEditCard patient={patient} />
+        </AccordionTile>
+
         <AccordionTile
           title="Screening"
           Icon={ShieldCheck}
@@ -179,25 +197,33 @@ export function DoctorBento({ patientId, patientName, patient }: Props) {
         </AccordionTile>
 
         <AccordionTile
-          title="Note SOAP"
-          Icon={FileText}
+          title="Consultations"
+          Icon={Stethoscope}
           accent="bg-violet-100 text-violet-700"
-          status={ctx.soap_exists ? "Rédigée" : "À rédiger"}
+          status={consults.length > 0 ? `${consults.length} note${consults.length > 1 ? "s" : ""}` : "Aucune"}
           statusColor={ctx.soap_exists ? "green" : "gray"}
           expanded={openSection === "soap"}
           onToggle={() => toggle("soap")}
         >
-          <div className="space-y-3">
-            {ctx.soap_id ? (
+          <div className="space-y-2">
+            {consults.map((c) => (
               <Link
-                href={`/consultations/${ctx.soap_id}`}
-                className="inline-flex items-center gap-2 rounded-lg border border-[var(--primary)] px-4 py-2 text-sm font-medium text-[var(--primary)] hover:bg-[var(--primary-lighter)]"
+                key={c.id}
+                href={`/consultations/${c.id}`}
+                className="flex items-center justify-between rounded-lg border border-[var(--border)] p-3 text-sm hover:border-[var(--primary)]"
               >
-                Ouvrir la note SOAP →
+                <div>
+                  <span className="font-mono font-bold text-[var(--text-primary)]">{c.number}</span>
+                  <span className="ml-2 text-xs text-[var(--text-muted)]">
+                    {new Date(c.visit_date).toLocaleDateString("fr-FR")}
+                  </span>
+                </div>
+                <Badge variant={c.status === "signed" ? "success" : "outline"}>
+                  {c.status === "signed" ? "Signée" : c.status === "draft" ? "Brouillon" : c.status}
+                </Badge>
               </Link>
-            ) : (
-              <NewConsultationDialog patientId={patientId} />
-            )}
+            ))}
+            <NewConsultationDialog patientId={patientId} />
           </div>
         </AccordionTile>
 
@@ -236,6 +262,30 @@ export function DoctorBento({ patientId, patientName, patient }: Props) {
               </Link>
             ))}
             <NewPlanDialog patientId={patientId} />
+          </div>
+        </AccordionTile>
+
+        <AccordionTile
+          title="Factures"
+          Icon={FileText}
+          accent="bg-orange-100 text-orange-700"
+          status={invoices.length > 0 ? `${invoices.length} facture${invoices.length > 1 ? "s" : ""}` : "Aucune"}
+          statusColor={invoices.length > 0 ? "green" : "gray"}
+          expanded={openSection === "invoices"}
+          onToggle={() => toggle("invoices")}
+        >
+          <div className="space-y-2">
+            {invoices.map((inv) => (
+              <Link
+                key={inv.id}
+                href={`/invoices/${inv.id}`}
+                className="flex items-center justify-between rounded-lg border border-[var(--border)] p-3 text-sm hover:border-[var(--primary)]"
+              >
+                <span className="font-mono font-bold text-[var(--text-primary)]">{inv.number}</span>
+                <span className="font-mono text-[var(--text-primary)]">{inv.total} MAD</span>
+              </Link>
+            ))}
+            <NewInvoiceDialog patientId={patientId} />
           </div>
         </AccordionTile>
       </div>
