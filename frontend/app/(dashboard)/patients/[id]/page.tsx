@@ -256,10 +256,10 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
         {/* Quick stats */}
         <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
           {[
-            { label: "Lead Score", value: `${p.lead_score}/100`, icon: Star, color: "#F59E0B" },
-            { label: "Total Spent", value: `${p.total_spent.toLocaleString("fr-FR")} MAD`, icon: DollarSign, color: "#10B981" },
-            { label: "Lifetime Value", value: `${p.lifetime_value.toLocaleString("fr-FR")} MAD`, icon: DollarSign, color: "#059669" },
-            { label: "Patient Since", value: formatDate(p.created_at), icon: Calendar, color: "#3B82F6" },
+            { label: "Score lead", value: `${p.lead_score}/100`, icon: Star, color: "#F59E0B" },
+            { label: "Total dépensé", value: `${p.total_spent.toLocaleString("fr-FR")} MAD`, icon: DollarSign, color: "#10B981" },
+            { label: "Valeur vie", value: `${p.lifetime_value.toLocaleString("fr-FR")} MAD`, icon: DollarSign, color: "#059669" },
+            { label: "Patient depuis", value: formatDate(p.created_at), icon: Calendar, color: "#3B82F6" },
           ].map((stat) => {
             const Icon = stat.icon;
             return (

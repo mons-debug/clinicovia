@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -158,9 +159,12 @@ function ApptRow({ appt, isoDate }: ApptRowProps) {
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-1.5">
-              <p className="truncate font-semibold text-[var(--text-primary)]">
+              <Link
+                href={`/patients/${appt.patient_id}`}
+                className="truncate text-sm font-semibold text-[var(--text-primary)] hover:text-[var(--primary)] hover:underline"
+              >
                 {appt.patient_name}
-              </p>
+              </Link>
               {appt.is_first_visit && (
                 <Badge variant="default" className="bg-[var(--primary)] text-[10px]">
                   ⭐ 1ʳᵉ visite
@@ -201,26 +205,24 @@ function ApptRow({ appt, isoDate }: ApptRowProps) {
           </Badge>
         </div>
 
-        {/* Action row */}
-        <div className="mt-2 flex flex-wrap gap-1.5">
+        {/* Action row — compact, primary actions only; secondary on hover would be ideal but keep simple */}
+        {!isDone && (
+        <div className="mt-2 flex flex-wrap gap-1">
           {appt.status === "scheduled" || appt.status === "confirmed" ? (
             <>
               {appt.needs_confirmation && (
-                <Button size="sm" variant="secondary" onClick={confirm} disabled={confirmMut.isPending}>
-                  <CheckCircle2 className="h-3 w-3" />
+                <Button size="sm" variant="secondary" className="h-7 px-2 text-[11px]" onClick={confirm} disabled={confirmMut.isPending}>
                   Confirmer
                 </Button>
               )}
-              <Button size="sm" variant="secondary" onClick={() => fire("arrived", "Arrivé")} disabled={ev.isPending}>
-                <UserCheck className="h-3 w-3" />
+              <Button size="sm" variant="default" className="h-7 px-2 text-[11px]" onClick={() => fire("arrived", "Arrivé")} disabled={ev.isPending}>
                 Arrivé
               </Button>
               <RescheduleDialog appt={appt} isoDate={isoDate} />
-              <Button size="sm" variant="ghost" onClick={() => fire("no_show", "Absent")} disabled={ev.isPending}>
-                <XCircle className="h-3 w-3" />
+              <Button size="sm" variant="ghost" className="h-7 px-1.5 text-[11px] text-[var(--text-muted)]" onClick={() => fire("no_show", "Absent")} disabled={ev.isPending}>
                 Absent
               </Button>
-              <Button size="sm" variant="ghost" onClick={() => fire("cancel", "Annulé")} disabled={ev.isPending}>
+              <Button size="sm" variant="ghost" className="h-7 px-1.5 text-[11px] text-[var(--text-muted)]" onClick={() => fire("cancel", "Annulé")} disabled={ev.isPending}>
                 Annuler
               </Button>
             </>
@@ -233,6 +235,7 @@ function ApptRow({ appt, isoDate }: ApptRowProps) {
             <TerminerDialog appt={appt} isoDate={isoDate} />
           ) : null}
         </div>
+        )}
       </div>
     </div>
   );
