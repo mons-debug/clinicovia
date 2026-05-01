@@ -95,11 +95,22 @@ function SessionCard({
   const advance = useAdvanceSession(planId);
   const updateSession = useUpdateSession(planId);
   const [expanded, setExpanded] = useState(false);
+  const [activeStep, setActiveStep] = useState(0);
   const [noteVal, setNoteVal] = useState(session.outcome_note ?? "");
   const [scoreVal, setScoreVal] = useState(session.outcome_score?.toString() ?? "");
   const [productsVal, setProductsVal] = useState(
     session.products_used ? JSON.stringify(session.products_used) : ""
   );
+
+  const photosBefore = photos.filter((p) => p.stage === "before");
+  const photosAfter = photos.filter((p) => p.stage === "after" || p.stage === "follow_up");
+
+  const seanceSteps = [
+    { label: "Photos avant", done: photosBefore.length > 0, count: photosBefore.length },
+    { label: "Traitement", done: !!session.outcome_score || !!session.outcome_note, count: 0 },
+    { label: "Photos après", done: photosAfter.length > 0, count: photosAfter.length },
+    { label: "Ordonnance", done: prescriptions.length > 0, count: prescriptions.length },
+  ];
 
   const fire = (to: SessionStatus, label: string) =>
     advance.mutate(
@@ -282,101 +293,142 @@ function SessionCard({
         </div>
       )}
 
-      {/* Expandable detail section — notes, score, products, photo upload */}
+      {/* Step-based séance detail */}
       <div className="mt-3 border-t border-[var(--line-soft,_#E2E8F0)] pt-3">
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
           className="text-xs font-medium text-[var(--primary)] hover:underline"
         >
-          {expanded ? "Masquer les détails ▲" : "Modifier les détails ▼"}
+          {expanded ? "Masquer ▲" : "Détails de la séance ▼"}
         </button>
 
         {expanded && (
           <div className="mt-3 space-y-3">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label htmlFor={`score-${session.id}`} className="text-xs">Score d&apos;évolution (1-10)</Label>
-                <Input
-                  id={`score-${session.id}`}
-                  type="number"
-                  min={1}
-                  max={10}
-                  value={scoreVal}
-                  onChange={(e) => setScoreVal(e.target.value)}
-                  placeholder="ex. 8"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor={`products-${session.id}`} className="text-xs">Produits utilisés</Label>
-                <Input
-                  id={`products-${session.id}`}
-                  value={productsVal}
-                  onChange={(e) => setProductsVal(e.target.value)}
-                  placeholder="ex. Botox 20u, Restylane 1ml"
-                />
-              </div>
+            {/* Step pills */}
+            <div className="flex flex-wrap gap-1">
+              {seanceSteps.map((s, i) => (
+                <button
+                  key={s.label}
+                  type="button"
+                  onClick={() => setActiveStep(i)}
+                  className={cn(
+                    "flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium transition-all",
+                    i === activeStep
+                      ? "bg-[var(--primary)] text-white"
+                      : s.done
+                      ? "bg-emerald-100 text-emerald-700"
+                      : "bg-[var(--background)] text-[var(--text-muted)]"
+                  )}
+                >
+                  {s.done ? <CheckCircle2 className="h-3 w-3" /> : <span className="font-bold">{i + 1}</span>}
+                  {s.label}
+                  {s.count > 0 && <span className="text-[9px]">({s.count})</span>}
+                </button>
+              ))}
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor={`note-${session.id}`} className="text-xs">Notes cliniques de la séance</Label>
-              <textarea
-                id={`note-${session.id}`}
-                rows={3}
-                value={noteVal}
-                onChange={(e) => setNoteVal(e.target.value)}
-                placeholder="Observations, réactions, ajustements…"
-                className="block w-full rounded-md border border-[var(--border)] bg-white px-3 py-2 text-sm placeholder:text-[var(--text-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
-              />
-            </div>
-            {/* Linked documents for this séance */}
-            {(photos.length > 0 || prescriptions.length > 0) && (
-              <div className="rounded-lg border border-[var(--line-soft,_#E2E8F0)] bg-[var(--background)] p-3 space-y-2">
-                <p className="text-[11px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
-                  Documents liés à cette séance
-                </p>
-                {prescriptions.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5">
-                    <span className="text-[11px] text-[var(--text-muted)]">Ordonnances :</span>
-                    {prescriptions.map((rx) => (
-                      <Link
-                        key={rx.id}
-                        href={`/prescriptions/${rx.id}`}
-                        className="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-white px-2 py-0.5 text-[11px] font-medium text-blue-700 hover:border-blue-400"
-                      >
-                        <FileText className="h-3 w-3" />
-                        {rx.number}
-                        {rx.status === "signed" && <CheckCircle2 className="h-3 w-3 text-emerald-600" />}
-                      </Link>
-                    ))}
-                  </div>
-                )}
-                {photos.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5">
-                    <span className="text-[11px] text-[var(--text-muted)]">Photos :</span>
-                    {photos.map((p) => (
-                      <span key={p.id} className="rounded-md bg-white px-2 py-0.5 text-[10px] text-[var(--text-secondary)] border border-[var(--border)]">
-                        {p.zone_slug} · {p.stage}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
 
+            {/* Step content */}
+            <div className="rounded-lg border border-[var(--border)] bg-white p-4">
+              {activeStep === 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-bold text-[var(--text-primary)]">Photos avant traitement</p>
+                  {photosBefore.length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {photosBefore.map((p) => (
+                        <span key={p.id} className="rounded-md bg-emerald-50 px-2 py-1 text-[10px] text-emerald-700 border border-emerald-200">
+                          {p.zone_slug} · avant
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-[var(--text-muted)]">Aucune photo avant. Ouvrez le dossier patient pour en ajouter.</p>
+                  )}
+                  <Link href={`/patients/${patientId}`} className="inline-block text-xs text-[var(--primary)] hover:underline">
+                    Ouvrir le dossier patient →
+                  </Link>
+                </div>
+              )}
+
+              {activeStep === 1 && (
+                <div className="space-y-3">
+                  <p className="text-xs font-bold text-[var(--text-primary)]">Traitement — produits & notes</p>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label htmlFor={`score-${session.id}`} className="text-xs">Score (1-10)</Label>
+                      <Input id={`score-${session.id}`} type="number" min={1} max={10} value={scoreVal} onChange={(e) => setScoreVal(e.target.value)} placeholder="ex. 8" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor={`products-${session.id}`} className="text-xs">Produits utilisés</Label>
+                      <Input id={`products-${session.id}`} value={productsVal} onChange={(e) => setProductsVal(e.target.value)} placeholder="ex. Botox 20u" />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor={`note-${session.id}`} className="text-xs">Notes cliniques</Label>
+                    <textarea id={`note-${session.id}`} rows={3} value={noteVal} onChange={(e) => setNoteVal(e.target.value)} placeholder="Observations, réactions…" className="block w-full rounded-md border border-[var(--border)] bg-white px-3 py-2 text-sm placeholder:text-[var(--text-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]" />
+                  </div>
+                  <Button size="sm" onClick={saveDetails} disabled={updateSession.isPending}>
+                    {updateSession.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                    Enregistrer
+                  </Button>
+                </div>
+              )}
+
+              {activeStep === 2 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-bold text-[var(--text-primary)]">Photos après traitement</p>
+                  {photosAfter.length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {photosAfter.map((p) => (
+                        <span key={p.id} className="rounded-md bg-emerald-50 px-2 py-1 text-[10px] text-emerald-700 border border-emerald-200">
+                          {p.zone_slug} · après
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-[var(--text-muted)]">Aucune photo après.</p>
+                  )}
+                  <Link href={`/patients/${patientId}`} className="inline-block text-xs text-[var(--primary)] hover:underline">
+                    Ouvrir le dossier patient →
+                  </Link>
+                </div>
+              )}
+
+              {activeStep === 3 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-bold text-[var(--text-primary)]">Ordonnance liée à cette séance</p>
+                  {prescriptions.length > 0 ? (
+                    <div className="space-y-1.5">
+                      {prescriptions.map((rx) => (
+                        <Link key={rx.id} href={`/prescriptions/${rx.id}`} className="flex items-center justify-between rounded-lg border border-[var(--border)] p-3 text-sm hover:border-[var(--primary)]">
+                          <div className="flex items-center gap-2">
+                            <FileText className="h-4 w-4 text-blue-600" />
+                            <span className="font-mono font-bold">{rx.number}</span>
+                          </div>
+                          <Badge variant={rx.status === "signed" ? "success" : "outline"}>
+                            {rx.status === "signed" ? "Signée" : "Brouillon"}
+                          </Badge>
+                        </Link>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-[var(--text-muted)]">Aucune ordonnance. Créez-en une depuis le dossier patient.</p>
+                  )}
+                  <Link href={`/patients/${patientId}`} className="inline-block text-xs text-[var(--primary)] hover:underline">
+                    Ouvrir le dossier patient →
+                  </Link>
+                </div>
+              )}
+            </div>
+
+            {/* Step navigation */}
             <div className="flex items-center justify-between">
-              <Link
-                href={`/patients/${patientId}#photos`}
-                className="text-xs text-[var(--primary)] hover:underline"
-              >
-                Ajouter des photos →
-              </Link>
-              <Button
-                size="sm"
-                onClick={saveDetails}
-                disabled={updateSession.isPending}
-              >
-                {updateSession.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
-                Enregistrer
+              <Button size="sm" variant="ghost" onClick={() => setActiveStep(Math.max(0, activeStep - 1))} disabled={activeStep === 0}>
+                ← Précédent
+              </Button>
+              <span className="text-[11px] text-[var(--text-muted)]">{activeStep + 1}/{seanceSteps.length}</span>
+              <Button size="sm" variant="default" onClick={() => setActiveStep(Math.min(seanceSteps.length - 1, activeStep + 1))} disabled={activeStep === seanceSteps.length - 1}>
+                Suivant →
               </Button>
             </div>
           </div>
