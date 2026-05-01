@@ -149,13 +149,12 @@ async def get_session_context(
         select(PatientConsent).where(
             PatientConsent.clinic_id == clinic_id,
             PatientConsent.patient_id == patient_id,
-            PatientConsent.status.in_([ConsentStatus.SIGNED, ConsentStatus.PENDING]),
         ).order_by(PatientConsent.created_at.desc()).limit(1)
     )
     consent = consent_res.scalar_one_or_none()
     if consent:
-        ctx.consent_signed = consent.status == ConsentStatus.SIGNED
-        ctx.consent_pending = consent.status == ConsentStatus.PENDING
+        ctx.consent_signed = consent.status.value == "signed"
+        ctx.consent_pending = consent.status.value == "pending"
 
     # Photos today
     if appt:
