@@ -36,6 +36,7 @@ import { ClinicalEditCard } from "@/components/patient/clinical-edit-card";
 import { ScreeningCard } from "@/components/patient/screening-card";
 import { TerminerVisiteButton } from "@/components/patient/terminer-visite-button";
 import { SessionChecklist } from "@/components/patient/session-checklist";
+import { DoctorBento } from "@/components/patient/doctor-bento";
 import { usePatientConsents, useCreateConsent } from "@/lib/api/consents";
 import { PhotosCard } from "@/components/photos/photos-card";
 import { NewConsultationDialog } from "@/components/consultations/new-consultation-dialog";
@@ -303,15 +304,12 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
       </div>
 
       {/* Tab content */}
-      {activeTab === "overview" && (
-        <div className="space-y-6">
-          {/* Session active checklist — only visible when patient is IN_ROOM */}
-          <SessionChecklist
-            patientId={p.id}
-            patientName={`${p.first_name} ${p.last_name}`}
-          />
+      {activeTab === "overview" && p.intake_status === "in_room" && (
+        <DoctorBento patientId={p.id} patientName={`${p.first_name} ${p.last_name}`} />
+      )}
 
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+      {activeTab === "overview" && p.intake_status !== "in_room" && (
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <div className="space-y-6 lg:col-span-2">
             {/* Identité — always-on, role-gated edit (reception) */}
             <IdentityEditCard patient={p} />
@@ -642,7 +640,6 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
               )}
             </div>
           </div>
-        </div>
         </div>
       )}
 
