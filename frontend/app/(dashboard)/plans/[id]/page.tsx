@@ -328,6 +328,41 @@ function SessionCard({
                 className="block w-full rounded-md border border-[var(--border)] bg-white px-3 py-2 text-sm placeholder:text-[var(--text-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
               />
             </div>
+            {/* Linked documents for this séance */}
+            {(photos.length > 0 || prescriptions.length > 0) && (
+              <div className="rounded-lg border border-[var(--line-soft,_#E2E8F0)] bg-[var(--background)] p-3 space-y-2">
+                <p className="text-[11px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
+                  Documents liés à cette séance
+                </p>
+                {prescriptions.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    <span className="text-[11px] text-[var(--text-muted)]">Ordonnances :</span>
+                    {prescriptions.map((rx) => (
+                      <Link
+                        key={rx.id}
+                        href={`/prescriptions/${rx.id}`}
+                        className="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-white px-2 py-0.5 text-[11px] font-medium text-blue-700 hover:border-blue-400"
+                      >
+                        <FileText className="h-3 w-3" />
+                        {rx.number}
+                        {rx.status === "signed" && <CheckCircle2 className="h-3 w-3 text-emerald-600" />}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+                {photos.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    <span className="text-[11px] text-[var(--text-muted)]">Photos :</span>
+                    {photos.map((p) => (
+                      <span key={p.id} className="rounded-md bg-white px-2 py-0.5 text-[10px] text-[var(--text-secondary)] border border-[var(--border)]">
+                        {p.zone_slug} · {p.stage}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="flex items-center justify-between">
               <Link
                 href={`/patients/${patientId}#photos`}
