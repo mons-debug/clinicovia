@@ -21,8 +21,13 @@ import { ClinicalEditCard } from "@/components/patient/clinical-edit-card";
 import { PhotosCard } from "@/components/photos/photos-card";
 import { NewConsultationDialog } from "@/components/consultations/new-consultation-dialog";
 import { NewPrescriptionDialog } from "@/components/prescriptions/new-prescription-dialog";
+import { NewPlanDialog } from "@/components/plans/new-plan-dialog";
+import { NewInvoiceDialog } from "@/components/billing/new-invoice-dialog";
 import { useSessionContext } from "@/lib/api/session-context";
+import { usePatientPlans } from "@/lib/api/plans";
+import { usePatientConsents, useCreateConsent } from "@/lib/api/consents";
 import type { Patient } from "@/lib/api/patients";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -85,6 +90,8 @@ function AccordionTile({
 
 export function DoctorBento({ patientId, patientName, patient }: Props) {
   const { data: ctx } = useSessionContext(patientId);
+  const { data: plansData } = usePatientPlans(patientId);
+  const plans = plansData?.plans ?? [];
   const [openSection, setOpenSection] = useState<string | null>(null);
 
   if (!ctx?.active) return null;
@@ -205,17 +212,33 @@ export function DoctorBento({ patientId, patientName, patient }: Props) {
         >
           <NewPrescriptionDialog patientId={patientId} />
         </AccordionTile>
-      </div>
 
-      {/* Plan link */}
-      {isSeance && ctx.plan_id && (
-        <Link
-          href={`/plans/${ctx.plan_id}`}
-          className="block rounded-lg border border-[var(--border)] bg-white px-4 py-2.5 text-center text-xs font-medium text-[var(--text-secondary)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
+        <AccordionTile
+          title="Plans de traitement"
+          Icon={FileText}
+          accent="bg-teal-100 text-teal-700"
+          status={plans.length > 0 ? `${plans.length} plan${plans.length > 1 ? "s" : ""}` : "Aucun"}
+          statusColor={plans.length > 0 ? "green" : "gray"}
+          expanded={openSection === "plans"}
+          onToggle={() => toggle("plans")}
         >
-          Voir le plan complet →
-        </Link>
-      )}
+          <div className="space-y-2">
+            {plans.map((plan) => (
+              <Link
+                key={plan.id}
+                href={`/plans/${plan.id}`}
+                className="flex items-center justify-between rounded-lg border border-[var(--border)] p-3 text-sm hover:border-[var(--primary)]"
+              >
+                <span className="font-medium text-[var(--text-primary)]">{plan.title}</span>
+                <Badge variant={plan.status === "active" ? "default" : "outline"}>
+                  {plan.status === "active" ? "Actif" : plan.status === "completed" ? "Terminé" : plan.status}
+                </Badge>
+              </Link>
+            ))}
+            <NewPlanDialog patientId={patientId} />
+          </div>
+        </AccordionTile>
+      </div>
 
       {!ctx.can_terminate && (
         <p className="rounded-lg bg-amber-50 px-4 py-2 text-xs text-amber-800">
