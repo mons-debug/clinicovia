@@ -404,7 +404,7 @@ export default function QueuePage() {
               key={p.id}
               patient={p}
               primaryAction={{ label: "Patient entré en salle", to: "in_room" }}
-              secondaryAction={{ label: "Retour accueil", to: "intake_pending", variant: "ghost" }}
+              secondaryAction={{ label: "Retour", to: "intake_pending", variant: "ghost" }}
               showCallButton
             />
           ))}

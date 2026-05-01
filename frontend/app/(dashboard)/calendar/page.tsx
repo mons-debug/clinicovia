@@ -377,7 +377,7 @@ export default function CalendarPage() {
                 Aucun rendez-vous ce jour
               </p>
               <p className="text-xs text-[var(--text-muted)]">
-                Utilisez le bouton « Nouveau patient » pour ajouter un rendez-vous.
+                Utilisez le bouton « Ajouter » pour créer un rendez-vous.
               </p>
             </Card>
           ) : (

@@ -27,7 +27,6 @@ import { Badge } from "@/components/ui/badge";
 import { NewPlanDialog } from "@/components/plans/new-plan-dialog";
 import { NewInvoiceDialog } from "@/components/billing/new-invoice-dialog";
 import { NewPrescriptionDialog } from "@/components/prescriptions/new-prescription-dialog";
-import { CompleteDossierCard } from "@/components/patient/complete-dossier-card";
 import { IdentityEditCard } from "@/components/patient/identity-edit-card";
 import { ClinicalEditCard } from "@/components/patient/clinical-edit-card";
 import { ScreeningCard } from "@/components/patient/screening-card";
@@ -258,8 +257,8 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
         <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
           {[
             { label: "Lead Score", value: `${p.lead_score}/100`, icon: Star, color: "#F59E0B" },
-            { label: "Total Spent", value: `$${p.total_spent.toLocaleString()}`, icon: DollarSign, color: "#10B981" },
-            { label: "Lifetime Value", value: `$${p.lifetime_value.toLocaleString()}`, icon: DollarSign, color: "#059669" },
+            { label: "Total Spent", value: `${p.total_spent.toLocaleString("fr-FR")} MAD`, icon: DollarSign, color: "#10B981" },
+            { label: "Lifetime Value", value: `${p.lifetime_value.toLocaleString("fr-FR")} MAD`, icon: DollarSign, color: "#059669" },
             { label: "Patient Since", value: formatDate(p.created_at), icon: Calendar, color: "#3B82F6" },
           ].map((stat) => {
             const Icon = stat.icon;
@@ -301,11 +300,6 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
       {activeTab === "overview" && (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <div className="space-y-6 lg:col-span-2">
-            {/* Compléter le dossier — only while intake is incomplete */}
-            {p.intake_status && p.intake_status !== "active" && p.intake_status !== "archived" && (
-              <CompleteDossierCard patient={p} />
-            )}
-
             {/* Identité — always-on, role-gated edit (reception) */}
             <IdentityEditCard patient={p} />
 
