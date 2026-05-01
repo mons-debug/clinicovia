@@ -304,13 +304,11 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
       </div>
 
       {/* Tab content */}
-      {activeTab === "overview" && (
-        <div className="space-y-6">
-        {/* Bento guide on top when patient is IN_ROOM — full dossier stays below */}
-        {p.intake_status === "in_room" && (
-          <DoctorBento patientId={p.id} patientName={`${p.first_name} ${p.last_name}`} />
-        )}
+      {activeTab === "overview" && p.intake_status === "in_room" && (
+        <DoctorBento patientId={p.id} patientName={`${p.first_name} ${p.last_name}`} patient={p} />
+      )}
 
+      {activeTab === "overview" && p.intake_status !== "in_room" && (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <div className="space-y-6 lg:col-span-2">
             {/* Identité — always-on, role-gated edit (reception) */}
@@ -642,7 +640,6 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
               )}
             </div>
           </div>
-        </div>
         </div>
       )}
 

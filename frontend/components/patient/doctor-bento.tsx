@@ -1,13 +1,13 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import {
   Camera,
+  ChevronDown,
   ClipboardCheck,
   FileText,
-  IdCard,
   Pill,
-  Receipt,
   ShieldCheck,
   Stethoscope,
   AlertTriangle,
@@ -16,68 +16,80 @@ import {
 
 import { Card } from "@/components/ui/card";
 import { TerminerVisiteButton } from "@/components/patient/terminer-visite-button";
+import { ScreeningCard } from "@/components/patient/screening-card";
+import { ClinicalEditCard } from "@/components/patient/clinical-edit-card";
+import { PhotosCard } from "@/components/photos/photos-card";
+import { NewConsultationDialog } from "@/components/consultations/new-consultation-dialog";
+import { NewPrescriptionDialog } from "@/components/prescriptions/new-prescription-dialog";
 import { useSessionContext } from "@/lib/api/session-context";
+import type { Patient } from "@/lib/api/patients";
 import { cn } from "@/lib/utils";
 
 interface Props {
   patientId: string;
   patientName: string;
+  patient: Patient;
 }
 
-function BentoCard({
+function AccordionTile({
   title,
   status,
   statusColor,
-  detail,
   Icon,
-  href,
   accent,
+  expanded,
+  onToggle,
   children,
 }: {
   title: string;
   status: string;
-  statusColor: "green" | "amber" | "gray" | "blue";
-  detail?: string;
+  statusColor: "green" | "amber" | "gray";
   Icon: React.ComponentType<{ className?: string }>;
-  href?: string;
   accent: string;
-  children?: React.ReactNode;
+  expanded: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
 }) {
   const colors = {
     green: "text-emerald-700 bg-emerald-50",
     amber: "text-amber-700 bg-amber-50",
     gray: "text-[var(--text-muted)] bg-[var(--background)]",
-    blue: "text-blue-700 bg-blue-50",
   };
 
-  const content = (
-    <Card className={cn("flex flex-col justify-between p-4 transition-all", href && "cursor-pointer hover:shadow-md hover:border-[var(--primary)]")}>
-      <div>
-        <div className="flex items-center justify-between">
-          <div className={cn("flex h-9 w-9 items-center justify-center rounded-lg", accent)}>
-            <Icon className="h-5 w-5" />
-          </div>
-          <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold", colors[statusColor])}>
-            {statusColor === "green" && <CheckCircle2 className="h-3 w-3" />}
-            {statusColor === "amber" && <AlertTriangle className="h-3 w-3" />}
-            {status}
-          </span>
+  return (
+    <Card className={cn("overflow-hidden transition-all", expanded && "ring-2 ring-[var(--primary)]")}>
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-[var(--background)]"
+      >
+        <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", accent)}>
+          <Icon className="h-4 w-4" />
         </div>
-        <h4 className="mt-3 text-sm font-bold text-[var(--text-primary)]">{title}</h4>
-        {detail && <p className="mt-0.5 text-[11px] text-[var(--text-muted)]">{detail}</p>}
-      </div>
-      {children && <div className="mt-3">{children}</div>}
+        <span className="flex-1 text-sm font-bold text-[var(--text-primary)]">{title}</span>
+        <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold", colors[statusColor])}>
+          {statusColor === "green" && <CheckCircle2 className="mr-0.5 inline h-3 w-3" />}
+          {statusColor === "amber" && <AlertTriangle className="mr-0.5 inline h-3 w-3" />}
+          {status}
+        </span>
+        <ChevronDown className={cn("h-4 w-4 text-[var(--text-muted)] transition-transform", expanded && "rotate-180")} />
+      </button>
+      {expanded && (
+        <div className="border-t border-[var(--line-soft,_#E2E8F0)] p-4">
+          {children}
+        </div>
+      )}
     </Card>
   );
-
-  if (href) return <Link href={href}>{content}</Link>;
-  return content;
 }
 
-export function DoctorBento({ patientId, patientName }: Props) {
+export function DoctorBento({ patientId, patientName, patient }: Props) {
   const { data: ctx } = useSessionContext(patientId);
+  const [openSection, setOpenSection] = useState<string | null>(null);
 
   if (!ctx?.active) return null;
+
+  const toggle = (key: string) => setOpenSection(openSection === key ? null : key);
 
   const isSeance = ctx.mode === "seance";
   const title = isSeance
@@ -86,7 +98,7 @@ export function DoctorBento({ patientId, patientName }: Props) {
   const subtitle = isSeance ? ctx.plan_title : ctx.treatment;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {/* Header bar */}
       <div className="flex items-center justify-between rounded-xl border-2 border-emerald-500 bg-gradient-to-r from-emerald-50 to-white px-5 py-3">
         <div className="flex items-center gap-3">
@@ -101,100 +113,113 @@ export function DoctorBento({ patientId, patientName }: Props) {
         <TerminerVisiteButton patientId={patientId} patientName={patientName} />
       </div>
 
-      {/* Bento grid — 3 columns, doctor's action tiles */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {/* Screening */}
-        <BentoCard
+      {/* Accordion tiles — click to expand, click again to collapse */}
+      <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
+        <AccordionTile
           title="Screening"
           Icon={ShieldCheck}
           accent="bg-emerald-100 text-emerald-700"
-          status={ctx.screening_ok ? (ctx.screening_flags > 0 ? `${ctx.screening_flags} drapeau${ctx.screening_flags > 1 ? "x" : ""}` : "OK") : "Non évalué"}
+          status={ctx.screening_ok ? (ctx.screening_flags > 0 ? `${ctx.screening_flags} drapeaux` : "OK") : "Non évalué"}
           statusColor={ctx.screening_ok ? (ctx.screening_flags > 0 ? "amber" : "green") : "gray"}
-          detail="19 contre-indications"
-        />
+          expanded={openSection === "screening"}
+          onToggle={() => toggle("screening")}
+        >
+          <ScreeningCard patientId={patientId} />
+        </AccordionTile>
 
-        {/* Consent */}
-        <BentoCard
+        <AccordionTile
+          title="Dossier clinique"
+          Icon={Stethoscope}
+          accent="bg-[var(--primary-lighter)] text-[var(--primary)]"
+          status="Éditable"
+          statusColor="gray"
+          expanded={openSection === "clinical"}
+          onToggle={() => toggle("clinical")}
+        >
+          <ClinicalEditCard patient={patient} />
+        </AccordionTile>
+
+        <AccordionTile
           title="Consentement"
           Icon={ClipboardCheck}
           accent="bg-blue-100 text-blue-700"
           status={ctx.consent_signed ? "Signé" : ctx.consent_pending ? "En attente" : "Aucun"}
           statusColor={ctx.consent_signed ? "green" : ctx.consent_pending ? "amber" : "gray"}
-          detail={isSeance ? "Lié au plan" : "Acte spécifique"}
-        />
+          expanded={openSection === "consent"}
+          onToggle={() => toggle("consent")}
+        >
+          <p className="text-sm text-[var(--text-muted)]">
+            {ctx.consent_signed
+              ? "Consentement signé. Aucune action requise."
+              : "Créez un consentement depuis la section en bas du dossier."}
+          </p>
+        </AccordionTile>
 
-        {/* Photos before */}
-        <BentoCard
-          title="Photos avant"
+        <AccordionTile
+          title="Photos"
           Icon={Camera}
           accent="bg-amber-100 text-amber-700"
-          status={ctx.photos_before > 0 ? `${ctx.photos_before} photo${ctx.photos_before > 1 ? "s" : ""}` : "Aucune"}
+          status={
+            ctx.photos_before + ctx.photos_after > 0
+              ? `${ctx.photos_before} avant · ${ctx.photos_after} après`
+              : "Aucune"
+          }
           statusColor={ctx.photos_before > 0 ? "green" : "gray"}
-          detail="Avant traitement"
-        />
+          expanded={openSection === "photos"}
+          onToggle={() => toggle("photos")}
+        >
+          <PhotosCard patientId={patientId} />
+        </AccordionTile>
 
-        {/* SOAP Note */}
-        <BentoCard
+        <AccordionTile
           title="Note SOAP"
-          Icon={Stethoscope}
-          accent="bg-[var(--primary-lighter)] text-[var(--primary)]"
+          Icon={FileText}
+          accent="bg-violet-100 text-violet-700"
           status={ctx.soap_exists ? "Rédigée" : "À rédiger"}
           statusColor={ctx.soap_exists ? "green" : "gray"}
-          detail="Subjectif · Objectif · Évaluation · Plan"
-          href={ctx.soap_id ? `/consultations/${ctx.soap_id}` : undefined}
-        />
+          expanded={openSection === "soap"}
+          onToggle={() => toggle("soap")}
+        >
+          <div className="space-y-3">
+            {ctx.soap_id ? (
+              <Link
+                href={`/consultations/${ctx.soap_id}`}
+                className="inline-flex items-center gap-2 rounded-lg border border-[var(--primary)] px-4 py-2 text-sm font-medium text-[var(--primary)] hover:bg-[var(--primary-lighter)]"
+              >
+                Ouvrir la note SOAP →
+              </Link>
+            ) : (
+              <NewConsultationDialog patientId={patientId} />
+            )}
+          </div>
+        </AccordionTile>
 
-        {/* Photos after */}
-        <BentoCard
-          title="Photos après"
-          Icon={Camera}
-          accent="bg-violet-100 text-violet-700"
-          status={ctx.photos_after > 0 ? `${ctx.photos_after} photo${ctx.photos_after > 1 ? "s" : ""}` : "Aucune"}
-          statusColor={ctx.photos_after > 0 ? "green" : "gray"}
-          detail="Résultat immédiat"
-        />
-
-        {/* Ordonnance */}
-        <BentoCard
+        <AccordionTile
           title="Ordonnance"
           Icon={Pill}
           accent="bg-rose-100 text-rose-700"
           status={ctx.ordonnance_exists ? "Créée" : "Optionnel"}
           statusColor={ctx.ordonnance_exists ? "green" : "gray"}
-          detail="Prescription post-acte"
-        />
+          expanded={openSection === "rx"}
+          onToggle={() => toggle("rx")}
+        >
+          <NewPrescriptionDialog patientId={patientId} />
+        </AccordionTile>
       </div>
 
-      {/* Quick links row */}
-      <div className="flex flex-wrap gap-2">
+      {/* Plan link */}
+      {isSeance && ctx.plan_id && (
         <Link
-          href={`/patients/${patientId}`}
-          className="rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-xs font-medium text-[var(--text-secondary)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
+          href={`/plans/${ctx.plan_id}`}
+          className="block rounded-lg border border-[var(--border)] bg-white px-4 py-2.5 text-center text-xs font-medium text-[var(--text-secondary)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
         >
-          <IdCard className="mr-1.5 inline h-3.5 w-3.5" />
-          Identité
+          Voir le plan complet →
         </Link>
-        <Link
-          href={`/patients/${patientId}`}
-          className="rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-xs font-medium text-[var(--text-secondary)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
-        >
-          <FileText className="mr-1.5 inline h-3.5 w-3.5" />
-          Dossier clinique
-        </Link>
-        {isSeance && ctx.plan_id && (
-          <Link
-            href={`/plans/${ctx.plan_id}`}
-            className="rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-xs font-medium text-[var(--text-secondary)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
-          >
-            <Receipt className="mr-1.5 inline h-3.5 w-3.5" />
-            Voir le plan
-          </Link>
-        )}
-      </div>
+      )}
 
       {!ctx.can_terminate && (
         <p className="rounded-lg bg-amber-50 px-4 py-2 text-xs text-amber-800">
-          Complétez au minimum le <strong>screening</strong> + la <strong>note SOAP</strong> pour pouvoir terminer la visite.
+          Complétez le <strong>screening</strong> + la <strong>note SOAP</strong> pour terminer.
         </p>
       )}
     </div>
