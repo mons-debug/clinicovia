@@ -31,6 +31,9 @@ import {
   type SessionTimelineEntry,
 } from "@/lib/api/plans";
 import { useUploadPhoto } from "@/lib/api/photos";
+import { PhotosCard } from "@/components/photos/photos-card";
+import { NewPrescriptionDialog } from "@/components/prescriptions/new-prescription-dialog";
+import { NewInvoiceDialog } from "@/components/billing/new-invoice-dialog";
 
 const STATUS_LABEL: Record<SessionStatus, string> = {
   planned: "Planifiée",
@@ -111,6 +114,7 @@ function SessionCard({
     { label: "Traitement", done: !!session.outcome_score || !!session.outcome_note, count: 0 },
     { label: "Photos après", done: photosAfter.length > 0, count: photosAfter.length },
     { label: "Ordonnance", done: prescriptions.length > 0, count: prescriptions.length },
+    { label: "Facture", done: false, count: 0 },
   ];
 
   const fire = (to: SessionStatus, label: string) =>
@@ -332,22 +336,18 @@ function SessionCard({
             {/* Step content */}
             <div className="rounded-lg border border-[var(--border)] bg-white p-4">
               {activeStep === 0 && (
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <p className="text-xs font-bold text-[var(--text-primary)]">Photos avant traitement</p>
-                  {photosBefore.length > 0 ? (
+                  {photosBefore.length > 0 && (
                     <div className="flex flex-wrap gap-1.5">
                       {photosBefore.map((p) => (
                         <span key={p.id} className="rounded-md bg-emerald-50 px-2 py-1 text-[10px] text-emerald-700 border border-emerald-200">
-                          {p.zone_slug} · avant
+                          ✓ {p.zone_slug} · avant
                         </span>
                       ))}
                     </div>
-                  ) : (
-                    <p className="text-xs text-[var(--text-muted)]">Aucune photo avant. Ouvrez le dossier patient pour en ajouter.</p>
                   )}
-                  <Link href={`/patients/${patientId}`} className="inline-block text-xs text-[var(--primary)] hover:underline">
-                    Ouvrir le dossier patient →
-                  </Link>
+                  <PhotosCard patientId={patientId} />
                 </div>
               )}
 
@@ -376,29 +376,25 @@ function SessionCard({
               )}
 
               {activeStep === 2 && (
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <p className="text-xs font-bold text-[var(--text-primary)]">Photos après traitement</p>
-                  {photosAfter.length > 0 ? (
+                  {photosAfter.length > 0 && (
                     <div className="flex flex-wrap gap-1.5">
                       {photosAfter.map((p) => (
                         <span key={p.id} className="rounded-md bg-emerald-50 px-2 py-1 text-[10px] text-emerald-700 border border-emerald-200">
-                          {p.zone_slug} · après
+                          ✓ {p.zone_slug} · après
                         </span>
                       ))}
                     </div>
-                  ) : (
-                    <p className="text-xs text-[var(--text-muted)]">Aucune photo après.</p>
                   )}
-                  <Link href={`/patients/${patientId}`} className="inline-block text-xs text-[var(--primary)] hover:underline">
-                    Ouvrir le dossier patient →
-                  </Link>
+                  <PhotosCard patientId={patientId} />
                 </div>
               )}
 
               {activeStep === 3 && (
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <p className="text-xs font-bold text-[var(--text-primary)]">Ordonnance liée à cette séance</p>
-                  {prescriptions.length > 0 ? (
+                  {prescriptions.length > 0 && (
                     <div className="space-y-1.5">
                       {prescriptions.map((rx) => (
                         <Link key={rx.id} href={`/prescriptions/${rx.id}`} className="flex items-center justify-between rounded-lg border border-[var(--border)] p-3 text-sm hover:border-[var(--primary)]">
@@ -412,12 +408,21 @@ function SessionCard({
                         </Link>
                       ))}
                     </div>
-                  ) : (
-                    <p className="text-xs text-[var(--text-muted)]">Aucune ordonnance. Créez-en une depuis le dossier patient.</p>
                   )}
-                  <Link href={`/patients/${patientId}`} className="inline-block text-xs text-[var(--primary)] hover:underline">
-                    Ouvrir le dossier patient →
-                  </Link>
+                  <NewPrescriptionDialog
+                    patientId={patientId}
+                    appointmentId={appointment?.id}
+                  />
+                </div>
+              )}
+
+              {activeStep === 4 && (
+                <div className="space-y-3">
+                  <p className="text-xs font-bold text-[var(--text-primary)]">Facture liée à cette séance</p>
+                  <p className="text-xs text-[var(--text-muted)]">
+                    La facture est auto-créée quand le médecin clique « Terminer la visite » depuis le dossier patient. Vous pouvez aussi en créer une manuellement.
+                  </p>
+                  <NewInvoiceDialog patientId={patientId} planId={planId} />
                 </div>
               )}
             </div>
