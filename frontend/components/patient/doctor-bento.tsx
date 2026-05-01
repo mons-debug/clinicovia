@@ -4,32 +4,36 @@ import { useState } from "react";
 import Link from "next/link";
 import {
   Camera,
-  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   ClipboardCheck,
   FileText,
+  IdCard,
   Pill,
   ShieldCheck,
   Stethoscope,
   AlertTriangle,
   CheckCircle2,
+  Receipt,
 } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { TerminerVisiteButton } from "@/components/patient/terminer-visite-button";
 import { ScreeningCard } from "@/components/patient/screening-card";
 import { ClinicalEditCard } from "@/components/patient/clinical-edit-card";
+import { IdentityEditCard } from "@/components/patient/identity-edit-card";
 import { PhotosCard } from "@/components/photos/photos-card";
 import { NewConsultationDialog } from "@/components/consultations/new-consultation-dialog";
 import { NewPrescriptionDialog } from "@/components/prescriptions/new-prescription-dialog";
 import { NewPlanDialog } from "@/components/plans/new-plan-dialog";
 import { NewInvoiceDialog } from "@/components/billing/new-invoice-dialog";
-import { IdentityEditCard } from "@/components/patient/identity-edit-card";
 import { useSessionContext } from "@/lib/api/session-context";
 import { usePatientPlans } from "@/lib/api/plans";
 import { usePatientConsultations } from "@/lib/api/consultations";
 import { useInvoices } from "@/lib/api/invoices";
 import type { Patient } from "@/lib/api/patients";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -38,56 +42,14 @@ interface Props {
   patient: Patient;
 }
 
-function AccordionTile({
-  title,
-  status,
-  statusColor,
-  Icon,
-  accent,
-  expanded,
-  onToggle,
-  children,
-}: {
-  title: string;
-  status: string;
-  statusColor: "green" | "amber" | "gray";
+interface Step {
+  key: string;
+  label: string;
   Icon: React.ComponentType<{ className?: string }>;
   accent: string;
-  expanded: boolean;
-  onToggle: () => void;
-  children: React.ReactNode;
-}) {
-  const colors = {
-    green: "text-emerald-700 bg-emerald-50",
-    amber: "text-amber-700 bg-amber-50",
-    gray: "text-[var(--text-muted)] bg-[var(--background)]",
-  };
-
-  return (
-    <Card className={cn("overflow-hidden transition-all", expanded && "ring-2 ring-[var(--primary)]")}>
-      <button
-        type="button"
-        onClick={onToggle}
-        className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-[var(--background)]"
-      >
-        <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", accent)}>
-          <Icon className="h-4 w-4" />
-        </div>
-        <span className="flex-1 text-sm font-bold text-[var(--text-primary)]">{title}</span>
-        <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold", colors[statusColor])}>
-          {statusColor === "green" && <CheckCircle2 className="mr-0.5 inline h-3 w-3" />}
-          {statusColor === "amber" && <AlertTriangle className="mr-0.5 inline h-3 w-3" />}
-          {status}
-        </span>
-        <ChevronDown className={cn("h-4 w-4 text-[var(--text-muted)] transition-transform", expanded && "rotate-180")} />
-      </button>
-      {expanded && (
-        <div className="border-t border-[var(--line-soft,_#E2E8F0)] p-4">
-          {children}
-        </div>
-      )}
-    </Card>
-  );
+  status: string;
+  done: boolean;
+  warn?: boolean;
 }
 
 export function DoctorBento({ patientId, patientName, patient }: Props) {
@@ -98,11 +60,9 @@ export function DoctorBento({ patientId, patientName, patient }: Props) {
   const consults = consultsData?.consultations ?? [];
   const { data: invoicesData } = useInvoices({ patientId });
   const invoices = invoicesData?.invoices ?? [];
-  const [openSection, setOpenSection] = useState<string | null>(null);
+  const [currentStep, setCurrentStep] = useState(0);
 
   if (!ctx?.active) return null;
-
-  const toggle = (key: string) => setOpenSection(openSection === key ? null : key);
 
   const isSeance = ctx.mode === "seance";
   const title = isSeance
@@ -110,101 +70,171 @@ export function DoctorBento({ patientId, patientName, patient }: Props) {
     : "Consultation";
   const subtitle = isSeance ? ctx.plan_title : ctx.treatment;
 
+  const steps: Step[] = [
+    {
+      key: "identity",
+      label: "Identité",
+      Icon: IdCard,
+      accent: "bg-slate-100 text-slate-700",
+      status: patient.first_name + " " + patient.last_name,
+      done: true,
+    },
+    {
+      key: "screening",
+      label: "Screening",
+      Icon: ShieldCheck,
+      accent: "bg-emerald-100 text-emerald-700",
+      status: ctx.screening_ok ? (ctx.screening_flags > 0 ? `${ctx.screening_flags} drapeaux` : "OK") : "Non évalué",
+      done: ctx.screening_ok,
+      warn: ctx.screening_flags > 0,
+    },
+    {
+      key: "clinical",
+      label: "Dossier clinique",
+      Icon: Stethoscope,
+      accent: "bg-[var(--primary-lighter)] text-[var(--primary)]",
+      status: "Éditable",
+      done: true,
+    },
+    {
+      key: "consent",
+      label: "Consentement",
+      Icon: ClipboardCheck,
+      accent: "bg-blue-100 text-blue-700",
+      status: ctx.consent_signed ? "Signé" : ctx.consent_pending ? "En attente" : "Aucun",
+      done: ctx.consent_signed,
+      warn: ctx.consent_pending,
+    },
+    {
+      key: "photos_before",
+      label: "Photos avant",
+      Icon: Camera,
+      accent: "bg-amber-100 text-amber-700",
+      status: ctx.photos_before > 0 ? `${ctx.photos_before} photo${ctx.photos_before > 1 ? "s" : ""}` : "Aucune",
+      done: ctx.photos_before > 0,
+    },
+    {
+      key: "soap",
+      label: "Consultation SOAP",
+      Icon: FileText,
+      accent: "bg-violet-100 text-violet-700",
+      status: ctx.soap_exists ? "Rédigée" : "À rédiger",
+      done: ctx.soap_exists,
+    },
+    {
+      key: "photos_after",
+      label: "Photos après",
+      Icon: Camera,
+      accent: "bg-violet-100 text-violet-700",
+      status: ctx.photos_after > 0 ? `${ctx.photos_after} photo${ctx.photos_after > 1 ? "s" : ""}` : "Aucune",
+      done: ctx.photos_after > 0,
+    },
+    {
+      key: "rx",
+      label: "Ordonnance",
+      Icon: Pill,
+      accent: "bg-rose-100 text-rose-700",
+      status: ctx.ordonnance_exists ? "Créée" : "Optionnel",
+      done: ctx.ordonnance_exists,
+    },
+    {
+      key: "plans",
+      label: "Plans",
+      Icon: FileText,
+      accent: "bg-teal-100 text-teal-700",
+      status: plans.length > 0 ? `${plans.length} plan${plans.length > 1 ? "s" : ""}` : "Aucun",
+      done: plans.length > 0,
+    },
+    {
+      key: "invoices",
+      label: "Factures",
+      Icon: Receipt,
+      accent: "bg-orange-100 text-orange-700",
+      status: invoices.length > 0 ? `${invoices.length}` : "Aucune",
+      done: invoices.length > 0,
+    },
+  ];
+
+  const step = steps[currentStep];
+  const prev = () => setCurrentStep(Math.max(0, currentStep - 1));
+  const next = () => setCurrentStep(Math.min(steps.length - 1, currentStep + 1));
+
   return (
     <div className="space-y-3">
-      {/* Header bar */}
+      {/* Header */}
       <div className="flex items-center justify-between rounded-xl border-2 border-emerald-500 bg-gradient-to-r from-emerald-50 to-white px-5 py-3">
         <div className="flex items-center gap-3">
           <span className="inline-block h-3 w-3 animate-pulse rounded-full bg-emerald-500" />
           <div>
             <p className="text-xs font-bold uppercase tracking-wider text-emerald-700">Session active</p>
-            <p className="text-base font-bold text-[var(--text-primary)]">
-              {title} — {subtitle}
-            </p>
+            <p className="text-base font-bold text-[var(--text-primary)]">{title} — {subtitle}</p>
           </div>
         </div>
         <TerminerVisiteButton patientId={patientId} patientName={patientName} />
       </div>
 
-      {/* Accordion tiles — click to expand, click again to collapse */}
-      <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
-        <AccordionTile
-          title="Identité patient"
-          Icon={ClipboardCheck}
-          accent="bg-slate-100 text-slate-700"
-          status={patient.first_name + " " + patient.last_name}
-          statusColor="gray"
-          expanded={openSection === "identity"}
-          onToggle={() => toggle("identity")}
-        >
-          <IdentityEditCard patient={patient} />
-        </AccordionTile>
+      {/* Step indicators — clickable numbered pills */}
+      <div className="flex flex-wrap items-center gap-1">
+        {steps.map((s, i) => (
+          <button
+            key={s.key}
+            type="button"
+            onClick={() => setCurrentStep(i)}
+            className={cn(
+              "flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium transition-all",
+              i === currentStep
+                ? "bg-[var(--primary)] text-white shadow-sm"
+                : s.done
+                ? "bg-emerald-100 text-emerald-700"
+                : s.warn
+                ? "bg-amber-100 text-amber-700"
+                : "bg-[var(--background)] text-[var(--text-muted)] hover:bg-gray-200"
+            )}
+          >
+            {s.done ? (
+              <CheckCircle2 className="h-3 w-3" />
+            ) : s.warn ? (
+              <AlertTriangle className="h-3 w-3" />
+            ) : (
+              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-white/30 text-[10px] font-bold">{i + 1}</span>
+            )}
+            <span className="hidden sm:inline">{s.label}</span>
+          </button>
+        ))}
+      </div>
 
-        <AccordionTile
-          title="Screening"
-          Icon={ShieldCheck}
-          accent="bg-emerald-100 text-emerald-700"
-          status={ctx.screening_ok ? (ctx.screening_flags > 0 ? `${ctx.screening_flags} drapeaux` : "OK") : "Non évalué"}
-          statusColor={ctx.screening_ok ? (ctx.screening_flags > 0 ? "amber" : "green") : "gray"}
-          expanded={openSection === "screening"}
-          onToggle={() => toggle("screening")}
-        >
-          <ScreeningCard patientId={patientId} />
-        </AccordionTile>
+      {/* Active step content */}
+      <Card className="p-5">
+        <div className="mb-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className={cn("flex h-9 w-9 items-center justify-center rounded-lg", step.accent)}>
+              <step.Icon className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-[var(--text-primary)]">
+                Étape {currentStep + 1}/{steps.length} — {step.label}
+              </h3>
+              <p className="text-[11px] text-[var(--text-muted)]">{step.status}</p>
+            </div>
+          </div>
+          <Badge variant={step.done ? "success" : step.warn ? "warning" : "outline"}>
+            {step.done ? "Fait" : step.warn ? "Attention" : "À faire"}
+          </Badge>
+        </div>
 
-        <AccordionTile
-          title="Dossier clinique"
-          Icon={Stethoscope}
-          accent="bg-[var(--primary-lighter)] text-[var(--primary)]"
-          status="Éditable"
-          statusColor="gray"
-          expanded={openSection === "clinical"}
-          onToggle={() => toggle("clinical")}
-        >
-          <ClinicalEditCard patient={patient} />
-        </AccordionTile>
-
-        <AccordionTile
-          title="Consentement"
-          Icon={ClipboardCheck}
-          accent="bg-blue-100 text-blue-700"
-          status={ctx.consent_signed ? "Signé" : ctx.consent_pending ? "En attente" : "Aucun"}
-          statusColor={ctx.consent_signed ? "green" : ctx.consent_pending ? "amber" : "gray"}
-          expanded={openSection === "consent"}
-          onToggle={() => toggle("consent")}
-        >
+        {/* Step content */}
+        {step.key === "identity" && <IdentityEditCard patient={patient} />}
+        {step.key === "screening" && <ScreeningCard patientId={patientId} />}
+        {step.key === "clinical" && <ClinicalEditCard patient={patient} />}
+        {step.key === "consent" && (
           <p className="text-sm text-[var(--text-muted)]">
             {ctx.consent_signed
               ? "Consentement signé. Aucune action requise."
-              : "Créez un consentement depuis la section en bas du dossier."}
+              : "Créez un consentement depuis l'onglet Consentements du dossier."}
           </p>
-        </AccordionTile>
-
-        <AccordionTile
-          title="Photos"
-          Icon={Camera}
-          accent="bg-amber-100 text-amber-700"
-          status={
-            ctx.photos_before + ctx.photos_after > 0
-              ? `${ctx.photos_before} avant · ${ctx.photos_after} après`
-              : "Aucune"
-          }
-          statusColor={ctx.photos_before > 0 ? "green" : "gray"}
-          expanded={openSection === "photos"}
-          onToggle={() => toggle("photos")}
-        >
-          <PhotosCard patientId={patientId} />
-        </AccordionTile>
-
-        <AccordionTile
-          title="Consultations"
-          Icon={Stethoscope}
-          accent="bg-violet-100 text-violet-700"
-          status={consults.length > 0 ? `${consults.length} note${consults.length > 1 ? "s" : ""}` : "Aucune"}
-          statusColor={ctx.soap_exists ? "green" : "gray"}
-          expanded={openSection === "soap"}
-          onToggle={() => toggle("soap")}
-        >
+        )}
+        {step.key === "photos_before" && <PhotosCard patientId={patientId} />}
+        {step.key === "soap" && (
           <div className="space-y-2">
             {consults.map((c) => (
               <Link
@@ -213,41 +243,22 @@ export function DoctorBento({ patientId, patientName, patient }: Props) {
                 className="flex items-center justify-between rounded-lg border border-[var(--border)] p-3 text-sm hover:border-[var(--primary)]"
               >
                 <div>
-                  <span className="font-mono font-bold text-[var(--text-primary)]">{c.number}</span>
+                  <span className="font-mono font-bold">{c.number}</span>
                   <span className="ml-2 text-xs text-[var(--text-muted)]">
                     {new Date(c.visit_date).toLocaleDateString("fr-FR")}
                   </span>
                 </div>
                 <Badge variant={c.status === "signed" ? "success" : "outline"}>
-                  {c.status === "signed" ? "Signée" : c.status === "draft" ? "Brouillon" : c.status}
+                  {c.status === "signed" ? "Signée" : "Brouillon"}
                 </Badge>
               </Link>
             ))}
-            <NewConsultationDialog patientId={patientId} />
+            <NewConsultationDialog patientId={patientId} appointmentId={ctx.appointment_id ?? undefined} />
           </div>
-        </AccordionTile>
-
-        <AccordionTile
-          title="Ordonnance"
-          Icon={Pill}
-          accent="bg-rose-100 text-rose-700"
-          status={ctx.ordonnance_exists ? "Créée" : "Optionnel"}
-          statusColor={ctx.ordonnance_exists ? "green" : "gray"}
-          expanded={openSection === "rx"}
-          onToggle={() => toggle("rx")}
-        >
-          <NewPrescriptionDialog patientId={patientId} />
-        </AccordionTile>
-
-        <AccordionTile
-          title="Plans de traitement"
-          Icon={FileText}
-          accent="bg-teal-100 text-teal-700"
-          status={plans.length > 0 ? `${plans.length} plan${plans.length > 1 ? "s" : ""}` : "Aucun"}
-          statusColor={plans.length > 0 ? "green" : "gray"}
-          expanded={openSection === "plans"}
-          onToggle={() => toggle("plans")}
-        >
+        )}
+        {step.key === "photos_after" && <PhotosCard patientId={patientId} />}
+        {step.key === "rx" && <NewPrescriptionDialog patientId={patientId} />}
+        {step.key === "plans" && (
           <div className="space-y-2">
             {plans.map((plan) => (
               <Link
@@ -255,25 +266,16 @@ export function DoctorBento({ patientId, patientName, patient }: Props) {
                 href={`/plans/${plan.id}`}
                 className="flex items-center justify-between rounded-lg border border-[var(--border)] p-3 text-sm hover:border-[var(--primary)]"
               >
-                <span className="font-medium text-[var(--text-primary)]">{plan.title}</span>
+                <span className="font-medium">{plan.title}</span>
                 <Badge variant={plan.status === "active" ? "default" : "outline"}>
-                  {plan.status === "active" ? "Actif" : plan.status === "completed" ? "Terminé" : plan.status}
+                  {plan.status === "active" ? "Actif" : plan.status}
                 </Badge>
               </Link>
             ))}
             <NewPlanDialog patientId={patientId} />
           </div>
-        </AccordionTile>
-
-        <AccordionTile
-          title="Factures"
-          Icon={FileText}
-          accent="bg-orange-100 text-orange-700"
-          status={invoices.length > 0 ? `${invoices.length} facture${invoices.length > 1 ? "s" : ""}` : "Aucune"}
-          statusColor={invoices.length > 0 ? "green" : "gray"}
-          expanded={openSection === "invoices"}
-          onToggle={() => toggle("invoices")}
-        >
+        )}
+        {step.key === "invoices" && (
           <div className="space-y-2">
             {invoices.map((inv) => (
               <Link
@@ -281,14 +283,42 @@ export function DoctorBento({ patientId, patientName, patient }: Props) {
                 href={`/invoices/${inv.id}`}
                 className="flex items-center justify-between rounded-lg border border-[var(--border)] p-3 text-sm hover:border-[var(--primary)]"
               >
-                <span className="font-mono font-bold text-[var(--text-primary)]">{inv.number}</span>
-                <span className="font-mono text-[var(--text-primary)]">{inv.total} MAD</span>
+                <span className="font-mono font-bold">{inv.number}</span>
+                <span className="font-mono">{inv.total} MAD</span>
               </Link>
             ))}
             <NewInvoiceDialog patientId={patientId} />
           </div>
-        </AccordionTile>
-      </div>
+        )}
+
+        {/* Prev / Next navigation */}
+        <div className="mt-5 flex items-center justify-between border-t border-[var(--line-soft,_#E2E8F0)] pt-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={prev}
+            disabled={currentStep === 0}
+          >
+            <ChevronLeft className="h-4 w-4" />
+            Précédent
+          </Button>
+          <span className="text-xs text-[var(--text-muted)]">
+            {currentStep + 1} / {steps.length}
+          </span>
+          {currentStep < steps.length - 1 ? (
+            <Button
+              variant="default"
+              size="sm"
+              onClick={next}
+            >
+              Suivant
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          ) : (
+            <TerminerVisiteButton patientId={patientId} patientName={patientName} />
+          )}
+        </div>
+      </Card>
 
       {!ctx.can_terminate && (
         <p className="rounded-lg bg-amber-50 px-4 py-2 text-xs text-amber-800">
