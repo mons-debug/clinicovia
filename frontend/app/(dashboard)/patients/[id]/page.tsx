@@ -20,10 +20,14 @@ import {
   Loader2,
   AlertCircle,
   Pin,
+  Plus,
 } from "lucide-react";
 import { toast } from "sonner";
 import { StatusBadge, getStatusVariant } from "@/components/shared/status-badge";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { NewPlanDialog } from "@/components/plans/new-plan-dialog";
 import { NewInvoiceDialog } from "@/components/billing/new-invoice-dialog";
 import { NewPrescriptionDialog } from "@/components/prescriptions/new-prescription-dialog";
@@ -31,6 +35,7 @@ import { IdentityEditCard } from "@/components/patient/identity-edit-card";
 import { ClinicalEditCard } from "@/components/patient/clinical-edit-card";
 import { ScreeningCard } from "@/components/patient/screening-card";
 import { TerminerVisiteButton } from "@/components/patient/terminer-visite-button";
+import { usePatientConsents, useCreateConsent } from "@/lib/api/consents";
 import { PhotosCard } from "@/components/photos/photos-card";
 import { NewConsultationDialog } from "@/components/consultations/new-consultation-dialog";
 import {
@@ -485,6 +490,9 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
             {/* Photos cliniques */}
             <PhotosCard patientId={p.id} />
 
+            {/* Consentements */}
+            <ConsentsSection patientId={p.id} />
+
             {/* Ordonnances */}
             <div className="rounded-xl border border-border bg-white p-5">
               <div className="flex items-center justify-between">
@@ -752,6 +760,117 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
               <p className="text-sm text-text-secondary">No activity recorded yet.</p>
             </div>
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Consents section ────────────────────────────────────────────────
+
+function ConsentsSection({ patientId }: { patientId: string }) {
+  const { data: consents } = usePatientConsents(patientId);
+  const createMut = useCreateConsent();
+  const [showForm, setShowForm] = useState(false);
+  const [title, setTitle] = useState("Consentement traitement");
+  const [bodyText, setBodyText] = useState(
+    "Je soussigné(e) autorise le médecin à pratiquer l'acte proposé. " +
+    "J'ai été informé(e) des risques, bénéfices et alternatives. " +
+    "J'ai pu poser toutes mes questions."
+  );
+
+  const submit = async () => {
+    if (!title.trim()) return;
+    try {
+      await createMut.mutateAsync({
+        patient_id: patientId,
+        consent_type: "treatment",
+        title: title.trim(),
+        body_text: bodyText.trim() || null,
+      });
+      setShowForm(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Échec");
+    }
+  };
+
+  const STATUS_LABEL: Record<string, string> = {
+    pending: "En attente",
+    signed: "Signé",
+    declined: "Refusé",
+    revoked: "Révoqué",
+  };
+  const STATUS_VARIANT: Record<string, "outline" | "success" | "destructive" | "warning"> = {
+    pending: "warning",
+    signed: "success",
+    declined: "destructive",
+    revoked: "destructive",
+  };
+
+  return (
+    <div className="rounded-xl border border-border bg-white p-5">
+      <div className="flex items-center justify-between">
+        <h3 className="text-base font-semibold text-text-primary">Consentements</h3>
+        <Button size="sm" onClick={() => setShowForm(!showForm)}>
+          <Plus className="h-3 w-3" />
+          Nouveau consentement
+        </Button>
+      </div>
+
+      {showForm && (
+        <div className="mt-4 space-y-3 rounded-lg border border-dashed border-[var(--primary)] bg-[var(--primary-lighter)]/20 p-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="consent-title">Titre</Label>
+            <Input
+              id="consent-title"
+              value={title}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTitle(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="consent-body">Texte du consentement</Label>
+            <textarea
+              id="consent-body"
+              rows={4}
+              value={bodyText}
+              onChange={(e) => setBodyText(e.target.value)}
+              className="block w-full rounded-md border border-[var(--border)] bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+            />
+          </div>
+          <div className="flex gap-2">
+            <Button size="sm" onClick={submit} disabled={createMut.isPending}>
+              Créer
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setShowForm(false)}>
+              Annuler
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {(!consents || consents.length === 0) && !showForm ? (
+        <p className="mt-3 text-xs text-text-muted">
+          Aucun consentement pour ce patient.
+        </p>
+      ) : (
+        <div className="mt-4 space-y-2">
+          {(consents ?? []).map((c) => (
+            <div
+              key={c.id}
+              className="flex items-center justify-between rounded-lg border border-border p-3"
+            >
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-text-primary">{c.title}</p>
+                <p className="text-[11px] text-text-muted">
+                  {c.treatment_name ?? c.consent_type}
+                  {c.signed_at && ` · signé le ${new Date(c.signed_at).toLocaleDateString("fr-FR")}`}
+                </p>
+              </div>
+              <Badge variant={STATUS_VARIANT[c.status] ?? "outline"}>
+                {STATUS_LABEL[c.status] ?? c.status}
+              </Badge>
+            </div>
+          ))}
         </div>
       )}
     </div>

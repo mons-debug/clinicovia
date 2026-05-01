@@ -10,6 +10,7 @@ from app.models.prescription import Drug, Prescription, PrescriptionCounter
 from app.models.photo import BodyZone, PatientPhoto
 from app.models.consultation import Consultation, ConsultationCounter
 from app.models.screening import PatientScreening
+from app.models.consent import PatientConsent
 from app.models.form import Form, FormSubmission
 from app.models.whatsapp import WhatsAppSession, WhatsAppConversation, WhatsAppMessage
 from app.models.tracking import TrackingIntegration, EventMapping, ConversionEvent
