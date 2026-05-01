@@ -23,12 +23,14 @@ import { useCreatePrescription, useDrugs, useSeedDrugs, type Drug, type Prescrip
 
 interface Props {
   patientId: string;
+  appointmentId?: string;
+  sessionId?: string;
   triggerLabel?: string;
 }
 
 const blank: PrescriptionLine = { dci: "", posology: "" };
 
-export function NewPrescriptionDialog({ patientId, triggerLabel = "Nouvelle ordonnance" }: Props) {
+export function NewPrescriptionDialog({ patientId, appointmentId, sessionId, triggerLabel = "Nouvelle ordonnance" }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
 
@@ -77,6 +79,7 @@ export function NewPrescriptionDialog({ patientId, triggerLabel = "Nouvelle ordo
     try {
       const rx = await create.mutateAsync({
         patient_id: patientId,
+        appointment_id: appointmentId ?? null,
         diagnosis: diagnosis.trim() || null,
         notes: notes.trim() || null,
         renewable,

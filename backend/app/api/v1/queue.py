@@ -432,6 +432,19 @@ async def checkout_from_dossier(
         checkout_label += f" · {body.notes}"
     patient.requested_service = checkout_label
 
+    # Find linked plan (if this appointment is part of a séance)
+    from app.models.treatment_plan import TreatmentSession
+    linked_plan_id = None
+    if appt:
+        sess_res = await db.execute(
+            select(TreatmentSession.plan_id).where(
+                TreatmentSession.appointment_id == appt.id
+            ).limit(1)
+        )
+        row = sess_res.first()
+        if row:
+            linked_plan_id = row[0]
+
     # Create invoice draft
     if body.amount and body.amount > 0:
         from app.models.billing import Invoice, InvoiceStatus
@@ -446,6 +459,7 @@ async def checkout_from_dossier(
         inv = Invoice(
             clinic_id=clinic_id,
             patient_id=patient.id,
+            plan_id=linked_plan_id,
             issued_by=user.id,
             number=f"DRAFT-{_uuid.uuid4().hex[:8].upper()}",
             issue_date=now.date(),

@@ -253,11 +253,20 @@ export function DoctorBento({ patientId, patientName, patient }: Props) {
                 </Badge>
               </Link>
             ))}
-            <NewConsultationDialog patientId={patientId} appointmentId={ctx.appointment_id ?? undefined} />
+            <NewConsultationDialog
+              patientId={patientId}
+              appointmentId={ctx.appointment_id ?? undefined}
+            />
           </div>
         )}
         {step.key === "photos_after" && <PhotosCard patientId={patientId} />}
-        {step.key === "rx" && <NewPrescriptionDialog patientId={patientId} />}
+        {step.key === "rx" && (
+          <NewPrescriptionDialog
+            patientId={patientId}
+            appointmentId={ctx.appointment_id ?? undefined}
+            sessionId={ctx.session_id ?? undefined}
+          />
+        )}
         {step.key === "plans" && (
           <div className="space-y-2">
             {plans.map((plan) => (
@@ -287,7 +296,7 @@ export function DoctorBento({ patientId, patientName, patient }: Props) {
                 <span className="font-mono">{inv.total} MAD</span>
               </Link>
             ))}
-            <NewInvoiceDialog patientId={patientId} />
+            <NewInvoiceDialog patientId={patientId} planId={ctx.plan_id ?? undefined} />
           </div>
         )}
 
