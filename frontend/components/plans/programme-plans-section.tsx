@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { NewPlanDialog } from "@/components/plans/new-plan-dialog";
+import { CommencerSeanceDialog } from "@/components/plans/commencer-seance-dialog";
 import { NewInvoiceDialog } from "@/components/billing/new-invoice-dialog";
 import { NewPrescriptionDialog } from "@/components/prescriptions/new-prescription-dialog";
 import {
@@ -126,10 +127,15 @@ function InlineSeanceDetail({ planId, patientId }: { planId: string; patientId: 
                   </div>
                 )}
                 {(s.status === "scheduled" || s.status === "planned") && (
-                  <Button size="sm" className="w-full" onClick={() => advance.mutate(
-                    { sessionId: s.id, to: "in_progress" as SessionStatus },
-                    { onSuccess: () => toast.success(`Séance ${s.session_number} commencée`) }
-                  )}>Commencer la séance</Button>
+                  <CommencerSeanceDialog
+                    planId={planId}
+                    sessionId={s.id}
+                    sessionNumber={s.session_number}
+                    patientId={patientId}
+                    patientName=""
+                    treatmentName={plan.primary_service || plan.title}
+                    sessionPrice={s.session_price}
+                  />
                 )}
               </div>
             )}

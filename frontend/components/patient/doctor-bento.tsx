@@ -337,79 +337,24 @@ export function DoctorBento({ patientId, patientName, patient, onCollapse }: Pro
         )}
       </div>
 
-      {/* Préparer la séance — mid-visit handoff to reception */}
-      {isSeance && !prepSent && (
-        <Card className="border-amber-200 bg-amber-50 p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-bold text-amber-800">Préparer la séance</p>
-              <p className="text-xs text-amber-700">
-                Envoyer le consentement et la facture à la réception pour signature et paiement.
-              </p>
-              {ctx.session_price != null && ctx.session_price > 0 && (
-                <p className="mt-1 text-xs text-amber-700">
-                  Facture : {ctx.treatment} · <span className="font-mono font-bold">{ctx.session_price.toLocaleString("fr-FR")} MAD</span>
-                </p>
-              )}
-            </div>
-            <Button
-              onClick={() => {
-                prepareMut.mutate(patientId, {
-                  onSuccess: () => toast.success("Consentement et facture envoyés à la réception"),
-                  onError: (e) => toast.error(e instanceof Error ? e.message : "Erreur"),
-                });
-              }}
-              disabled={prepareMut.isPending}
-              className="gap-2 bg-amber-600 hover:bg-amber-700"
-            >
-              {prepareMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              Préparer & envoyer
-            </Button>
-          </div>
-        </Card>
-      )}
-
-      {/* Prep status — waiting for reception */}
+      {/* Prep status — compact inline when séance active */}
       {isSeance && prepSent && !prepReady && (
-        <Card className="border-blue-200 bg-blue-50 p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <Clock className="h-4 w-4 text-blue-600 animate-pulse" />
-            <p className="text-sm font-bold text-blue-800">En attente de la réception</p>
-          </div>
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-blue-700">Consentement</span>
-              {consentDone ? (
-                <span className="flex items-center gap-1 font-medium text-emerald-700"><CheckCircle2 className="h-3.5 w-3.5" /> Signé</span>
-              ) : (
-                <span className="text-blue-600">En attente de signature…</span>
-              )}
-            </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-blue-700">Facture</span>
-              {factureDone ? (
-                <span className="flex items-center gap-1 font-medium text-emerald-700"><CheckCircle2 className="h-3.5 w-3.5" /> Payé</span>
-              ) : (
-                <span className="text-blue-600">
-                  En attente de paiement{ctx.facture_amount ? ` (${ctx.facture_amount.toLocaleString("fr-FR")} MAD)` : ""}…
-                </span>
-              )}
-            </div>
-          </div>
-        </Card>
+        <div className="flex items-center gap-3 rounded-lg bg-blue-50 px-4 py-2 text-xs">
+          <Clock className="h-4 w-4 text-blue-600 animate-pulse" />
+          <span className="font-medium text-blue-800">En attente réception :</span>
+          <span className={consentDone ? "text-emerald-700" : "text-blue-600"}>
+            {consentDone ? "Consentement ✓" : "Consentement…"}
+          </span>
+          <span className={factureDone ? "text-emerald-700" : "text-blue-600"}>
+            {factureDone ? "Facture ✓" : `Facture (${ctx.facture_amount?.toLocaleString("fr-FR") || "0"} MAD)…`}
+          </span>
+        </div>
       )}
-
-      {/* Prep ready — all good */}
       {isSeance && prepSent && prepReady && (
-        <Card className="border-emerald-200 bg-emerald-50 p-3">
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-            <div>
-              <p className="text-sm font-bold text-emerald-800">Prêt pour le traitement</p>
-              <p className="text-xs text-emerald-700">Consentement signé · Facture payée</p>
-            </div>
-          </div>
-        </Card>
+        <div className="flex items-center gap-2 rounded-lg bg-emerald-50 px-4 py-2 text-xs">
+          <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+          <span className="font-medium text-emerald-800">Prêt pour le traitement — Consentement signé · Facture payée</span>
+        </div>
       )}
 
       {/* Step pills */}
