@@ -23,6 +23,7 @@ import { ScreeningCard } from "@/components/patient/screening-card";
 import { ClinicalEditCard } from "@/components/patient/clinical-edit-card";
 import { IdentityEditCard } from "@/components/patient/identity-edit-card";
 import { NewPlanDialog } from "@/components/plans/new-plan-dialog";
+import { ProgrammePlansSection } from "@/components/plans/programme-plans-section";
 import { NewInvoiceDialog } from "@/components/billing/new-invoice-dialog";
 import { NewConsultationDialog } from "@/components/consultations/new-consultation-dialog";
 import { useSessionContext } from "@/lib/api/session-context";
@@ -465,6 +466,9 @@ export function DoctorBento({ patientId, patientName, patient, onCollapse }: Pro
         {step.key === "screening" && <ScreeningCard patientId={patientId} />}
         {step.key === "clinical" && <ClinicalEditCard patient={patient} />}
         {step.key === "plans" && (
+          <ProgrammePlansSection patientId={patientId} inline />
+        )}
+        {step.key === "_plans_old_unused" && (
           <div className="space-y-3">
             {/* Programmes */}
             {programmes.map((prog) => (

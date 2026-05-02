@@ -29,6 +29,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NewPlanDialog } from "@/components/plans/new-plan-dialog";
+import { ProgrammePlansSection } from "@/components/plans/programme-plans-section";
 import { NewInvoiceDialog } from "@/components/billing/new-invoice-dialog";
 import { NewPrescriptionDialog } from "@/components/prescriptions/new-prescription-dialog";
 import { IdentityEditCard } from "@/components/patient/identity-edit-card";
@@ -440,39 +441,12 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
 
             {/* Programmes & Plans */}
             <div className="rounded-xl border border-border bg-white p-5">
-              <div className="flex items-center justify-between">
-                <h3 className="text-base font-semibold text-text-primary">
-                  Programmes & Plans
-                </h3>
-                <div className="flex gap-2">
-                  <Button size="sm" variant="outline" onClick={() => setShowNewProgDossier(true)}>
-                    Nouveau programme
-                  </Button>
-                  <NewPlanDialog patientId={p.id} />
-                </div>
-              </div>
-              {/* New programme form */}
-              {showNewProgDossier && (
-                <div className="mt-3 flex gap-2">
-                  <Input
-                    placeholder="ex. Rajeunissement visage"
-                    value={newProgTitle}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewProgTitle(e.target.value)}
-                    className="flex-1"
-                    autoFocus
-                  />
-                  <Button size="sm" onClick={() => {
-                    if (!newProgTitle.trim()) return;
-                    createProgramme.mutate(
-                      { patient_id: p.id, title: newProgTitle.trim() },
-                      { onSuccess: () => { toast.success("Programme créé"); setNewProgTitle(""); setShowNewProgDossier(false); } }
-                    );
-                  }} disabled={createProgramme.isPending}>Créer</Button>
-                  <Button size="sm" variant="ghost" onClick={() => setShowNewProgDossier(false)}>Annuler</Button>
-                </div>
-              )}
-              {/* Programmes */}
-              {programmes.length > 0 && (
+              <h3 className="mb-3 text-base font-semibold text-text-primary">
+                Programmes & Plans
+              </h3>
+              <ProgrammePlansSection patientId={p.id} />
+              {/* OLD CODE MARKER */}
+              {false && (
                 <div className="mt-4 space-y-3">
                   {programmes.map((prog) => (
                     <div key={prog.id} className="rounded-lg border border-border p-3">
