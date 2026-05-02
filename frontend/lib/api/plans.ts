@@ -17,6 +17,7 @@ export interface TreatmentSession {
   products_used: unknown[] | null;
   outcome_score: number | null;
   outcome_note: string | null;
+  session_price: number | null;
   completed_at: string | null;
   skipped_at: string | null;
   created_at: string;
@@ -64,6 +65,7 @@ export interface PlanCreateInput {
   doctor_id?: string | null;
   notes?: string | null;
   start_at?: string | null;
+  session_price?: number | null;
   auto_schedule?: boolean;
   default_hour?: number;
   default_minute?: number;

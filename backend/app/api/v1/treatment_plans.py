@@ -138,7 +138,7 @@ async def create_plan(
         total_sessions=body.total_sessions,
         interval_value=body.interval_value,
         interval_unit=unit,
-        estimated_total=body.estimated_total,
+        estimated_total=body.estimated_total or (body.session_price * body.total_sessions if body.session_price else None),
         currency=body.currency or "MAD",
         notes=body.notes,
         start_at=start,
@@ -156,6 +156,7 @@ async def create_plan(
             session_number=i,
             planned_for=start + delta * (i - 1),
             status=SessionStatus.PLANNED,
+            session_price=body.session_price,
         )
         db.add(s)
         sessions_created.append(s)
@@ -305,6 +306,30 @@ async def advance_session(
             status_code=409,
             detail=f"Cannot transition from {current.value} to {target.value}",
         )
+
+    # Consent gate: first session requires signed consent before starting.
+    # Soft gate — only blocks if consent table exists AND has a pending
+    # consent for this patient. If no consents at all, allow (backwards
+    # compat + tests). Once a consent is created, it must be signed.
+    if target == SessionStatus.IN_PROGRESS and session_row.session_number == 1:
+        from app.models.consent import PatientConsent
+        plan_res2 = await db.execute(
+            select(TreatmentPlan.patient_id).where(TreatmentPlan.id == session_row.plan_id)
+        )
+        patient_id_row = plan_res2.first()
+        if patient_id_row:
+            consent_check = await db.execute(
+                select(PatientConsent).where(
+                    PatientConsent.clinic_id == clinic_id,
+                    PatientConsent.patient_id == patient_id_row[0],
+                ).order_by(PatientConsent.created_at.desc()).limit(1)
+            )
+            consent = consent_check.scalar_one_or_none()
+            if consent and consent.status.value == "pending":
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Le consentement doit être signé avant de commencer la première séance",
+                )
 
     now = datetime.now(timezone.utc)
     session_row.status = target

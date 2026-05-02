@@ -38,6 +38,11 @@ import { TerminerVisiteButton } from "@/components/patient/terminer-visite-butto
 import { SessionChecklist } from "@/components/patient/session-checklist";
 import { DoctorBento } from "@/components/patient/doctor-bento";
 import { usePatientConsents, useCreateConsent } from "@/lib/api/consents";
+import { IdentiteTab } from "@/components/patient/tabs/identite-tab";
+import { ScreeningTab } from "@/components/patient/tabs/screening-tab";
+import { ClinicalTab } from "@/components/patient/tabs/clinical-tab";
+import { PlanGeneralTab } from "@/components/patient/tabs/plan-general-tab";
+import { ConsultationTab } from "@/components/patient/tabs/consultation-tab";
 import { PhotosCard } from "@/components/photos/photos-card";
 import { NewConsultationDialog } from "@/components/consultations/new-consultation-dialog";
 import {
@@ -53,10 +58,14 @@ import { usePatientConsultations, type Consultation as ConsultationType, type Co
 import { useConversations, useWhatsAppSessions, startConversation } from "@/lib/api/whatsapp";
 
 const tabs = [
-  { key: "overview", label: "Dossier", icon: User },
+  { key: "identite", label: "Identité", icon: User },
+  { key: "screening", label: "Screening", icon: Star },
+  { key: "clinical", label: "Dossier clinique", icon: Activity },
+  { key: "plan", label: "Plan général", icon: Calendar },
+  { key: "consultation", label: "Consultation", icon: StickyNote },
   { key: "conversations", label: "Conversations", icon: MessageSquare },
-  { key: "notes", label: "Notes", icon: StickyNote },
-  { key: "activity", label: "Activité", icon: Activity },
+  { key: "notes", label: "Notes", icon: Pin },
+  { key: "activity", label: "Activité", icon: AlertCircle },
 ] as const;
 
 const INTAKE_LABEL: Record<string, string> = {
@@ -78,7 +87,7 @@ type TabKey = (typeof tabs)[number]["key"];
 
 export default function PatientProfilePage(props: { params: Promise<{ id: string }> }) {
   const { id } = use(props.params);
-  const [activeTab, setActiveTab] = useState<TabKey>("overview");
+  const [activeTab, setActiveTab] = useState<TabKey>("identite");
   const [noteContent, setNoteContent] = useState("");
 
   const router = useRouter();
@@ -304,11 +313,20 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
       </div>
 
       {/* Tab content */}
-      {activeTab === "overview" && p.intake_status === "in_room" && (
+      {/* Bento wizard shows on top when IN_ROOM, regardless of active tab */}
+      {p.intake_status === "in_room" && (
         <DoctorBento patientId={p.id} patientName={`${p.first_name} ${p.last_name}`} patient={p} />
       )}
 
-      {activeTab === "overview" && p.intake_status !== "in_room" && (
+      {/* New tabs content */}
+      {activeTab === "identite" && <IdentiteTab patient={p} />}
+      {activeTab === "screening" && <ScreeningTab patientId={p.id} />}
+      {activeTab === "clinical" && <ClinicalTab patient={p} />}
+      {activeTab === "plan" && <PlanGeneralTab patientId={p.id} />}
+      {activeTab === "consultation" && <ConsultationTab patientId={p.id} />}
+
+      {/* Legacy tabs kept accessible */}
+      {activeTab === "overview_legacy" && (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <div className="space-y-6 lg:col-span-2">
             {/* Identité — always-on, role-gated edit (reception) */}

@@ -134,6 +134,8 @@ class TreatmentSession(Base, TimestampMixin, TenantMixin):
     outcome_score: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 1-10
     outcome_note: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    session_price: Mapped[float | None] = mapped_column(Float, nullable=True)  # MAD per séance
+
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     skipped_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 

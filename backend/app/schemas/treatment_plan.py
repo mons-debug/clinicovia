@@ -20,6 +20,7 @@ class SessionResponse(BaseModel):
     products_used: list | None
     outcome_score: int | None
     outcome_note: str | None
+    session_price: float | None = None
     completed_at: datetime | None
     skipped_at: datetime | None
     created_at: datetime
@@ -44,9 +45,7 @@ class PlanCreate(BaseModel):
     doctor_id: uuid.UUID | None = None
     notes: str | None = None
     start_at: datetime | None = None  # if omitted, defaults to now
-    # Smart calendar: when true, auto-create N appointments (one per
-    # session) at the configured default hour, each linked to its
-    # session via session.appointment_id. Reception confirms hours.
+    session_price: float | None = None  # MAD per séance
     auto_schedule: bool = False
     default_hour: int = Field(10, ge=7, le=20)
     default_minute: int = Field(0, ge=0, le=59)
