@@ -212,6 +212,120 @@ async def create_plan(
 
 # ---------- Detail / update --------------------------------------------
 
+class ProgrammeCreate(BaseModel):
+    patient_id: uuid.UUID
+    title: str
+    notes: str | None = None
+
+
+class ProgrammePlanSummary(BaseModel):
+    id: uuid.UUID
+    title: str
+    primary_service: str | None
+    status: str
+    total_sessions: int
+    completed_sessions: int
+    estimated_total: float | None
+
+
+class ProgrammeResponse(BaseModel):
+    id: uuid.UUID
+    patient_id: uuid.UUID
+    title: str
+    status: str
+    notes: str | None
+    plans: list[ProgrammePlanSummary]
+    total_cost: float
+    total_sessions: int
+    completed_sessions: int
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class ProgrammeListResponse(BaseModel):
+    programmes: list[ProgrammeResponse]
+
+
+def _programme_response(prog: TreatmentProgramme) -> ProgrammeResponse:
+    plans_summary = []
+    total_cost = 0.0
+    total_sessions = 0
+    completed_sessions = 0
+    for p in prog.plans:
+        completed = sum(1 for s in p.sessions if s.status == SessionStatus.COMPLETED)
+        plans_summary.append(ProgrammePlanSummary(
+            id=p.id,
+            title=p.title,
+            primary_service=p.primary_service,
+            status=p.status.value,
+            total_sessions=p.total_sessions,
+            completed_sessions=completed,
+            estimated_total=p.estimated_total,
+        ))
+        total_cost += p.estimated_total or 0
+        total_sessions += p.total_sessions
+        completed_sessions += completed
+    return ProgrammeResponse(
+        id=prog.id,
+        patient_id=prog.patient_id,
+        title=prog.title,
+        status=prog.status,
+        notes=prog.notes,
+        plans=plans_summary,
+        total_cost=total_cost,
+        total_sessions=total_sessions,
+        completed_sessions=completed_sessions,
+        created_at=prog.created_at,
+    )
+
+
+@router.get("/programmes", response_model=ProgrammeListResponse)
+async def list_programmes(
+    patient_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    clinic_id = _get_clinic_id(user)
+    res = await db.execute(
+        select(TreatmentProgramme)
+        .options(selectinload(TreatmentProgramme.plans).selectinload(TreatmentPlan.sessions))
+        .where(
+            TreatmentProgramme.clinic_id == clinic_id,
+            TreatmentProgramme.patient_id == patient_id,
+        )
+        .order_by(TreatmentProgramme.created_at.desc())
+    )
+    programmes = list(res.scalars().all())
+    return ProgrammeListResponse(
+        programmes=[_programme_response(p) for p in programmes]
+    )
+
+
+@router.post("/programmes", response_model=ProgrammeResponse, status_code=status.HTTP_201_CREATED)
+async def create_programme(
+    body: ProgrammeCreate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    clinic_id = _get_clinic_id(user)
+    prog = TreatmentProgramme(
+        clinic_id=clinic_id,
+        patient_id=body.patient_id,
+        created_by=user.id,
+        title=body.title,
+        notes=body.notes,
+    )
+    db.add(prog)
+    await db.commit()
+    res = await db.execute(
+        select(TreatmentProgramme)
+        .options(selectinload(TreatmentProgramme.plans).selectinload(TreatmentPlan.sessions))
+        .where(TreatmentProgramme.id == prog.id)
+    )
+    return _programme_response(res.scalar_one())
+
+
 @router.get("/{plan_id}", response_model=PlanResponse)
 async def get_plan(
     plan_id: uuid.UUID,
@@ -586,115 +700,5 @@ async def get_plan_timeline(
 
 # ---------- Programmes (grouping of plans) --------------------------------
 
-class ProgrammeCreate(BaseModel):
-    patient_id: uuid.UUID
-    title: str
-    notes: str | None = None
 
 
-class ProgrammePlanSummary(BaseModel):
-    id: uuid.UUID
-    title: str
-    primary_service: str | None
-    status: str
-    total_sessions: int
-    completed_sessions: int
-    estimated_total: float | None
-
-
-class ProgrammeResponse(BaseModel):
-    id: uuid.UUID
-    patient_id: uuid.UUID
-    title: str
-    status: str
-    notes: str | None
-    plans: list[ProgrammePlanSummary]
-    total_cost: float
-    total_sessions: int
-    completed_sessions: int
-    created_at: datetime
-
-    model_config = {"from_attributes": True}
-
-
-class ProgrammeListResponse(BaseModel):
-    programmes: list[ProgrammeResponse]
-
-
-def _programme_response(prog: TreatmentProgramme) -> ProgrammeResponse:
-    plans_summary = []
-    total_cost = 0.0
-    total_sessions = 0
-    completed_sessions = 0
-    for p in prog.plans:
-        completed = sum(1 for s in p.sessions if s.status == SessionStatus.COMPLETED)
-        plans_summary.append(ProgrammePlanSummary(
-            id=p.id,
-            title=p.title,
-            primary_service=p.primary_service,
-            status=p.status.value,
-            total_sessions=p.total_sessions,
-            completed_sessions=completed,
-            estimated_total=p.estimated_total,
-        ))
-        total_cost += p.estimated_total or 0
-        total_sessions += p.total_sessions
-        completed_sessions += completed
-    return ProgrammeResponse(
-        id=prog.id,
-        patient_id=prog.patient_id,
-        title=prog.title,
-        status=prog.status,
-        notes=prog.notes,
-        plans=plans_summary,
-        total_cost=total_cost,
-        total_sessions=total_sessions,
-        completed_sessions=completed_sessions,
-        created_at=prog.created_at,
-    )
-
-
-@router.get("/programmes", response_model=ProgrammeListResponse)
-async def list_programmes(
-    patient_id: uuid.UUID,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    clinic_id = _get_clinic_id(user)
-    res = await db.execute(
-        select(TreatmentProgramme)
-        .options(selectinload(TreatmentProgramme.plans).selectinload(TreatmentPlan.sessions))
-        .where(
-            TreatmentProgramme.clinic_id == clinic_id,
-            TreatmentProgramme.patient_id == patient_id,
-        )
-        .order_by(TreatmentProgramme.created_at.desc())
-    )
-    programmes = list(res.scalars().all())
-    return ProgrammeListResponse(
-        programmes=[_programme_response(p) for p in programmes]
-    )
-
-
-@router.post("/programmes", response_model=ProgrammeResponse, status_code=status.HTTP_201_CREATED)
-async def create_programme(
-    body: ProgrammeCreate,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    clinic_id = _get_clinic_id(user)
-    prog = TreatmentProgramme(
-        clinic_id=clinic_id,
-        patient_id=body.patient_id,
-        created_by=user.id,
-        title=body.title,
-        notes=body.notes,
-    )
-    db.add(prog)
-    await db.commit()
-    res = await db.execute(
-        select(TreatmentProgramme)
-        .options(selectinload(TreatmentProgramme.plans).selectinload(TreatmentPlan.sessions))
-        .where(TreatmentProgramme.id == prog.id)
-    )
-    return _programme_response(res.scalar_one())
