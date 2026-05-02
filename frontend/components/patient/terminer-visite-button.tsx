@@ -21,9 +21,10 @@ import { useCheckoutFromDossier } from "@/lib/api/queue";
 interface Props {
   patientId: string;
   patientName: string;
+  canTerminate?: boolean;
 }
 
-export function TerminerVisiteButton({ patientId, patientName }: Props) {
+export function TerminerVisiteButton({ patientId, patientName, canTerminate = true }: Props) {
   const [open, setOpen] = useState(false);
   const [amount, setAmount] = useState("");
   const [followUpWeeks, setFollowUpWeeks] = useState("");
@@ -57,12 +58,21 @@ export function TerminerVisiteButton({ patientId, patientName }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="default" className="gap-2 bg-emerald-600 hover:bg-emerald-700">
-          <CheckCircle2 className="h-4 w-4" />
-          Terminer la visite
-        </Button>
-      </DialogTrigger>
+      {canTerminate ? (
+        <DialogTrigger asChild>
+          <Button variant="default" className="gap-2 bg-emerald-600 hover:bg-emerald-700">
+            <CheckCircle2 className="h-4 w-4" />
+            Terminer la visite
+          </Button>
+        </DialogTrigger>
+      ) : (
+        <span title="Complétez le screening et la consultation (SOAP) avant de terminer">
+          <Button variant="default" className="gap-2 bg-emerald-600 hover:bg-emerald-700 opacity-50 cursor-not-allowed" disabled>
+            <CheckCircle2 className="h-4 w-4" />
+            Terminer la visite
+          </Button>
+        </span>
+      )}
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Terminer la visite</DialogTitle>

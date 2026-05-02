@@ -467,19 +467,21 @@ async def checkout_appointment(
         checkout_label += f" · {body.notes}"
     patient.requested_service = checkout_label
 
-    # 3. Create invoice draft (skip if amount is zero)
+    # 3. Create issued invoice (auto-issued with real FAC-YYYY-NNNN number)
     if body.amount and body.amount > 0:
+        from app.api.v1.billing import _next_invoice_number
         line_items = [{
             "label": appt.treatment,
             "quantity": 1,
             "unit_price": float(body.amount),
             "total": float(body.amount),
         }]
+        inv_number = await _next_invoice_number(db, clinic_id, now.date().year)
         inv = Invoice(
             clinic_id=clinic_id,
             patient_id=patient.id,
             issued_by=user.id,
-            number=f"DRAFT-{uuid.uuid4().hex[:8].upper()}",
+            number=inv_number,
             issue_date=now.date(),
             line_items=line_items,
             subtotal=float(body.amount),
@@ -488,7 +490,8 @@ async def checkout_appointment(
             tva=0.0,
             total=float(body.amount),
             currency="MAD",
-            status=InvoiceStatus.DRAFT,
+            status=InvoiceStatus.ISSUED,
+            issued_at=now,
             notes=body.notes,
         )
         db.add(inv)

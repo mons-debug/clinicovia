@@ -130,7 +130,7 @@ async def get_queue(
             select(Invoice).where(
                 Invoice.clinic_id == clinic_id,
                 Invoice.patient_id == p.id,
-                Invoice.status == InvoiceStatus.DRAFT,
+                Invoice.status.in_([InvoiceStatus.ISSUED, InvoiceStatus.DRAFT]),
             ).order_by(Invoice.created_at.desc()).limit(1)
         )
         inv = inv_res.scalar_one_or_none()
@@ -221,6 +221,21 @@ async def advance_intake(
     elif target != IntakeStatus.ARCHIVED and patient.archived_at is not None:
         patient.archived_at = None
         patient.is_active = True
+
+    # ── Mark latest ISSUED invoice as paid when patient leaves ─────
+    if target == IntakeStatus.ACTIVE:
+        from app.models.billing import Invoice, InvoiceStatus
+        inv_res = await db.execute(
+            select(Invoice).where(
+                Invoice.clinic_id == clinic_id,
+                Invoice.patient_id == patient_id,
+                Invoice.status == InvoiceStatus.ISSUED,
+            ).order_by(Invoice.created_at.desc()).limit(1)
+        )
+        latest_inv = inv_res.scalar_one_or_none()
+        if latest_inv:
+            latest_inv.status = InvoiceStatus.PAID
+            latest_inv.total_paid = latest_inv.total
 
     # ── Sync today's appointment to match queue state ──────────────
     # This eliminates redundant "Arrivé" + "Commencer" clicks on the
@@ -445,10 +460,10 @@ async def checkout_from_dossier(
         if row:
             linked_plan_id = row[0]
 
-    # Create invoice draft
+    # Create issued invoice (auto-issued with real FAC-YYYY-NNNN number)
     if body.amount and body.amount > 0:
         from app.models.billing import Invoice, InvoiceStatus
-        import uuid as _uuid
+        from app.api.v1.billing import _next_invoice_number
         treatment_label = appt.treatment if appt else "Consultation"
         line_items = [{
             "label": treatment_label,
@@ -456,12 +471,13 @@ async def checkout_from_dossier(
             "unit_price": float(body.amount),
             "total": float(body.amount),
         }]
+        inv_number = await _next_invoice_number(db, clinic_id, now.date().year)
         inv = Invoice(
             clinic_id=clinic_id,
             patient_id=patient.id,
             plan_id=linked_plan_id,
             issued_by=user.id,
-            number=f"DRAFT-{_uuid.uuid4().hex[:8].upper()}",
+            number=inv_number,
             issue_date=now.date(),
             line_items=line_items,
             subtotal=float(body.amount),
@@ -470,7 +486,8 @@ async def checkout_from_dossier(
             tva=0.0,
             total=float(body.amount),
             currency="MAD",
-            status=InvoiceStatus.DRAFT,
+            status=InvoiceStatus.ISSUED,
+            issued_at=now,
             notes=body.notes,
         )
         db.add(inv)

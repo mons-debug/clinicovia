@@ -133,7 +133,7 @@ export function DoctorBento({ patientId, patientName, patient }: Props) {
             <p className="text-base font-bold text-[var(--text-primary)]">{title} — {subtitle}</p>
           </div>
         </div>
-        <TerminerVisiteButton patientId={patientId} patientName={patientName} />
+        <TerminerVisiteButton patientId={patientId} patientName={patientName} canTerminate={ctx.can_terminate} />
       </div>
 
       {/* Step pills */}
@@ -266,7 +266,7 @@ export function DoctorBento({ patientId, patientName, patient }: Props) {
               <ChevronRight className="h-4 w-4" />
             </Button>
           ) : (
-            <TerminerVisiteButton patientId={patientId} patientName={patientName} />
+            <TerminerVisiteButton patientId={patientId} patientName={patientName} canTerminate={ctx.can_terminate} />
           )}
         </div>
       </Card>
