@@ -367,14 +367,14 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
               <div className="rounded-xl border border-border bg-white p-5">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-xs text-text-muted">Statut salle d&apos;attente</p>
+                    <p className="text-xs text-text-muted">Statut salle d{"'"}attente</p>
                     <p className="mt-0.5 text-sm font-medium text-text-primary">
                       {INTAKE_LABEL[p.intake_status] || p.intake_status}
                     </p>
                   </div>
                   {p.requested_service && (
                     <div>
-                      <p className="text-xs font-medium text-[var(--primary)]">Demande à l&apos;accueil</p>
+                      <p className="text-xs font-medium text-[var(--primary)]">Demande à l{"'"}accueil</p>
                       <p className="mt-0.5 text-sm text-[var(--text-primary)]">{p.requested_service}</p>
                     </div>
                   )}
