@@ -488,12 +488,16 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
                         </Badge>
                       </div>
                       <div className="space-y-1.5 pl-3 border-l-2 border-gray-200">
+                        {prog.plans.length === 0 && (
+                          <p className="text-[11px] text-text-muted py-1">Aucun plan. Ajoutez-en un.</p>
+                        )}
                         {prog.plans.map((pp) => (
                           <Link key={pp.id} href={`/plans/${pp.id}`} className="flex items-center justify-between rounded-md bg-gray-50 p-2 text-xs hover:bg-gray-100">
                             <span className="font-medium">{pp.title} · {pp.completed_sessions}/{pp.total_sessions}</span>
                             {pp.estimated_total != null && <span className="font-mono text-text-muted">{pp.estimated_total.toLocaleString("fr-FR")} MAD</span>}
                           </Link>
                         ))}
+                        <NewPlanDialog patientId={p.id} programmeId={prog.id} triggerLabel="+ Ajouter un plan" />
                       </div>
                     </div>
                   ))}
