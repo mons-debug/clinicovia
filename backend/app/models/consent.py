@@ -48,7 +48,8 @@ class PatientConsent(Base, TimestampMixin, TenantMixin):
     )
 
     consent_type: Mapped[ConsentType] = mapped_column(
-        Enum(ConsentType), default=ConsentType.TREATMENT, nullable=False
+        Enum(ConsentType, values_callable=lambda e: [x.value for x in e]),
+        default=ConsentType.TREATMENT, nullable=False
     )
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     # The consent body — rendered to the patient before signing.
@@ -63,7 +64,8 @@ class PatientConsent(Base, TimestampMixin, TenantMixin):
     )
 
     status: Mapped[ConsentStatus] = mapped_column(
-        Enum(ConsentStatus), default=ConsentStatus.PENDING, nullable=False
+        Enum(ConsentStatus, values_callable=lambda e: [x.value for x in e]),
+        default=ConsentStatus.PENDING, nullable=False
     )
 
     # Signature — base64 data URI from a canvas capture on the frontend
