@@ -31,6 +31,7 @@ import { useCalendarRange } from "@/lib/api/calendar";
 
 interface Props {
   patientId: string;
+  programmeId?: string | null;
   triggerLabel?: string;
 }
 
@@ -56,7 +57,7 @@ function projectDates(
   return dates;
 }
 
-export function NewPlanDialog({ patientId, triggerLabel = "Nouveau plan" }: Props) {
+export function NewPlanDialog({ patientId, programmeId, triggerLabel = "Nouveau plan" }: Props) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
 
@@ -132,6 +133,7 @@ export function NewPlanDialog({ patientId, triggerLabel = "Nouveau plan" }: Prop
     try {
       const plan = await create.mutateAsync({
         patient_id: patientId,
+        programme_id: programmeId ?? null,
         title: title.trim(),
         primary_service: selectedTreatment?.name ?? null,
         total_sessions: totalSessions,

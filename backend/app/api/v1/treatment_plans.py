@@ -28,7 +28,6 @@ from app.models.prescription import Prescription
 from app.models.treatment_plan import (
     IntervalUnit,
     PlanStatus,
-    ProgrammeStatus,
     SessionStatus,
     TreatmentPlan,
     TreatmentProgramme,
@@ -645,7 +644,7 @@ def _programme_response(prog: TreatmentProgramme) -> ProgrammeResponse:
         id=prog.id,
         patient_id=prog.patient_id,
         title=prog.title,
-        status=prog.status.value,
+        status=prog.status,
         notes=prog.notes,
         plans=plans_summary,
         total_cost=total_cost,

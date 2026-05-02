@@ -75,8 +75,8 @@ class TreatmentProgramme(Base, TimestampMixin, TenantMixin):
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     title: Mapped[str] = mapped_column(String(255), nullable=False)
-    status: Mapped[ProgrammeStatus] = mapped_column(
-        Enum(ProgrammeStatus), default=ProgrammeStatus.ACTIVE, nullable=False
+    status: Mapped[str] = mapped_column(
+        String(20), default="active", nullable=False
     )
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 

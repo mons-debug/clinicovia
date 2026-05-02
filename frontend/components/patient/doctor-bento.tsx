@@ -481,6 +481,9 @@ export function DoctorBento({ patientId, patientName, patient, onCollapse }: Pro
                   </Badge>
                 </div>
                 <div className="space-y-1.5 pl-3 border-l-2 border-[var(--primary-lighter)]">
+                  {prog.plans.length === 0 && (
+                    <p className="text-[11px] text-[var(--text-muted)] py-1">Aucun plan dans ce programme. Ajoutez-en un.</p>
+                  )}
                   {prog.plans.map((p) => (
                     <div key={p.id}>
                       <button
@@ -504,7 +507,7 @@ export function DoctorBento({ patientId, patientName, patient, onCollapse }: Pro
                       )}
                     </div>
                   ))}
-                  <NewPlanDialog patientId={patientId} triggerLabel="+ Ajouter un plan" />
+                  <NewPlanDialog patientId={patientId} programmeId={prog.id} triggerLabel="+ Ajouter un plan" />
                 </div>
               </div>
             ))}

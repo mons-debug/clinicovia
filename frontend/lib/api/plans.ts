@@ -169,6 +169,7 @@ export function useCreatePlan() {
     onSuccess: (plan) => {
       qc.invalidateQueries({ queryKey: ["plans", "patient", plan.patient_id] });
       qc.invalidateQueries({ queryKey: ["plans", "detail", plan.id] });
+      qc.invalidateQueries({ queryKey: ["programmes", "patient", plan.patient_id] });
     },
   });
 }
