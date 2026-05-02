@@ -801,7 +801,7 @@ async def prepare_session(
         select(PatientConsent).where(
             PatientConsent.clinic_id == clinic_id,
             PatientConsent.patient_id == patient_id,
-            PatientConsent.status == ConsentStatus.PENDING,
+            PatientConsent.status == "pending",
         ).order_by(PatientConsent.created_at.desc()).limit(1)
     )
     consent = existing_consent.scalar_one_or_none()
@@ -810,11 +810,11 @@ async def prepare_session(
             clinic_id=clinic_id,
             patient_id=patient_id,
             doctor_id=user.id,
-            consent_type=ConsentType.TREATMENT,
+            consent_type="treatment",
             title=f"Consentement — {treatment_name}",
             treatment_name=treatment_name,
             plan_id=linked_session.plan_id if linked_session else None,
-            status=ConsentStatus.PENDING,
+            status="pending",
             body_text=(
                 f"Je soussigné(e), autorise le Dr. à effectuer le traitement «{treatment_name}» "
                 f"après avoir été informé(e) des risques, bénéfices et alternatives. "
