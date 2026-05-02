@@ -52,7 +52,7 @@ import {
   usePatientActivities,
   useCreatePatientNote,
 } from "@/lib/api/patients";
-import { usePatientPlans, type TreatmentPlan } from "@/lib/api/plans";
+import { usePatientPlans, usePatientProgrammes, type TreatmentPlan } from "@/lib/api/plans";
 import { useInvoices, type Invoice as InvoiceType, type InvoiceStatus } from "@/lib/api/invoices";
 import { usePatientPrescriptions, type Prescription as PrescriptionType, type PrescriptionStatus } from "@/lib/api/prescriptions";
 import { usePatientConsultations, type Consultation as ConsultationType, type ConsultationStatus } from "@/lib/api/consultations";
@@ -100,6 +100,8 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
   const patientConversations = convsData?.conversations || [];
   const { data: plansData } = usePatientPlans(id);
   const plans: TreatmentPlan[] = plansData?.plans ?? [];
+  const { data: programmesData } = usePatientProgrammes(id);
+  const programmes = programmesData?.programmes ?? [];
   const { data: invoicesData } = useInvoices({ patientId: id });
   const invoices: InvoiceType[] = invoicesData?.invoices ?? [];
   const { data: prescriptionsData } = usePatientPrescriptions(id);
@@ -441,13 +443,41 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
                 </h3>
                 <NewPlanDialog patientId={p.id} />
               </div>
-              {plans.length === 0 ? (
+              {/* Programmes */}
+              {programmes.length > 0 && (
+                <div className="mt-4 space-y-3">
+                  {programmes.map((prog) => (
+                    <div key={prog.id} className="rounded-lg border border-border p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <div>
+                          <p className="text-sm font-bold text-text-primary">{prog.title}</p>
+                          <p className="text-[11px] text-text-muted">
+                            {prog.completed_sessions}/{prog.total_sessions} séances · {prog.total_cost.toLocaleString("fr-FR")} MAD
+                          </p>
+                        </div>
+                        <Badge variant={prog.status === "active" ? "default" : "outline"}>
+                          {prog.status === "active" ? "Actif" : "Terminé"}
+                        </Badge>
+                      </div>
+                      <div className="space-y-1.5 pl-3 border-l-2 border-gray-200">
+                        {prog.plans.map((pp) => (
+                          <Link key={pp.id} href={`/plans/${pp.id}`} className="flex items-center justify-between rounded-md bg-gray-50 p-2 text-xs hover:bg-gray-100">
+                            <span className="font-medium">{pp.title} · {pp.completed_sessions}/{pp.total_sessions}</span>
+                            {pp.estimated_total != null && <span className="font-mono text-text-muted">{pp.estimated_total.toLocaleString("fr-FR")} MAD</span>}
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {plans.length === 0 && programmes.length === 0 ? (
                 <p className="mt-3 text-xs text-text-muted">
                   Aucun plan pour ce patient. Créez-en un pour suivre les séances et le coût estimé.
                 </p>
-              ) : (
+              ) : plans.filter((p) => !p.programme_id).length > 0 ? (
                 <div className="mt-4 space-y-3">
-                  {plans.map((plan) => {
+                  {plans.filter((p) => !p.programme_id).map((plan) => {
                     const completed = plan.sessions.filter((s) => s.status === "completed").length;
                     const pct = plan.total_sessions > 0 ? Math.round((completed / plan.total_sessions) * 100) : 0;
                     return (
@@ -492,7 +522,7 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
                     );
                   })}
                 </div>
-              )}
+              ) : null}
             </div>
 
             {/* Consultations */}
