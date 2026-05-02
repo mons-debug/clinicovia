@@ -29,6 +29,7 @@ import {
   usePlanTimeline,
   type SessionStatus,
   type SessionTimelineEntry,
+  type TimelineInvoice,
 } from "@/lib/api/plans";
 import { useUploadPhoto } from "@/lib/api/photos";
 import { PhotosCard } from "@/components/photos/photos-card";
@@ -90,10 +91,14 @@ function SessionCard({
   entry,
   planId,
   patientId,
+  planInvoices,
+  planTitle,
 }: {
   entry: SessionTimelineEntry;
   planId: string;
   patientId: string;
+  planInvoices: TimelineInvoice[];
+  planTitle?: string;
 }) {
   const { session, appointment, photos, prescriptions } = entry;
   const advance = useAdvanceSession(planId);
@@ -109,12 +114,14 @@ function SessionCard({
   const photosBefore = photos.filter((p) => p.stage === "before");
   const photosAfter = photos.filter((p) => p.stage === "after" || p.stage === "follow_up");
 
+  const sessionInvoices = planInvoices.filter((inv) => inv.session_id === session.id);
+
   const seanceSteps = [
     { label: "Photos avant", done: photosBefore.length > 0, count: photosBefore.length },
     { label: "Traitement", done: !!session.outcome_score || !!session.outcome_note, count: 0 },
     { label: "Photos après", done: photosAfter.length > 0, count: photosAfter.length },
     { label: "Ordonnance", done: prescriptions.length > 0, count: prescriptions.length },
-    { label: "Facture", done: false, count: 0 },
+    { label: "Facture", done: sessionInvoices.length > 0, count: sessionInvoices.length },
   ];
 
   const fire = (to: SessionStatus, label: string) =>
@@ -419,10 +426,36 @@ function SessionCard({
               {activeStep === 4 && (
                 <div className="space-y-3">
                   <p className="text-xs font-bold text-[var(--text-primary)]">Facture liée à cette séance</p>
-                  <p className="text-xs text-[var(--text-muted)]">
-                    La facture est auto-créée quand le médecin clique « Terminer la visite » depuis le dossier patient. Vous pouvez aussi en créer une manuellement.
-                  </p>
-                  <NewInvoiceDialog patientId={patientId} planId={planId} />
+                  {sessionInvoices.length > 0 ? (
+                    <div className="space-y-2">
+                      {sessionInvoices.map((inv) => (
+                        <Link
+                          key={inv.id}
+                          href={`/invoices/${inv.id}`}
+                          className="flex items-center justify-between rounded-lg border border-[var(--border)] p-3 text-sm hover:border-[var(--primary)]"
+                        >
+                          <span className="font-mono font-bold">{inv.number}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono">{inv.total.toLocaleString("fr-FR")} MAD</span>
+                            <Badge variant={inv.status === "paid" ? "success" : inv.status === "issued" ? "default" : "outline"}>
+                              {inv.status === "paid" ? "Payée" : inv.status === "issued" ? "Émise" : "Brouillon"}
+                            </Badge>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-[var(--text-muted)]">
+                      La facture est auto-créée quand le médecin clique « Terminer la visite ». Vous pouvez aussi en créer une manuellement.
+                    </p>
+                  )}
+                  <NewInvoiceDialog
+                    patientId={patientId}
+                    planId={planId}
+                    sessionId={session.id}
+                    sessionPrice={session.session_price}
+                    treatmentName={planTitle}
+                  />
                 </div>
               )}
             </div>
@@ -548,7 +581,7 @@ export default function PlanDetailPage(props: { params: Promise<{ id: string }> 
           Séances
         </h2>
         {sessions.map((entry) => (
-          <SessionCard key={entry.session.id} entry={entry} planId={plan.id} patientId={plan.patient_id} />
+          <SessionCard key={entry.session.id} entry={entry} planId={plan.id} patientId={plan.patient_id} planInvoices={invoices} planTitle={plan.primary_service ?? plan.title} />
         ))}
       </div>
 

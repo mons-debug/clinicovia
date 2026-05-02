@@ -423,6 +423,7 @@ class TimelineInvoice(BaseModel):
     status: str
     total: float
     currency: str
+    session_id: uuid.UUID | None = None
 
 
 class SessionTimelineEntry(BaseModel):
@@ -513,13 +514,17 @@ async def get_plan_timeline(
         for rx in rx_res.scalars().all():
             rx_by_appt.setdefault(rx.appointment_id, []).append(rx)
 
-    # Plan-level invoices
-    inv_res = await db.execute(
-        select(Invoice).where(
-            Invoice.clinic_id == clinic_id,
+    # Plan-level invoices (by plan_id or by session_id)
+    session_ids = [s.id for s in sessions]
+    from sqlalchemy import or_
+    inv_q = select(Invoice).where(
+        Invoice.clinic_id == clinic_id,
+        or_(
             Invoice.plan_id == plan_id,
-        )
+            Invoice.session_id.in_(session_ids) if session_ids else False,
+        ),
     )
+    inv_res = await db.execute(inv_q)
     invoices = list(inv_res.scalars().all())
 
     entries: list[SessionTimelineEntry] = []
@@ -571,6 +576,7 @@ async def get_plan_timeline(
                 status=inv.status.value,
                 total=float(inv.total),
                 currency=inv.currency,
+                session_id=inv.session_id,
             ) for inv in invoices
         ],
     )

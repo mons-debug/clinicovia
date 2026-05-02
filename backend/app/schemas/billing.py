@@ -21,6 +21,7 @@ class LineItem(BaseModel):
 class InvoiceCreate(BaseModel):
     patient_id: uuid.UUID
     plan_id: uuid.UUID | None = None
+    session_id: uuid.UUID | None = None
     issue_date: date | None = None  # defaults to today
     line_items: list[LineItem]
     discount: float = 0.0
@@ -65,6 +66,7 @@ class InvoiceResponse(BaseModel):
     clinic_id: uuid.UUID
     patient_id: uuid.UUID
     plan_id: uuid.UUID | None
+    session_id: uuid.UUID | None = None
     issued_by: uuid.UUID | None
     number: str
     issue_date: date

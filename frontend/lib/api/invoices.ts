@@ -56,6 +56,7 @@ export interface Invoice {
 export interface InvoiceCreateInput {
   patient_id: string;
   plan_id?: string | null;
+  session_id?: string | null;
   issue_date?: string;
   line_items: { label: string; quantity: number; unit_price: number }[];
   discount?: number;

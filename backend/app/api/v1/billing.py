@@ -150,6 +150,7 @@ async def create_invoice(
         clinic_id=clinic_id,
         patient_id=body.patient_id,
         plan_id=body.plan_id,
+        session_id=body.session_id,
         issued_by=user.id,
         number=f"DRAFT-{uuid.uuid4().hex[:8].upper()}",  # placeholder until issued
         issue_date=body.issue_date or date.today(),

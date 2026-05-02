@@ -134,6 +134,7 @@ class Patient(Base, TimestampMixin, TenantMixin):
     # patient in AWAITING_DOCTOR. Reception's queue board pulses green
     # + chimes. Cleared automatically when state advances to IN_ROOM.
     doctor_called_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    prep_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     requested_service: Mapped[str | None] = mapped_column(String(256), nullable=True)
 
     # ----- Assignment ---------------------------------------------------

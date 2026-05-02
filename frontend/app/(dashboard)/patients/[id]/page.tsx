@@ -37,6 +37,7 @@ import { ScreeningCard } from "@/components/patient/screening-card";
 import { TerminerVisiteButton } from "@/components/patient/terminer-visite-button";
 import { SessionChecklist } from "@/components/patient/session-checklist";
 import { DoctorBento } from "@/components/patient/doctor-bento";
+import { useSessionContext } from "@/lib/api/session-context";
 import { usePatientConsents, useCreateConsent } from "@/lib/api/consents";
 import { IdentiteTab } from "@/components/patient/tabs/identite-tab";
 import { ScreeningTab } from "@/components/patient/tabs/screening-tab";
@@ -88,6 +89,7 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
 
   const router = useRouter();
   const { data: patient, isLoading, isError, error } = usePatient(id);
+  const { data: sessionCtx } = useSessionContext(id);
   const { data: sessionsData } = useWhatsAppSessions();
   const connectedSessions = (sessionsData?.sessions || []).filter((s) => s.status === "connected");
   const { data: notes = [] } = usePatientNotes(id);
@@ -260,6 +262,20 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
               <TerminerVisiteButton
                 patientId={p.id}
                 patientName={`${p.first_name} ${p.last_name}`}
+                canTerminate={sessionCtx?.can_terminate}
+                sessionPrice={sessionCtx?.session_price}
+                treatment={sessionCtx?.treatment}
+                mode={sessionCtx?.mode}
+                planTitle={sessionCtx?.plan_title}
+                sessionNumber={sessionCtx?.session_number}
+                totalSessions={sessionCtx?.total_sessions}
+                soapExists={sessionCtx?.soap_exists}
+                ordonnanceExists={sessionCtx?.ordonnance_exists}
+                ordonnanceCount={sessionCtx?.ordonnance_count}
+                photosBefore={sessionCtx?.photos_before}
+                photosAfter={sessionCtx?.photos_after}
+                factureStatus={sessionCtx?.facture_status}
+                factureAmount={sessionCtx?.facture_amount}
               />
             )}
           </div>

@@ -20,12 +20,25 @@ export interface CheckoutDocuments {
   prescription_numbers: string[];
 }
 
+export interface InRoomDocuments {
+  patient_id: string;
+  consent_id: string | null;
+  consent_status: string | null;
+  invoice_id: string | null;
+  invoice_number: string | null;
+  invoice_total: number | null;
+  invoice_status: string | null;
+  prescription_ids: string[];
+  prescription_numbers: string[];
+}
+
 export interface QueueBoard {
   intake_pending: Patient[];
   awaiting_doctor: Patient[];
   in_room: Patient[];
   checkout_pending: Patient[];
   checkout_documents: CheckoutDocuments[];
+  in_room_documents: InRoomDocuments[];
   counts: {
     intake_pending: number;
     awaiting_doctor: number;
@@ -161,6 +174,23 @@ export function useWalkInExistingPatient() {
       qc.invalidateQueries({ queryKey: ["queue"] });
       qc.invalidateQueries({ queryKey: ["calendar"] });
       qc.invalidateQueries({ queryKey: ["patients"] });
+    },
+  });
+}
+
+export function usePrepareSession() {
+  const token = useAuthStore((s) => s.accessToken);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (patientId: string) =>
+      apiClient<{ consent_id: string | null; invoice_id: string | null; message: string }>(
+        `/queue/${patientId}/prepare-session`,
+        { method: "POST", token: token ?? undefined }
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["queue"] });
+      qc.invalidateQueries({ queryKey: ["session-context"] });
+      qc.invalidateQueries({ queryKey: ["invoices"] });
     },
   });
 }

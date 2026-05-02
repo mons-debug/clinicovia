@@ -21,6 +21,14 @@ export interface SessionContext {
   soap_exists: boolean;
   soap_id: string | null;
   ordonnance_exists: boolean;
+  ordonnance_count: number;
+  session_price: number | null;
+  prep_sent: boolean;
+  consent_id: string | null;
+  consent_status: string | null;
+  facture_id: string | null;
+  facture_status: string | null;
+  facture_amount: number | null;
   can_terminate: boolean;
 }
 

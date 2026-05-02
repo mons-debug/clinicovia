@@ -9,7 +9,7 @@ When a patient is IN_ROOM, this returns everything the checklist needs:
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime, timezone
+from datetime import date, datetime, time as time_type, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.middleware.auth import get_current_user
 from app.models.appointment import Appointment, AppointmentStatus
-from app.models.billing import Invoice
+from app.models.billing import Invoice, InvoiceStatus
 from app.models.consent import ConsentStatus, PatientConsent
 from app.models.consultation import Consultation
 from app.models.patient import IntakeStatus, Patient
@@ -61,6 +61,15 @@ class SessionContext(BaseModel):
     soap_exists: bool = False
     soap_id: str | None = None
     ordonnance_exists: bool = False
+    ordonnance_count: int = 0
+    session_price: float | None = None
+    # Prep status (mid-visit handoff)
+    prep_sent: bool = False
+    consent_id: str | None = None
+    consent_status: str | None = None
+    facture_id: str | None = None
+    facture_status: str | None = None
+    facture_amount: float | None = None
     can_terminate: bool = False
 
 
@@ -120,6 +129,7 @@ async def get_session_context(
             ctx.session_id = str(session.id)
             ctx.session_number = session.session_number
             ctx.total_sessions = plan.total_sessions
+            ctx.session_price = session.session_price
 
     # Screening
     scr_res = await db.execute(
@@ -197,7 +207,37 @@ async def get_session_context(
                 Prescription.appointment_id == appt.id,
             )
         )
-        ctx.ordonnance_exists = (rx_res.scalar_one() or 0) > 0
+        rx_count = rx_res.scalar_one() or 0
+        ctx.ordonnance_exists = rx_count > 0
+        ctx.ordonnance_count = rx_count
+
+    # Prep status (mid-visit documents sent to reception)
+    ctx.prep_sent = patient.prep_sent_at is not None
+    if ctx.prep_sent:
+        consent_res = await db.execute(
+            select(PatientConsent).where(
+                PatientConsent.clinic_id == clinic_id,
+                PatientConsent.patient_id == patient_id,
+            ).order_by(PatientConsent.created_at.desc()).limit(1)
+        )
+        latest_consent = consent_res.scalar_one_or_none()
+        if latest_consent:
+            ctx.consent_id = str(latest_consent.id)
+            ctx.consent_status = latest_consent.status.value
+
+        today_start = datetime.combine(today, time_type(0, 0), tzinfo=timezone.utc)
+        inv_res = await db.execute(
+            select(Invoice).where(
+                Invoice.clinic_id == clinic_id,
+                Invoice.patient_id == patient_id,
+                Invoice.created_at >= today_start,
+            ).order_by(Invoice.created_at.desc()).limit(1)
+        )
+        latest_inv = inv_res.scalar_one_or_none()
+        if latest_inv:
+            ctx.facture_id = str(latest_inv.id)
+            ctx.facture_status = latest_inv.status.value
+            ctx.facture_amount = float(latest_inv.total)
 
     # Can terminate: minimum = screening done + SOAP exists
     ctx.can_terminate = ctx.screening_ok and ctx.soap_exists

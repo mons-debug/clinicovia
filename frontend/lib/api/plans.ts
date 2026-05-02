@@ -128,6 +128,7 @@ export interface TimelineInvoice {
   status: string;
   total: number;
   currency: string;
+  session_id: string | null;
 }
 
 export interface SessionTimelineEntry {

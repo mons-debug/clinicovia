@@ -75,12 +75,25 @@ class CheckoutDocuments(BaseModel):
     prescription_numbers: list[str] = []
 
 
+class InRoomDocuments(BaseModel):
+    patient_id: str
+    consent_id: str | None = None
+    consent_status: str | None = None
+    invoice_id: str | None = None
+    invoice_number: str | None = None
+    invoice_total: float | None = None
+    invoice_status: str | None = None
+    prescription_ids: list[str] = []
+    prescription_numbers: list[str] = []
+
+
 class QueueBoard(BaseModel):
     intake_pending: list[PatientResponse]
     awaiting_doctor: list[PatientResponse]
     in_room: list[PatientResponse]
     checkout_pending: list[PatientResponse]
     checkout_documents: list[CheckoutDocuments] = []
+    in_room_documents: list[InRoomDocuments] = []
     counts: dict[str, int]
 
 
@@ -152,12 +165,63 @@ async def get_queue(
 
         checkout_docs.append(doc)
 
+    # Enrich in-room patients with consent + invoice (for reception document handling)
+    from app.models.consent import PatientConsent
+
+    in_room_docs: list[InRoomDocuments] = []
+    for p in in_room:
+        if not p.prep_sent_at:
+            continue
+        doc = InRoomDocuments(patient_id=str(p.id))
+
+        # Latest consent
+        consent_res = await db.execute(
+            select(PatientConsent).where(
+                PatientConsent.clinic_id == clinic_id,
+                PatientConsent.patient_id == p.id,
+            ).order_by(PatientConsent.created_at.desc()).limit(1)
+        )
+        consent = consent_res.scalar_one_or_none()
+        if consent:
+            doc.consent_id = str(consent.id)
+            doc.consent_status = consent.status.value
+
+        # Latest invoice today
+        today_start = datetime.combine(date_type.today(), time_type(0, 0), tzinfo=timezone.utc)
+        inv_res2 = await db.execute(
+            select(Invoice).where(
+                Invoice.clinic_id == clinic_id,
+                Invoice.patient_id == p.id,
+                Invoice.created_at >= today_start,
+            ).order_by(Invoice.created_at.desc()).limit(1)
+        )
+        inv2 = inv_res2.scalar_one_or_none()
+        if inv2:
+            doc.invoice_id = str(inv2.id)
+            doc.invoice_number = inv2.number
+            doc.invoice_total = float(inv2.total)
+            doc.invoice_status = inv2.status.value
+
+        # Prescriptions
+        rx_res2 = await db.execute(
+            select(Prescription).where(
+                Prescription.clinic_id == clinic_id,
+                Prescription.patient_id == p.id,
+            ).order_by(Prescription.created_at.desc()).limit(3)
+        )
+        for rx in rx_res2.scalars().all():
+            doc.prescription_ids.append(str(rx.id))
+            doc.prescription_numbers.append(rx.number)
+
+        in_room_docs.append(doc)
+
     return QueueBoard(
         intake_pending=[PatientResponse.model_validate(p) for p in pending],
         awaiting_doctor=[PatientResponse.model_validate(p) for p in awaiting],
         in_room=[PatientResponse.model_validate(p) for p in in_room],
         checkout_pending=[PatientResponse.model_validate(p) for p in checkout],
         checkout_documents=checkout_docs,
+        in_room_documents=in_room_docs,
         counts={
             "intake_pending": len(pending),
             "awaiting_doctor": len(awaiting),
@@ -222,20 +286,32 @@ async def advance_intake(
         patient.archived_at = None
         patient.is_active = True
 
-    # ── Mark latest ISSUED invoice as paid when patient leaves ─────
+    # ── Mark latest ISSUED invoice as paid + create Payment record ──
     if target == IntakeStatus.ACTIVE:
-        from app.models.billing import Invoice, InvoiceStatus
+        from app.models.billing import Invoice, InvoiceStatus, Payment, PaymentMethod, PaymentKind
+        today_start = datetime.combine(now.date(), time_type(0, 0), tzinfo=timezone.utc)
         inv_res = await db.execute(
             select(Invoice).where(
                 Invoice.clinic_id == clinic_id,
                 Invoice.patient_id == patient_id,
                 Invoice.status == InvoiceStatus.ISSUED,
+                Invoice.created_at >= today_start,
             ).order_by(Invoice.created_at.desc()).limit(1)
         )
         latest_inv = inv_res.scalar_one_or_none()
         if latest_inv:
-            latest_inv.status = InvoiceStatus.PAID
+            payment = Payment(
+                clinic_id=clinic_id,
+                invoice_id=latest_inv.id,
+                received_by=user.id,
+                amount=latest_inv.total,
+                method=PaymentMethod.CASH,
+                kind=PaymentKind.PAYMENT,
+                received_at=now,
+            )
+            db.add(payment)
             latest_inv.total_paid = latest_inv.total
+            latest_inv.status = InvoiceStatus.PAID
 
     # ── Sync today's appointment to match queue state ──────────────
     # This eliminates redundant "Arrivé" + "Commencer" clicks on the
@@ -442,55 +518,120 @@ async def checkout_from_dossier(
     patient.intake_status = IntakeStatus.CHECKOUT_PENDING
     patient.intake_at = now
     patient.doctor_called_at = None
-    checkout_label = f"{int(body.amount)} MAD" if body.amount else "Gratuit"
+    patient.prep_sent_at = None
+
+    # Find linked plan séance (if this appointment is part of a séance)
+    from app.models.treatment_plan import TreatmentPlan, TreatmentSession, SessionStatus
+    linked_plan_id = None
+    linked_session = None
+    if appt:
+        sess_res = await db.execute(
+            select(TreatmentSession).where(
+                TreatmentSession.appointment_id == appt.id
+            ).limit(1)
+        )
+        linked_session = sess_res.scalar_one_or_none()
+        if linked_session:
+            linked_plan_id = linked_session.plan_id
+
+    # Auto-fill amount from session_price if doctor didn't specify
+    effective_amount = float(body.amount) if body.amount else 0.0
+    if effective_amount == 0.0 and linked_session and linked_session.session_price:
+        effective_amount = float(linked_session.session_price)
+
+    # Advance TreatmentSession to completed
+    if linked_session and linked_session.status != SessionStatus.COMPLETED:
+        linked_session.status = SessionStatus.COMPLETED
+        linked_session.completed_at = now
+
+    # Build richer checkout label for reception
+    if linked_session and linked_plan_id:
+        plan_res = await db.execute(
+            select(TreatmentPlan).where(TreatmentPlan.id == linked_plan_id)
+        )
+        plan_obj = plan_res.scalar_one_or_none()
+        plan_label = plan_obj.title if plan_obj else "Plan"
+        checkout_label = (
+            f"Séance {linked_session.session_number}"
+            f" — {plan_label} · {int(effective_amount)} MAD"
+        )
+    else:
+        checkout_label = f"{int(effective_amount)} MAD" if effective_amount else "Gratuit"
     if body.notes:
         checkout_label += f" · {body.notes}"
     patient.requested_service = checkout_label
 
-    # Find linked plan (if this appointment is part of a séance)
-    from app.models.treatment_plan import TreatmentSession
-    linked_plan_id = None
-    if appt:
-        sess_res = await db.execute(
-            select(TreatmentSession.plan_id).where(
-                TreatmentSession.appointment_id == appt.id
-            ).limit(1)
-        )
-        row = sess_res.first()
-        if row:
-            linked_plan_id = row[0]
+    # Create or upgrade invoice
+    from app.models.billing import Invoice, InvoiceStatus
+    from app.api.v1.billing import _next_invoice_number
 
-    # Create issued invoice (auto-issued with real FAC-YYYY-NNNN number)
-    if body.amount and body.amount > 0:
-        from app.models.billing import Invoice, InvoiceStatus
-        from app.api.v1.billing import _next_invoice_number
-        treatment_label = appt.treatment if appt else "Consultation"
-        line_items = [{
-            "label": treatment_label,
-            "quantity": 1,
-            "unit_price": float(body.amount),
-            "total": float(body.amount),
-        }]
-        inv_number = await _next_invoice_number(db, clinic_id, now.date().year)
-        inv = Invoice(
-            clinic_id=clinic_id,
-            patient_id=patient.id,
-            plan_id=linked_plan_id,
-            issued_by=user.id,
-            number=inv_number,
-            issue_date=now.date(),
-            line_items=line_items,
-            subtotal=float(body.amount),
-            discount=0.0,
-            tva_rate=0.0,
-            tva=0.0,
-            total=float(body.amount),
-            currency="MAD",
-            status=InvoiceStatus.ISSUED,
-            issued_at=now,
-            notes=body.notes,
+    # Check if invoice already exists (from Préparer flow — ISSUED or PAID)
+    today_start = datetime.combine(date_type.today(), time_type(0, 0), tzinfo=timezone.utc)
+    existing_issued_q = select(Invoice).where(
+        Invoice.clinic_id == clinic_id,
+        Invoice.patient_id == patient.id,
+        Invoice.status.in_([InvoiceStatus.ISSUED, InvoiceStatus.PAID]),
+        Invoice.created_at >= today_start,
+    ).order_by(Invoice.created_at.desc()).limit(1)
+    existing_issued_res = await db.execute(existing_issued_q)
+    already_invoiced = existing_issued_res.scalar_one_or_none()
+
+    if effective_amount > 0 and not already_invoiced:
+        # Check for existing DRAFT invoice (created via séance step 5)
+        draft_q = select(Invoice).where(
+            Invoice.clinic_id == clinic_id,
+            Invoice.patient_id == patient.id,
+            Invoice.status == InvoiceStatus.DRAFT,
         )
-        db.add(inv)
+        if linked_session:
+            draft_q = draft_q.where(Invoice.session_id == linked_session.id)
+        elif linked_plan_id:
+            draft_q = draft_q.where(Invoice.plan_id == linked_plan_id)
+        draft_q = draft_q.order_by(Invoice.created_at.desc()).limit(1)
+        draft_res = await db.execute(draft_q)
+        existing_draft = draft_res.scalar_one_or_none()
+
+        treatment_label = appt.treatment if appt else "Consultation"
+        inv_number = await _next_invoice_number(db, clinic_id, now.date().year)
+
+        if existing_draft:
+            # Upgrade draft → issued
+            existing_draft.number = inv_number
+            existing_draft.status = InvoiceStatus.ISSUED
+            existing_draft.issued_at = now
+            existing_draft.issued_by = user.id
+            existing_draft.session_id = linked_session.id if linked_session else existing_draft.session_id
+            # Update amount if doctor specified one, otherwise keep draft amount
+            if body.amount and body.amount > 0:
+                line_items = [{"label": treatment_label, "quantity": 1,
+                               "unit_price": float(body.amount), "total": float(body.amount)}]
+                existing_draft.line_items = line_items
+                existing_draft.subtotal = float(body.amount)
+                existing_draft.total = float(body.amount)
+        else:
+            # Create new ISSUED invoice
+            line_items = [{"label": treatment_label, "quantity": 1,
+                           "unit_price": effective_amount, "total": effective_amount}]
+            inv = Invoice(
+                clinic_id=clinic_id,
+                patient_id=patient.id,
+                plan_id=linked_plan_id,
+                session_id=linked_session.id if linked_session else None,
+                issued_by=user.id,
+                number=inv_number,
+                issue_date=now.date(),
+                line_items=line_items,
+                subtotal=effective_amount,
+                discount=0.0,
+                tva_rate=0.0,
+                tva=0.0,
+                total=effective_amount,
+                currency="MAD",
+                status=InvoiceStatus.ISSUED,
+                issued_at=now,
+                notes=body.notes,
+            )
+            db.add(inv)
 
     # Auto-schedule follow-up
     if body.follow_up_weeks and body.follow_up_weeks > 0:
@@ -591,3 +732,149 @@ async def uncall_patient(
     await db.commit()
     await db.refresh(patient)
     return PatientResponse.model_validate(patient)
+
+
+# ---------- Prepare session (mid-visit handoff to reception) -----------
+
+class PrepareResponse(BaseModel):
+    consent_id: str | None = None
+    invoice_id: str | None = None
+    message: str = "ok"
+
+
+@router.post("/{patient_id}/prepare-session", response_model=PrepareResponse)
+async def prepare_session(
+    patient_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Doctor clicks 'Préparer' — creates consent + facture, sends to reception."""
+    clinic_id = _get_clinic_id(user)
+
+    res = await db.execute(
+        select(Patient)
+        .options(selectinload(Patient.tags))
+        .where(Patient.id == patient_id, Patient.clinic_id == clinic_id)
+    )
+    patient = res.scalar_one_or_none()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    if patient.intake_status != IntakeStatus.IN_ROOM:
+        raise HTTPException(status_code=409, detail="Patient is not in consultation")
+
+    now = datetime.now(timezone.utc)
+    today = now.date()
+
+    # Find today's appointment
+    appt_res = await db.execute(
+        select(Appointment).where(
+            Appointment.clinic_id == clinic_id,
+            Appointment.patient_id == patient_id,
+            Appointment.appointment_date == today,
+            Appointment.status.in_([
+                AppointmentStatus.IN_PROGRESS,
+                AppointmentStatus.CHECKED_IN,
+                AppointmentStatus.SCHEDULED,
+            ]),
+        ).order_by(Appointment.created_at.desc()).limit(1)
+    )
+    appt = appt_res.scalar_one_or_none()
+    treatment_name = appt.treatment if appt else "Consultation"
+
+    # Find linked séance + plan
+    from app.models.treatment_plan import TreatmentPlan, TreatmentSession
+    linked_session = None
+    linked_plan = None
+    if appt:
+        sess_res = await db.execute(
+            select(TreatmentSession).where(
+                TreatmentSession.appointment_id == appt.id
+            ).limit(1)
+        )
+        linked_session = sess_res.scalar_one_or_none()
+        if linked_session:
+            plan_res = await db.execute(
+                select(TreatmentPlan).where(TreatmentPlan.id == linked_session.plan_id)
+            )
+            linked_plan = plan_res.scalar_one_or_none()
+
+    # 1. Create consent (PENDING) — skip if one already exists today
+    from app.models.consent import PatientConsent, ConsentType, ConsentStatus
+    existing_consent = await db.execute(
+        select(PatientConsent).where(
+            PatientConsent.clinic_id == clinic_id,
+            PatientConsent.patient_id == patient_id,
+            PatientConsent.status == ConsentStatus.PENDING,
+        ).order_by(PatientConsent.created_at.desc()).limit(1)
+    )
+    consent = existing_consent.scalar_one_or_none()
+    if not consent:
+        consent = PatientConsent(
+            clinic_id=clinic_id,
+            patient_id=patient_id,
+            doctor_id=user.id,
+            consent_type=ConsentType.TREATMENT,
+            title=f"Consentement — {treatment_name}",
+            treatment_name=treatment_name,
+            plan_id=linked_session.plan_id if linked_session else None,
+            status=ConsentStatus.PENDING,
+            body_text=(
+                f"Je soussigné(e), autorise le Dr. à effectuer le traitement «{treatment_name}» "
+                f"après avoir été informé(e) des risques, bénéfices et alternatives. "
+                f"J'ai eu l'occasion de poser toutes mes questions."
+            ),
+        )
+        db.add(consent)
+        await db.flush()
+
+    # 2. Create facture (ISSUED) — skip if one already exists
+    from app.models.billing import Invoice, InvoiceStatus
+    from app.api.v1.billing import _next_invoice_number
+    session_price = linked_session.session_price if linked_session else 0
+    existing_inv = await db.execute(
+        select(Invoice).where(
+            Invoice.clinic_id == clinic_id,
+            Invoice.patient_id == patient_id,
+            Invoice.status.in_([InvoiceStatus.ISSUED, InvoiceStatus.DRAFT, InvoiceStatus.PAID]),
+            Invoice.created_at >= datetime.combine(today, time_type(0, 0), tzinfo=timezone.utc),
+        ).order_by(Invoice.created_at.desc()).limit(1)
+    )
+    invoice = existing_inv.scalar_one_or_none()
+    if not invoice and session_price and session_price > 0:
+        inv_number = await _next_invoice_number(db, clinic_id, today.year)
+        invoice = Invoice(
+            clinic_id=clinic_id,
+            patient_id=patient_id,
+            plan_id=linked_session.plan_id if linked_session else None,
+            session_id=linked_session.id if linked_session else None,
+            issued_by=user.id,
+            number=inv_number,
+            issue_date=today,
+            line_items=[{
+                "label": treatment_name,
+                "quantity": 1,
+                "unit_price": float(session_price),
+                "total": float(session_price),
+            }],
+            subtotal=float(session_price),
+            discount=0.0,
+            tva_rate=0.0,
+            tva=0.0,
+            total=float(session_price),
+            currency="MAD",
+            status=InvoiceStatus.ISSUED,
+            issued_at=now,
+        )
+        db.add(invoice)
+        await db.flush()
+
+    # 3. Set prep flag
+    patient.prep_sent_at = now
+
+    await db.commit()
+
+    return PrepareResponse(
+        consent_id=str(consent.id) if consent else None,
+        invoice_id=str(invoice.id) if invoice else None,
+        message="Consentement et facture envoyés à la réception",
+    )

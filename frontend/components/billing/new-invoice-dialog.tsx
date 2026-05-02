@@ -29,16 +29,22 @@ interface LineRow {
 interface Props {
   patientId: string;
   planId?: string | null;
+  sessionId?: string | null;
+  sessionPrice?: number | null;
+  treatmentName?: string | null;
   triggerLabel?: string;
 }
 
 const blankRow: LineRow = { label: "", quantity: 1, unit_price: 0 };
 
-export function NewInvoiceDialog({ patientId, planId, triggerLabel = "Nouvelle facture" }: Props) {
+export function NewInvoiceDialog({ patientId, planId, sessionId, sessionPrice, treatmentName, triggerLabel = "Nouvelle facture" }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
 
-  const [rows, setRows] = useState<LineRow[]>([{ ...blankRow }]);
+  const defaultRow: LineRow = sessionPrice
+    ? { label: treatmentName || "Séance", quantity: 1, unit_price: sessionPrice }
+    : { ...blankRow };
+  const [rows, setRows] = useState<LineRow[]>([defaultRow]);
   const [discount, setDiscount] = useState(0);
   const [tvaRate, setTvaRate] = useState(0);
   const [notes, setNotes] = useState("");
@@ -75,6 +81,7 @@ export function NewInvoiceDialog({ patientId, planId, triggerLabel = "Nouvelle f
       const inv = await create.mutateAsync({
         patient_id: patientId,
         plan_id: planId ?? null,
+        session_id: sessionId ?? null,
         line_items: valid.map((r) => ({
           label: r.label.trim(),
           quantity: r.quantity,

@@ -66,6 +66,7 @@ class Invoice(Base, TimestampMixin, TenantMixin):
         Index("ix_invoices_clinic_patient", "clinic_id", "patient_id"),
         Index("ix_invoices_clinic_status", "clinic_id", "status"),
         Index("ix_invoices_clinic_date", "clinic_id", "issue_date"),
+        Index("ix_invoices_session", "session_id"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -75,6 +76,9 @@ class Invoice(Base, TimestampMixin, TenantMixin):
     )
     plan_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("treatment_plans.id", ondelete="SET NULL"), nullable=True
+    )
+    session_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("treatment_sessions.id", ondelete="SET NULL"), nullable=True
     )
     issued_by: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True

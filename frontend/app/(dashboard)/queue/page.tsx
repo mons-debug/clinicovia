@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { toast } from "sonner";
 import {
@@ -26,8 +27,11 @@ import {
   useCallPatient,
   useUncallPatient,
   type IntakeStatus,
+  type InRoomDocuments,
 } from "@/lib/api/queue";
 import type { Patient } from "@/lib/api/patients";
+import { useSignConsent } from "@/lib/api/consents";
+import { useRecordPayment } from "@/lib/api/invoices";
 import { useAuthStore } from "@/stores/auth-store";
 import { cn } from "@/lib/utils";
 
@@ -247,6 +251,89 @@ interface ColumnProps {
   empty: string;
 }
 
+function InRoomDocumentChips({ docs }: { docs: InRoomDocuments }) {
+  const signConsent = useSignConsent();
+  const recordPayment = useRecordPayment(docs.invoice_id ?? "");
+  const qc = useQueryClient();
+
+  const handleSign = () => {
+    if (!docs.consent_id) return;
+    signConsent.mutate(
+      { consentId: docs.consent_id, signatureData: "reception-confirmed" },
+      {
+        onSuccess: () => {
+          toast.success("Consentement signé");
+          qc.invalidateQueries({ queryKey: ["queue"] });
+        },
+        onError: () => toast.error("Erreur signature"),
+      }
+    );
+  };
+
+  const handlePay = () => {
+    if (!docs.invoice_id) return;
+    recordPayment.mutate(
+      { amount: docs.invoice_total ?? 0, method: "cash" as const },
+      {
+        onSuccess: () => {
+          toast.success("Paiement enregistré");
+          qc.invalidateQueries({ queryKey: ["queue"] });
+        },
+        onError: () => toast.error("Erreur paiement"),
+      }
+    );
+  };
+
+  return (
+    <div className="mt-1 rounded-md bg-emerald-50 px-3 py-2 space-y-1.5">
+      <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">Documents à traiter</p>
+      {docs.consent_id && (
+        <div className="flex items-center justify-between">
+          <span className="flex items-center gap-1.5 text-xs text-emerald-800">
+            <FileText className="h-3 w-3" />
+            Consentement
+          </span>
+          {docs.consent_status === "signed" ? (
+            <span className="flex items-center gap-1 text-[11px] font-medium text-emerald-700">
+              <CheckCircle2 className="h-3 w-3" /> Signé
+            </span>
+          ) : (
+            <Button size="sm" variant="outline" className="h-6 text-[11px] border-amber-300 text-amber-700 hover:bg-amber-50" onClick={handleSign} disabled={signConsent.isPending}>
+              À signer
+            </Button>
+          )}
+        </div>
+      )}
+      {docs.invoice_id && (
+        <div className="flex items-center justify-between">
+          <Link href={`/invoices/${docs.invoice_id}`} className="flex items-center gap-1.5 text-xs text-emerald-800 hover:underline">
+            <Receipt className="h-3 w-3" />
+            Facture · {docs.invoice_total?.toLocaleString("fr-FR")} MAD
+          </Link>
+          {docs.invoice_status === "paid" ? (
+            <span className="flex items-center gap-1 text-[11px] font-medium text-emerald-700">
+              <CheckCircle2 className="h-3 w-3" /> Payé
+            </span>
+          ) : (
+            <Button size="sm" variant="outline" className="h-6 text-[11px] border-amber-300 text-amber-700 hover:bg-amber-50" onClick={handlePay} disabled={recordPayment.isPending}>
+              À payer
+            </Button>
+          )}
+        </div>
+      )}
+      {docs.prescription_ids.length > 0 && docs.prescription_ids.map((rxId, i) => (
+        <div key={rxId} className="flex items-center justify-between">
+          <Link href={`/prescriptions/${rxId}`} className="flex items-center gap-1.5 text-xs text-emerald-800 hover:underline">
+            <FileText className="h-3 w-3" />
+            {docs.prescription_numbers[i] || "Ordonnance"}
+          </Link>
+          <span className="text-[11px] text-emerald-600">Imprimer</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function Column({ title, subtitle, count, accent, Icon, children, empty }: ColumnProps) {
   const isEmpty = count === 0;
   return (
@@ -414,16 +501,23 @@ export default function QueuePage() {
           Icon={DoorOpen}
           empty="Aucune consultation en cours"
         >
-          {data.in_room.map((p) => (
-            <PatientCard
-              key={p.id}
-              patient={p}
-              primaryAction={isDoctor ? undefined : undefined}
-              secondaryAction={{ label: "Renvoyer en attente", to: "awaiting_doctor", variant: "ghost" }}
-            />
-          ))}
+          {data.in_room.map((p) => {
+            const docs = (data.in_room_documents ?? []).find((d) => d.patient_id === p.id);
+            return (
+              <div key={p.id}>
+                <PatientCard
+                  patient={p}
+                  primaryAction={isDoctor ? undefined : undefined}
+                  secondaryAction={{ label: "Renvoyer en attente", to: "awaiting_doctor", variant: "ghost" }}
+                />
+                {docs && (docs.consent_id || docs.invoice_id) && (
+                  <InRoomDocumentChips docs={docs} />
+                )}
+              </div>
+            );
+          })}
           {/* Doctor tip — click patient name to open dossier + Terminer */}
-          {data.counts.in_room > 0 && isDoctor && (
+          {data.counts.in_room > 0 && isDoctor && !data.in_room.some((p) => (data.in_room_documents ?? []).find((d) => d.patient_id === p.id)) && (
             <p className="mt-1 rounded-md bg-emerald-50 px-3 py-2 text-center text-[11px] text-emerald-700">
               Clic sur le nom du patient → dossier → Terminer la visite
             </p>
@@ -481,7 +575,7 @@ export default function QueuePage() {
       <div className="rounded-lg border border-[var(--line-soft,_#E2E8F0)] bg-white p-4 text-xs text-[var(--text-muted)]">
         <span className="inline-flex items-center gap-1">
           <CheckCircle2 className="h-3 w-3 text-[var(--success)]" />
-          Le médecin clôture la consultation depuis le calendrier (Terminer) — le patient passe à « À encaisser » jusqu&apos;à paiement.
+          Le médecin clôture la consultation depuis le calendrier (Terminer) — le patient passe à « À encaisser » jusqu{"'"}à paiement.
         </span>
       </div>
     </div>
