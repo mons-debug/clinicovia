@@ -58,17 +58,27 @@ function PlanCard({ plan }: { plan: TreatmentPlan }) {
           {timeline ? (
             <div className="space-y-2">
               {timeline.sessions.map((entry) => (
-                <div key={entry.session.id} className="flex items-center justify-between rounded-lg border border-[var(--border)] p-3 text-sm">
+                <Link
+                  key={entry.session.id}
+                  href={`/plans/${plan.id}`}
+                  className="flex items-center justify-between rounded-lg border border-[var(--border)] p-3 text-sm transition-colors hover:border-[var(--primary)] hover:bg-[var(--background)]"
+                >
                   <div className="flex items-center gap-2">
                     <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--primary-lighter)] text-xs font-bold text-[var(--primary)]">
                       {entry.session.session_number}
                     </span>
                     <span className="font-medium">Séance {entry.session.session_number}</span>
-                    {entry.session.session_price && (
+                    {entry.session.session_price != null && entry.session.session_price > 0 && (
                       <span className="text-xs text-[var(--text-muted)]">{entry.session.session_price} MAD</span>
                     )}
                   </div>
                   <div className="flex items-center gap-2">
+                    {entry.photos.length > 0 && (
+                      <span className="text-[10px] text-[var(--text-muted)]">{entry.photos.length} photos</span>
+                    )}
+                    {entry.prescriptions.length > 0 && (
+                      <span className="text-[10px] text-blue-600">{entry.prescriptions.length} Rx</span>
+                    )}
                     {entry.appointment && (
                       <span className="text-[11px] text-[var(--text-muted)]">
                         {entry.appointment.appointment_date}
@@ -85,7 +95,7 @@ function PlanCard({ plan }: { plan: TreatmentPlan }) {
                        entry.session.status === "skipped" ? "Sautée" : "Planifiée"}
                     </Badge>
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           ) : (
