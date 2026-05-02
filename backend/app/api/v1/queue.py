@@ -24,9 +24,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
+from app.api.v1.billing import _next_invoice_number
 from app.middleware.auth import get_current_user
 from app.models.appointment import Appointment, AppointmentKind, AppointmentStatus
+from app.models.billing import Invoice, InvoiceStatus, Payment, PaymentMethod, PaymentKind
+from app.models.consent import PatientConsent, ConsentType, ConsentStatus
 from app.models.patient import IntakeStatus, Patient
+from app.models.prescription import Prescription
+from app.models.treatment_plan import TreatmentPlan, TreatmentSession, SessionStatus
 from app.models.user import User
 from app.schemas.appointment import AppointmentResponse
 from app.schemas.patient import PatientResponse
@@ -131,8 +136,6 @@ async def get_queue(
 
     # Enrich checkout patients with their draft invoice + prescriptions
     # so reception can click directly to view/print.
-    from app.models.billing import Invoice, InvoiceStatus
-    from app.models.prescription import Prescription
 
     checkout_docs: list[CheckoutDocuments] = []
     for p in checkout:
@@ -166,7 +169,6 @@ async def get_queue(
         checkout_docs.append(doc)
 
     # Enrich in-room patients with consent + invoice (for reception document handling)
-    from app.models.consent import PatientConsent
 
     in_room_docs: list[InRoomDocuments] = []
     for p in in_room:
@@ -521,7 +523,6 @@ async def checkout_from_dossier(
     patient.prep_sent_at = None
 
     # Find linked plan séance (if this appointment is part of a séance)
-    from app.models.treatment_plan import TreatmentPlan, TreatmentSession, SessionStatus
     linked_plan_id = None
     linked_session = None
     if appt:
@@ -562,8 +563,6 @@ async def checkout_from_dossier(
     patient.requested_service = checkout_label
 
     # Create or upgrade invoice
-    from app.models.billing import Invoice, InvoiceStatus
-    from app.api.v1.billing import _next_invoice_number
 
     # Check if invoice already exists (from Préparer flow — ISSUED or PAID)
     today_start = datetime.combine(date_type.today(), time_type(0, 0), tzinfo=timezone.utc)
@@ -782,7 +781,6 @@ async def prepare_session(
     treatment_name = appt.treatment if appt else "Consultation"
 
     # Find linked séance + plan
-    from app.models.treatment_plan import TreatmentPlan, TreatmentSession
     linked_session = None
     linked_plan = None
     if appt:
@@ -799,7 +797,6 @@ async def prepare_session(
             linked_plan = plan_res.scalar_one_or_none()
 
     # 1. Create consent (PENDING) — skip if one already exists today
-    from app.models.consent import PatientConsent, ConsentType, ConsentStatus
     existing_consent = await db.execute(
         select(PatientConsent).where(
             PatientConsent.clinic_id == clinic_id,
@@ -828,8 +825,6 @@ async def prepare_session(
         await db.flush()
 
     # 2. Create facture (ISSUED) — skip if one already exists
-    from app.models.billing import Invoice, InvoiceStatus
-    from app.api.v1.billing import _next_invoice_number
     session_price = linked_session.session_price if linked_session else 0
     existing_inv = await db.execute(
         select(Invoice).where(
