@@ -58,14 +58,10 @@ import { usePatientConsultations, type Consultation as ConsultationType, type Co
 import { useConversations, useWhatsAppSessions, startConversation } from "@/lib/api/whatsapp";
 
 const tabs = [
-  { key: "identite", label: "Identité", icon: User },
-  { key: "screening", label: "Screening", icon: Star },
-  { key: "clinical", label: "Dossier clinique", icon: Activity },
-  { key: "plan", label: "Plan général", icon: Calendar },
-  { key: "consultation", label: "Consultation", icon: StickyNote },
+  { key: "overview", label: "Dossier", icon: User },
   { key: "conversations", label: "Conversations", icon: MessageSquare },
-  { key: "notes", label: "Notes", icon: Pin },
-  { key: "activity", label: "Activité", icon: AlertCircle },
+  { key: "notes", label: "Notes", icon: StickyNote },
+  { key: "activity", label: "Activité", icon: Activity },
 ] as const;
 
 const INTAKE_LABEL: Record<string, string> = {
@@ -87,7 +83,7 @@ type TabKey = (typeof tabs)[number]["key"];
 
 export default function PatientProfilePage(props: { params: Promise<{ id: string }> }) {
   const { id } = use(props.params);
-  const [activeTab, setActiveTab] = useState<TabKey>("identite");
+  const [activeTab, setActiveTab] = useState<TabKey>("overview");
   const [noteContent, setNoteContent] = useState("");
 
   const router = useRouter();
@@ -313,20 +309,14 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
       </div>
 
       {/* Tab content */}
-      {/* Bento wizard shows on top when IN_ROOM, regardless of active tab */}
-      {p.intake_status === "in_room" && (
-        <DoctorBento patientId={p.id} patientName={`${p.first_name} ${p.last_name}`} patient={p} />
-      )}
+      {/* Tab content */}
+      {activeTab === "overview" && (
+        <div className="space-y-6">
+        {/* Bento wizard on top when IN_ROOM */}
+        {p.intake_status === "in_room" && (
+          <DoctorBento patientId={p.id} patientName={`${p.first_name} ${p.last_name}`} patient={p} />
+        )}
 
-      {/* New tabs content */}
-      {activeTab === "identite" && <IdentiteTab patient={p} />}
-      {activeTab === "screening" && <ScreeningTab patientId={p.id} />}
-      {activeTab === "clinical" && <ClinicalTab patient={p} />}
-      {activeTab === "plan" && <PlanGeneralTab patientId={p.id} />}
-      {activeTab === "consultation" && <ConsultationTab patientId={p.id} />}
-
-      {/* Legacy tabs kept accessible */}
-      {activeTab === "overview_legacy" && (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <div className="space-y-6 lg:col-span-2">
             {/* Identité — always-on, role-gated edit (reception) */}
@@ -658,6 +648,7 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
               )}
             </div>
           </div>
+        </div>
         </div>
       )}
 

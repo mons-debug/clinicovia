@@ -23,8 +23,10 @@ import { ClinicalEditCard } from "@/components/patient/clinical-edit-card";
 import { IdentityEditCard } from "@/components/patient/identity-edit-card";
 import { NewPlanDialog } from "@/components/plans/new-plan-dialog";
 import { NewInvoiceDialog } from "@/components/billing/new-invoice-dialog";
+import { NewConsultationDialog } from "@/components/consultations/new-consultation-dialog";
 import { useSessionContext } from "@/lib/api/session-context";
 import { usePatientPlans } from "@/lib/api/plans";
+import { usePatientConsultations } from "@/lib/api/consultations";
 import { useInvoices } from "@/lib/api/invoices";
 import type { Patient } from "@/lib/api/patients";
 import { cn } from "@/lib/utils";
@@ -49,6 +51,8 @@ export function DoctorBento({ patientId, patientName, patient }: Props) {
   const { data: ctx } = useSessionContext(patientId);
   const { data: plansData } = usePatientPlans(patientId);
   const plans = plansData?.plans ?? [];
+  const { data: consultsData } = usePatientConsultations(patientId);
+  const consults = consultsData?.consultations ?? [];
   const { data: invoicesData } = useInvoices({ patientId });
   const invoices = invoicesData?.invoices ?? [];
   const [currentStep, setCurrentStep] = useState(0);
@@ -89,11 +93,20 @@ export function DoctorBento({ patientId, patientName, patient }: Props) {
     },
     {
       key: "plans",
-      label: "Plans",
+      label: "Plan général",
       Icon: FileText,
       accent: "bg-teal-100 text-teal-700",
       status: plans.length > 0 ? `${plans.length} plan${plans.length > 1 ? "s" : ""}` : "Aucun",
       done: plans.length > 0,
+    },
+    {
+      key: "consultation",
+      label: "Consultation",
+      Icon: Stethoscope,
+      accent: "bg-violet-100 text-violet-700",
+      status: isSeance ? "Séance active" : (consults.length > 0 ? `${consults.length}` : "Aucune"),
+      done: consults.length > 0,
+      warn: isSeance,
     },
     {
       key: "invoices",
@@ -192,6 +205,37 @@ export function DoctorBento({ patientId, patientName, patient }: Props) {
             ))}
             <NewPlanDialog patientId={patientId} />
           </div>
+        )}
+        {step.key === "consultation" && (
+          isSeance ? (
+            <div className="rounded-lg bg-amber-50 p-4 text-center">
+              <p className="text-sm font-medium text-amber-800">Séance en cours</p>
+              <p className="mt-1 text-xs text-amber-700">
+                Les consultations autonomes sont désactivées pendant une séance active. La facturation passe par le plan.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {consults.map((c) => (
+                <Link
+                  key={c.id}
+                  href={`/consultations/${c.id}`}
+                  className="flex items-center justify-between rounded-lg border border-[var(--border)] p-3 text-sm hover:border-[var(--primary)]"
+                >
+                  <div>
+                    <span className="font-mono font-bold">{c.number}</span>
+                    <span className="ml-2 text-xs text-[var(--text-muted)]">
+                      {new Date(c.visit_date).toLocaleDateString("fr-FR")}
+                    </span>
+                  </div>
+                  <Badge variant={c.status === "signed" ? "success" : "outline"}>
+                    {c.status === "signed" ? "Signée" : "Brouillon"}
+                  </Badge>
+                </Link>
+              ))}
+              <NewConsultationDialog patientId={patientId} appointmentId={ctx.appointment_id ?? undefined} />
+            </div>
+          )
         )}
         {step.key === "invoices" && (
           <div className="space-y-2">
