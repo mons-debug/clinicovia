@@ -52,7 +52,7 @@ import {
   usePatientActivities,
   useCreatePatientNote,
 } from "@/lib/api/patients";
-import { usePatientPlans, usePatientProgrammes, type TreatmentPlan } from "@/lib/api/plans";
+import { usePatientPlans, usePatientProgrammes, useCreateProgramme, type TreatmentPlan } from "@/lib/api/plans";
 import { useInvoices, type Invoice as InvoiceType, type InvoiceStatus } from "@/lib/api/invoices";
 import { usePatientPrescriptions, type Prescription as PrescriptionType, type PrescriptionStatus } from "@/lib/api/prescriptions";
 import { usePatientConsultations, type Consultation as ConsultationType, type ConsultationStatus } from "@/lib/api/consultations";
@@ -102,6 +102,9 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
   const plans: TreatmentPlan[] = plansData?.plans ?? [];
   const { data: programmesData } = usePatientProgrammes(id);
   const programmes = programmesData?.programmes ?? [];
+  const createProgramme = useCreateProgramme();
+  const [newProgTitle, setNewProgTitle] = useState("");
+  const [showNewProgDossier, setShowNewProgDossier] = useState(false);
   const { data: invoicesData } = useInvoices({ patientId: id });
   const invoices: InvoiceType[] = invoicesData?.invoices ?? [];
   const { data: prescriptionsData } = usePatientPrescriptions(id);
@@ -442,9 +445,32 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
                   Programmes & Plans
                 </h3>
                 <div className="flex gap-2">
+                  <Button size="sm" variant="outline" onClick={() => setShowNewProgDossier(true)}>
+                    Nouveau programme
+                  </Button>
                   <NewPlanDialog patientId={p.id} />
                 </div>
               </div>
+              {/* New programme form */}
+              {showNewProgDossier && (
+                <div className="mt-3 flex gap-2">
+                  <Input
+                    placeholder="ex. Rajeunissement visage"
+                    value={newProgTitle}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewProgTitle(e.target.value)}
+                    className="flex-1"
+                    autoFocus
+                  />
+                  <Button size="sm" onClick={() => {
+                    if (!newProgTitle.trim()) return;
+                    createProgramme.mutate(
+                      { patient_id: p.id, title: newProgTitle.trim() },
+                      { onSuccess: () => { toast.success("Programme créé"); setNewProgTitle(""); setShowNewProgDossier(false); } }
+                    );
+                  }} disabled={createProgramme.isPending}>Créer</Button>
+                  <Button size="sm" variant="ghost" onClick={() => setShowNewProgDossier(false)}>Annuler</Button>
+                </div>
+              )}
               {/* Programmes */}
               {programmes.length > 0 && (
                 <div className="mt-4 space-y-3">
