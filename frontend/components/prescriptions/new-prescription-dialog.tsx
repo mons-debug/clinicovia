@@ -88,7 +88,6 @@ export function NewPrescriptionDialog({ patientId, appointmentId, sessionId, tri
       toast.success("Ordonnance créée (brouillon)");
       reset();
       setOpen(false);
-      router.push(`/prescriptions/${rx.id}`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Échec");
     }

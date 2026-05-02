@@ -151,7 +151,6 @@ export function NewPlanDialog({ patientId, triggerLabel = "Nouveau plan" }: Prop
       );
       reset();
       setOpen(false);
-      router.push(`/plans/${plan.id}`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Échec");
     }

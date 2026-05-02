@@ -32,12 +32,13 @@ import { usePrepareSession } from "@/lib/api/queue";
 import type { Patient } from "@/lib/api/patients";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { Loader2, Send, Clock, FileText as FileIcon } from "lucide-react";
+import { Loader2, Send, Clock, FileText as FileIcon, X } from "lucide-react";
 
 interface Props {
   patientId: string;
   patientName: string;
   patient: Patient;
+  onCollapse?: () => void;
 }
 
 interface Step {
@@ -50,7 +51,7 @@ interface Step {
   warn?: boolean;
 }
 
-export function DoctorBento({ patientId, patientName, patient }: Props) {
+export function DoctorBento({ patientId, patientName, patient, onCollapse }: Props) {
   const { data: ctx } = useSessionContext(patientId);
   const { data: plansData } = usePatientPlans(patientId);
   const plans = plansData?.plans ?? [];
@@ -159,6 +160,16 @@ export function DoctorBento({ patientId, patientName, patient }: Props) {
           factureStatus={ctx.facture_status}
           factureAmount={ctx.facture_amount}
         />
+        {onCollapse && (
+          <button
+            type="button"
+            onClick={onCollapse}
+            className="ml-2 rounded-md p-1 text-emerald-600 hover:bg-emerald-100"
+            title="Réduire le wizard"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
       </div>
 
       {/* Préparer la séance — mid-visit handoff to reception */}

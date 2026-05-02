@@ -33,6 +33,7 @@ class SessionResponse(BaseModel):
 
 class PlanCreate(BaseModel):
     patient_id: uuid.UUID
+    programme_id: uuid.UUID | None = None
     title: str = Field(min_length=1, max_length=255)
     primary_service: str | None = None
     indication_slugs: list[str] | None = None
@@ -71,6 +72,7 @@ class PlanResponse(BaseModel):
     id: uuid.UUID
     clinic_id: uuid.UUID
     patient_id: uuid.UUID
+    programme_id: uuid.UUID | None = None
     created_by: uuid.UUID | None
     doctor_id: uuid.UUID | None
     title: str

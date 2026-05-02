@@ -86,6 +86,7 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
   const { id } = use(props.params);
   const [activeTab, setActiveTab] = useState<TabKey>("overview");
   const [noteContent, setNoteContent] = useState("");
+  const [wizardCollapsed, setWizardCollapsed] = useState(false);
 
   const router = useRouter();
   const { data: patient, isLoading, isError, error } = usePatient(id);
@@ -326,8 +327,27 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
 
       {/* Tab content */}
       {/* Tab content */}
-      {activeTab === "overview" && p.intake_status === "in_room" && (
-        <DoctorBento patientId={p.id} patientName={`${p.first_name} ${p.last_name}`} patient={p} />
+      {activeTab === "overview" && p.intake_status === "in_room" && wizardCollapsed && (
+        <button
+          type="button"
+          onClick={() => setWizardCollapsed(false)}
+          className="flex w-full items-center justify-between rounded-xl border-2 border-emerald-400 bg-emerald-50 px-5 py-3 transition-colors hover:bg-emerald-100"
+        >
+          <div className="flex items-center gap-3">
+            <span className="inline-block h-3 w-3 animate-pulse rounded-full bg-emerald-500" />
+            <span className="text-sm font-bold text-emerald-800">
+              {sessionCtx?.mode === "seance"
+                ? `Séance ${sessionCtx.session_number}/${sessionCtx.total_sessions} en cours — ${sessionCtx.treatment}`
+                : `Consultation en cours — ${sessionCtx?.treatment || ""}`}
+            </span>
+          </div>
+          <span className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white">
+            Reprendre la séance
+          </span>
+        </button>
+      )}
+      {activeTab === "overview" && p.intake_status === "in_room" && !wizardCollapsed && (
+        <DoctorBento patientId={p.id} patientName={`${p.first_name} ${p.last_name}`} patient={p} onCollapse={() => setWizardCollapsed(true)} />
       )}
 
       {activeTab === "overview" && p.intake_status !== "in_room" && (

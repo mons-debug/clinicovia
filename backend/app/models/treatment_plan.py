@@ -55,6 +55,38 @@ class SessionStatus(str, PyEnum):
     SKIPPED = "skipped"
 
 
+class ProgrammeStatus(str, PyEnum):
+    ACTIVE = "active"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
+
+
+class TreatmentProgramme(Base, TimestampMixin, TenantMixin):
+    __tablename__ = "treatment_programmes"
+    __table_args__ = (
+        Index("ix_treatment_programmes_clinic_patient", "clinic_id", "patient_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    patient_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("patients.id", ondelete="CASCADE"), nullable=False
+    )
+    created_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    status: Mapped[ProgrammeStatus] = mapped_column(
+        Enum(ProgrammeStatus), default=ProgrammeStatus.ACTIVE, nullable=False
+    )
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    plans = relationship(
+        "TreatmentPlan",
+        back_populates="programme",
+        order_by="TreatmentPlan.created_at.asc()",
+    )
+
+
 class TreatmentPlan(Base, TimestampMixin, TenantMixin):
     __tablename__ = "treatment_plans"
     __table_args__ = (
@@ -66,6 +98,9 @@ class TreatmentPlan(Base, TimestampMixin, TenantMixin):
 
     patient_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("patients.id", ondelete="CASCADE"), nullable=False
+    )
+    programme_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("treatment_programmes.id", ondelete="SET NULL"), nullable=True
     )
     created_by: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
@@ -98,6 +133,7 @@ class TreatmentPlan(Base, TimestampMixin, TenantMixin):
 
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    programme = relationship("TreatmentProgramme", back_populates="plans")
     sessions = relationship(
         "TreatmentSession",
         back_populates="plan",

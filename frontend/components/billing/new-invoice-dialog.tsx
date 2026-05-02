@@ -94,7 +94,6 @@ export function NewInvoiceDialog({ patientId, planId, sessionId, sessionPrice, t
       toast.success("Brouillon créé");
       reset();
       setOpen(false);
-      router.push(`/invoices/${inv.id}`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Échec");
     }
