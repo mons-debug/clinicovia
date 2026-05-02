@@ -435,13 +435,15 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
               )}
             </div>
 
-            {/* Plans de traitement */}
+            {/* Programmes & Plans */}
             <div className="rounded-xl border border-border bg-white p-5">
               <div className="flex items-center justify-between">
                 <h3 className="text-base font-semibold text-text-primary">
-                  Plans de traitement
+                  Programmes & Plans
                 </h3>
-                <NewPlanDialog patientId={p.id} />
+                <div className="flex gap-2">
+                  <NewPlanDialog patientId={p.id} />
+                </div>
               </div>
               {/* Programmes */}
               {programmes.length > 0 && (
@@ -473,7 +475,7 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
               )}
               {plans.length === 0 && programmes.length === 0 ? (
                 <p className="mt-3 text-xs text-text-muted">
-                  Aucun plan pour ce patient. Créez-en un pour suivre les séances et le coût estimé.
+                  Aucun programme ni plan. Créez un programme pour regrouper les traitements, ou un plan individuel.
                 </p>
               ) : plans.filter((p) => !p.programme_id).length > 0 ? (
                 <div className="mt-4 space-y-3">
