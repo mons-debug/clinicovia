@@ -28,6 +28,7 @@ export interface TreatmentPlan {
   id: string;
   clinic_id: string;
   patient_id: string;
+  programme_id: string | null;
   created_by: string | null;
   doctor_id: string | null;
   title: string;
@@ -53,6 +54,7 @@ export interface TreatmentPlan {
 
 export interface PlanCreateInput {
   patient_id: string;
+  programme_id?: string | null;
   title: string;
   primary_service?: string | null;
   indication_slugs?: string[] | null;
@@ -228,6 +230,59 @@ export function useAdvanceSession(planId: string) {
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["plans", "detail", planId] });
+    },
+  });
+}
+
+// ── Programmes ────────────────────────────────────────────────
+
+export interface ProgrammePlanSummary {
+  id: string;
+  title: string;
+  primary_service: string | null;
+  status: string;
+  total_sessions: number;
+  completed_sessions: number;
+  estimated_total: number | null;
+}
+
+export interface Programme {
+  id: string;
+  patient_id: string;
+  title: string;
+  status: string;
+  notes: string | null;
+  plans: ProgrammePlanSummary[];
+  total_cost: number;
+  total_sessions: number;
+  completed_sessions: number;
+  created_at: string;
+}
+
+export function usePatientProgrammes(patientId: string | undefined) {
+  const token = useAuthStore((s) => s.accessToken);
+  return useQuery({
+    queryKey: ["programmes", "patient", patientId],
+    queryFn: () =>
+      apiClient<{ programmes: Programme[] }>(`/plans/programmes?patient_id=${patientId}`, {
+        token: token ?? undefined,
+      }),
+    enabled: !!patientId,
+  });
+}
+
+export function useCreateProgramme() {
+  const token = useAuthStore((s) => s.accessToken);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { patient_id: string; title: string; notes?: string | null }) =>
+      apiClient<Programme>("/plans/programmes", {
+        method: "POST",
+        body: JSON.stringify(data),
+        token: token ?? undefined,
+      }),
+    onSuccess: (prog) => {
+      qc.invalidateQueries({ queryKey: ["programmes", "patient", prog.patient_id] });
     },
   });
 }

@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { TerminerVisiteButton } from "@/components/patient/terminer-visite-button";
@@ -25,7 +26,7 @@ import { NewPlanDialog } from "@/components/plans/new-plan-dialog";
 import { NewInvoiceDialog } from "@/components/billing/new-invoice-dialog";
 import { NewConsultationDialog } from "@/components/consultations/new-consultation-dialog";
 import { useSessionContext } from "@/lib/api/session-context";
-import { usePatientPlans } from "@/lib/api/plans";
+import { usePatientPlans, usePatientProgrammes, useCreateProgramme } from "@/lib/api/plans";
 import { usePatientConsultations } from "@/lib/api/consultations";
 import { useInvoices } from "@/lib/api/invoices";
 import { usePrepareSession } from "@/lib/api/queue";
@@ -55,11 +56,16 @@ export function DoctorBento({ patientId, patientName, patient, onCollapse }: Pro
   const { data: ctx } = useSessionContext(patientId);
   const { data: plansData } = usePatientPlans(patientId);
   const plans = plansData?.plans ?? [];
+  const { data: programmesData } = usePatientProgrammes(patientId);
+  const programmes = programmesData?.programmes ?? [];
+  const createProgramme = useCreateProgramme();
   const { data: consultsData } = usePatientConsultations(patientId);
   const consults = consultsData?.consultations ?? [];
   const { data: invoicesData } = useInvoices({ patientId });
   const invoices = invoicesData?.invoices ?? [];
   const [currentStep, setCurrentStep] = useState(0);
+  const [newProgTitle, setNewProgTitle] = useState("");
+  const [showNewProg, setShowNewProg] = useState(false);
   const prepareMut = usePrepareSession();
 
   if (!ctx?.active) return null;
@@ -301,8 +307,44 @@ export function DoctorBento({ patientId, patientName, patient, onCollapse }: Pro
         {step.key === "screening" && <ScreeningCard patientId={patientId} />}
         {step.key === "clinical" && <ClinicalEditCard patient={patient} />}
         {step.key === "plans" && (
-          <div className="space-y-2">
-            {plans.map((plan) => (
+          <div className="space-y-3">
+            {/* Programmes */}
+            {programmes.map((prog) => (
+              <div key={prog.id} className="rounded-lg border border-[var(--border)] p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <p className="text-sm font-bold text-[var(--text-primary)]">{prog.title}</p>
+                    <p className="text-[11px] text-[var(--text-muted)]">
+                      {prog.completed_sessions}/{prog.total_sessions} séances · {prog.total_cost.toLocaleString("fr-FR")} MAD
+                    </p>
+                  </div>
+                  <Badge variant={prog.status === "active" ? "default" : "outline"}>
+                    {prog.status === "active" ? "Actif" : "Terminé"}
+                  </Badge>
+                </div>
+                <div className="space-y-1.5 pl-3 border-l-2 border-[var(--primary-lighter)]">
+                  {prog.plans.map((p) => (
+                    <Link
+                      key={p.id}
+                      href={`/plans/${p.id}`}
+                      className="flex items-center justify-between rounded-md bg-[var(--background)] p-2 text-xs hover:bg-gray-100"
+                    >
+                      <div>
+                        <span className="font-medium">{p.title}</span>
+                        <span className="ml-2 text-[var(--text-muted)]">{p.completed_sessions}/{p.total_sessions} séances</span>
+                      </div>
+                      {p.estimated_total && (
+                        <span className="font-mono text-[var(--text-muted)]">{p.estimated_total.toLocaleString("fr-FR")} MAD</span>
+                      )}
+                    </Link>
+                  ))}
+                  <NewPlanDialog patientId={patientId} triggerLabel="+ Ajouter un plan" />
+                </div>
+              </div>
+            ))}
+
+            {/* Standalone plans (no programme) */}
+            {plans.filter((p) => !p.programme_id).map((plan) => (
               <Link
                 key={plan.id}
                 href={`/plans/${plan.id}`}
@@ -314,7 +356,50 @@ export function DoctorBento({ patientId, patientName, patient, onCollapse }: Pro
                 </Badge>
               </Link>
             ))}
-            <NewPlanDialog patientId={patientId} />
+
+            {/* Actions */}
+            <div className="flex gap-2">
+              {showNewProg ? (
+                <div className="flex flex-1 gap-2">
+                  <Input
+                    placeholder="ex. Rajeunissement visage"
+                    value={newProgTitle}
+                    onChange={(e) => setNewProgTitle(e.target.value)}
+                    className="flex-1"
+                    autoFocus
+                  />
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      if (!newProgTitle.trim()) return;
+                      createProgramme.mutate(
+                        { patient_id: patientId, title: newProgTitle.trim() },
+                        {
+                          onSuccess: () => {
+                            toast.success("Programme créé");
+                            setNewProgTitle("");
+                            setShowNewProg(false);
+                          },
+                        }
+                      );
+                    }}
+                    disabled={createProgramme.isPending}
+                  >
+                    Créer
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setShowNewProg(false)}>
+                    Annuler
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <Button size="sm" variant="outline" onClick={() => setShowNewProg(true)}>
+                    Nouveau programme
+                  </Button>
+                  <NewPlanDialog patientId={patientId} />
+                </>
+              )}
+            </div>
           </div>
         )}
         {step.key === "consultation" && (
