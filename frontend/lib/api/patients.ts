@@ -26,6 +26,7 @@ export interface Patient {
   // Address
   city: string | null;
   country: string | null;
+  address: string | null;
   // Preferences
   language_pref: string;
   channel_pref: string;
