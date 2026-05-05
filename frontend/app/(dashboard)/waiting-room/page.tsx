@@ -8,9 +8,13 @@ import {
   AlertCircle,
   Play,
   CheckCircle,
+  CheckCircle2,
   LogIn,
   User,
   CalendarPlus,
+  FileText,
+  Receipt,
+  Send,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -18,6 +22,8 @@ import {
   useUpdateAppointmentStatus,
   type AppointmentResponse,
 } from "@/lib/api/appointments";
+import { useQueue, usePrepareSession, type InRoomDocuments } from "@/lib/api/queue";
+import { Button } from "@/components/ui/button";
 
 function fmtDate(d: Date): string {
   return d.toISOString().split("T")[0];
@@ -44,6 +50,70 @@ function waitColor(updatedAt: string): string {
   return "text-red-600";
 }
 
+function DocStatusChips({ docs }: { docs: InRoomDocuments }) {
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg bg-gray-50 px-3 py-2">
+      {docs.consent_id && (
+        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+          docs.consent_status === "signed"
+            ? "bg-emerald-100 text-emerald-700"
+            : "bg-amber-100 text-amber-700"
+        }`}>
+          <FileText className="h-3 w-3" />
+          {docs.consent_status === "signed" ? "Consentement signé" : "Consentement en attente"}
+        </span>
+      )}
+      {docs.invoice_id && (
+        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+          docs.invoice_status === "paid"
+            ? "bg-emerald-100 text-emerald-700"
+            : docs.invoice_status === "issued"
+            ? "bg-blue-100 text-blue-700"
+            : "bg-amber-100 text-amber-700"
+        }`}>
+          <Receipt className="h-3 w-3" />
+          {docs.invoice_status === "paid"
+            ? "Facture payée"
+            : docs.invoice_status === "issued"
+            ? `Émise · ${docs.invoice_total?.toLocaleString("fr-FR")} MAD`
+            : `Brouillon · ${docs.invoice_total?.toLocaleString("fr-FR")} MAD`}
+        </span>
+      )}
+      {!docs.consent_id && !docs.invoice_id && (
+        <span className="text-[10px] text-text-muted">Aucun document envoyé</span>
+      )}
+    </div>
+  );
+}
+
+function PrepareButton({ patientId }: { patientId: string }) {
+  const prepareMut = usePrepareSession();
+  return (
+    <Button
+      size="sm"
+      variant="outline"
+      className="mt-2 w-full text-[11px] border-blue-300 text-blue-700 hover:bg-blue-50"
+      disabled={prepareMut.isPending}
+      onClick={() => {
+        prepareMut.mutate(
+          { patientId },
+          {
+            onSuccess: () => toast.success("Documents envoyés à la réception"),
+            onError: () => toast.error("Erreur lors de la préparation"),
+          }
+        );
+      }}
+    >
+      {prepareMut.isPending ? (
+        <Loader2 className="h-3 w-3 animate-spin" />
+      ) : (
+        <Send className="h-3 w-3" />
+      )}
+      Préparer (consentement + facture)
+    </Button>
+  );
+}
+
 interface SectionProps {
   title: string;
   titleColor: string;
@@ -59,9 +129,11 @@ interface SectionProps {
   showTime?: boolean;
   onStatusChange: (id: string, status: string) => void;
   isPending: boolean;
+  inRoomDocs?: InRoomDocuments[];
+  showPrepare?: boolean;
 }
 
-function Section({ title, titleColor, appointments, action, showWaitTime, showTime, onStatusChange, isPending }: SectionProps) {
+function Section({ title, titleColor, appointments, action, showWaitTime, showTime, onStatusChange, isPending, inRoomDocs, showPrepare }: SectionProps) {
   if (appointments.length === 0) return null;
 
   return (
@@ -73,51 +145,60 @@ function Section({ title, titleColor, appointments, action, showWaitTime, showTi
         </span>
       </div>
       <div className="space-y-2">
-        {appointments.map((apt) => (
-          <div
-            key={apt.id}
-            className="flex items-center gap-4 rounded-xl border border-border bg-white p-4 shadow-sm transition-shadow hover:shadow-md"
-          >
-            <Link
-              href={`/patients/${apt.patient_id}`}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white"
-              style={{ backgroundColor: apt.doctor_color || "#0D4F6C" }}
-            >
-              {apt.patient_initials}
-            </Link>
-            <div className="min-w-0 flex-1">
-              <Link href={`/patients/${apt.patient_id}`} className="text-sm font-semibold text-text-primary hover:text-primary-light">
-                {apt.patient_name}
-              </Link>
-              <p className="text-xs text-text-secondary">
-                {apt.treatment}
-                {apt.doctor_name && <span className="text-text-muted"> · {apt.doctor_name}</span>}
-              </p>
-            </div>
-            <div className="flex flex-col items-end gap-1">
-              {showWaitTime && (
-                <span className={`text-sm font-bold tabular-nums ${waitColor(apt.updated_at)}`}>
-                  {elapsedLabel(apt.updated_at)}
-                </span>
+        {appointments.map((apt) => {
+          const docs = inRoomDocs?.find((d) => d.patient_id === apt.patient_id);
+          const hasDocs = docs && (docs.consent_id || docs.invoice_id);
+
+          return (
+            <div key={apt.id}>
+              <div className="flex items-center gap-4 rounded-xl border border-border bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
+                <Link
+                  href={`/patients/${apt.patient_id}`}
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white"
+                  style={{ backgroundColor: apt.doctor_color || "#0D4F6C" }}
+                >
+                  {apt.patient_initials}
+                </Link>
+                <div className="min-w-0 flex-1">
+                  <Link href={`/patients/${apt.patient_id}`} className="text-sm font-semibold text-text-primary hover:text-primary-light">
+                    {apt.patient_name}
+                  </Link>
+                  <p className="text-xs text-text-secondary">
+                    {apt.treatment}
+                    {apt.doctor_name && <span className="text-text-muted"> · {apt.doctor_name}</span>}
+                  </p>
+                </div>
+                <div className="flex flex-col items-end gap-1">
+                  {showWaitTime && (
+                    <span className={`text-sm font-bold tabular-nums ${waitColor(apt.updated_at)}`}>
+                      {elapsedLabel(apt.updated_at)}
+                    </span>
+                  )}
+                  {showTime && (
+                    <span className="text-xs text-text-muted">{shortTime(apt.start_time)}</span>
+                  )}
+                  <span className="text-[10px] text-text-muted">{shortTime(apt.start_time)} - {shortTime(apt.end_time)}</span>
+                </div>
+                {action && (
+                  <button
+                    onClick={() => onStatusChange(apt.id, action.status)}
+                    disabled={isPending}
+                    className="flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-colors disabled:opacity-50"
+                    style={{ backgroundColor: action.bgColor, color: action.color }}
+                  >
+                    <action.icon className="h-3.5 w-3.5" />
+                    {action.label}
+                  </button>
+                )}
+              </div>
+              {/* Document status chips for in-progress patients */}
+              {hasDocs && <DocStatusChips docs={docs} />}
+              {showPrepare && !hasDocs && (
+                <PrepareButton patientId={apt.patient_id} />
               )}
-              {showTime && (
-                <span className="text-xs text-text-muted">{shortTime(apt.start_time)}</span>
-              )}
-              <span className="text-[10px] text-text-muted">{shortTime(apt.start_time)} - {shortTime(apt.end_time)}</span>
             </div>
-            {action && (
-              <button
-                onClick={() => onStatusChange(apt.id, action.status)}
-                disabled={isPending}
-                className="flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-colors disabled:opacity-50"
-                style={{ backgroundColor: action.bgColor, color: action.color }}
-              >
-                <action.icon className="h-3.5 w-3.5" />
-                {action.label}
-              </button>
-            )}
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -133,6 +214,9 @@ export default function WaitingRoomPage() {
     page_size: 200,
   });
 
+  const { data: queueData } = useQueue(5000);
+  const inRoomDocs = queueData?.in_room_documents ?? [];
+
   const appointments = data?.appointments ?? [];
   const stats = data?.stats;
 
@@ -140,7 +224,7 @@ export default function WaitingRoomPage() {
     statusMutation.mutate(
       { id, status },
       {
-        onSuccess: () => toast.success("Statut mis a jour"),
+        onSuccess: () => toast.success("Statut mis à jour"),
         onError: () => toast.error("Erreur"),
       },
     );
@@ -194,7 +278,7 @@ export default function WaitingRoomPage() {
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-text-primary">Salle d'attente</h1>
+          <h1 className="text-2xl font-bold text-text-primary">Salle d&apos;attente</h1>
           <p className="mt-0.5 text-sm text-text-secondary capitalize">
             {todayLabel} · {stats?.total ?? 0} rendez-vous
           </p>
@@ -213,10 +297,10 @@ export default function WaitingRoomPage() {
       {stats && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {[
-            { label: "Programmes", value: stats.scheduled + stats.confirmed, color: "#F59E0B", bg: "#FFFBEB" },
+            { label: "Programmés", value: stats.scheduled + stats.confirmed, color: "#F59E0B", bg: "#FFFBEB" },
             { label: "En attente", value: stats.checked_in, color: "#3B82F6", bg: "#EFF6FF" },
             { label: "En cours", value: stats.in_progress, color: "#8B5CF6", bg: "#F5F3FF" },
-            { label: "Termines", value: stats.completed, color: "#059669", bg: "#ECFDF5" },
+            { label: "Terminés", value: stats.completed, color: "#059669", bg: "#ECFDF5" },
           ].map((s) => (
             <div key={s.label} className="flex items-center gap-3 rounded-xl border border-border bg-white p-3 shadow-sm">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg" style={{ backgroundColor: s.bg }}>
@@ -232,14 +316,14 @@ export default function WaitingRoomPage() {
       {appointments.length === 0 && (
         <div className="flex flex-col items-center justify-center rounded-xl border border-border bg-white py-16">
           <Clock className="h-10 w-10 text-text-muted" />
-          <p className="mt-3 text-sm font-medium text-text-primary">Aucun rendez-vous aujourd'hui</p>
+          <p className="mt-3 text-sm font-medium text-text-primary">Aucun rendez-vous aujourd&apos;hui</p>
           <Link href="/appointments/new" className="mt-4 inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold text-white" style={{ backgroundColor: "var(--primary-light)" }}>
             <CalendarPlus className="h-4 w-4" /> Planifier un RDV
           </Link>
         </div>
       )}
 
-      {/* In Progress */}
+      {/* In Progress — with document status */}
       <Section
         title="En cours"
         titleColor="text-purple-600"
@@ -248,6 +332,8 @@ export default function WaitingRoomPage() {
         showWaitTime
         onStatusChange={handleStatus}
         isPending={statusMutation.isPending}
+        inRoomDocs={inRoomDocs}
+        showPrepare
       />
 
       {/* Checked In / Waiting */}
@@ -255,7 +341,7 @@ export default function WaitingRoomPage() {
         title="En attente"
         titleColor="text-amber-600"
         appointments={checkedIn}
-        action={{ label: "Demarrer", status: "in_progress", icon: Play, color: "#7C3AED", bgColor: "#F5F3FF" }}
+        action={{ label: "Démarrer", status: "in_progress", icon: Play, color: "#7C3AED", bgColor: "#F5F3FF" }}
         showWaitTime
         onStatusChange={handleStatus}
         isPending={statusMutation.isPending}
@@ -263,7 +349,7 @@ export default function WaitingRoomPage() {
 
       {/* Scheduled — not yet checked in */}
       <Section
-        title="Programmes"
+        title="Programmés"
         titleColor="text-blue-600"
         appointments={scheduled}
         action={{ label: "Check in", status: "checked_in", icon: LogIn, color: "#0D9488", bgColor: "#F0FDFA" }}
@@ -274,7 +360,7 @@ export default function WaitingRoomPage() {
       {/* Completed */}
       {completed.length > 0 && (
         <Section
-          title="Termines"
+          title="Terminés"
           titleColor="text-emerald-600"
           appointments={completed}
           showTime

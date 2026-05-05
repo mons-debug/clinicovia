@@ -21,9 +21,12 @@ import {
   AlertCircle,
   Pin,
   FolderOpen,
-  Clock,
   CalendarPlus,
   FileText,
+  Receipt,
+  Camera,
+  Pill,
+  ShieldCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 import { StatusBadge, getStatusVariant } from "@/components/shared/status-badge";
@@ -36,6 +39,17 @@ import {
 import { useAppointments, type AppointmentResponse } from "@/lib/api/appointments";
 import { useConversations, useWhatsAppSessions, startConversation } from "@/lib/api/whatsapp";
 import { useAuthStore } from "@/stores/auth-store";
+import { useSessionContext } from "@/lib/api/session-context";
+import { useInvoices } from "@/lib/api/invoices";
+import { usePatientConsents } from "@/lib/api/consents";
+import { usePatientPhotos, photoFileUrl } from "@/lib/api/photos";
+import { usePatientPrescriptions } from "@/lib/api/prescriptions";
+import { DoctorBento } from "@/components/patient/doctor-bento";
+import { SessionChecklist } from "@/components/patient/session-checklist";
+import { ProgrammePlansSection } from "@/components/plans/programme-plans-section";
+import { NewInvoiceDialog } from "@/components/billing/new-invoice-dialog";
+import { NewPrescriptionDialog } from "@/components/prescriptions/new-prescription-dialog";
+import { Badge } from "@/components/ui/badge";
 
 type TabKey = "overview" | "dossier" | "conversations" | "notes" | "activity";
 
@@ -49,13 +63,14 @@ function shortTime(time: string): string {
 export default function PatientProfilePage(props: { params: Promise<{ id: string }> }) {
   const { id } = use(props.params);
   const { currentRole, user: authUser } = useAuthStore();
-  const isDoctor = currentRole === "doctor" && !authUser?.isSuperAdmin;
+  const isDoctor = currentRole === "doctor" || currentRole === "clinic_owner";
   const [activeTab, setActiveTab] = useState<TabKey>(isDoctor ? "dossier" : "overview");
   const [noteContent, setNoteContent] = useState("");
 
   const router = useRouter();
   const { data: patient, isLoading, isError, error } = usePatient(id);
   const { data: sessionsData } = useWhatsAppSessions();
+  const { data: sessionCtx } = useSessionContext(id);
 
   const tabs: { key: TabKey; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
     ...(isDoctor ? [] : [{ key: "overview" as TabKey, label: "Overview", icon: User }]),
@@ -71,6 +86,16 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
   const { data: convsData } = useConversations({ patient_id: id });
   const patientConversations = convsData?.conversations || [];
 
+  // Dossier data hooks
+  const { data: invoicesData } = useInvoices({ patientId: id });
+  const invoices = invoicesData?.invoices ?? [];
+  const { data: consentsData } = usePatientConsents(id);
+  const consents = consentsData ?? [];
+  const { data: photosData } = usePatientPhotos(id);
+  const photos = photosData?.photos ?? [];
+  const { data: prescriptionsData } = usePatientPrescriptions(id);
+  const prescriptions = prescriptionsData?.prescriptions ?? [];
+
   const patientName = patient ? `${patient.first_name} ${patient.last_name}` : "";
   const { data: aptData } = useAppointments(
     { patient_search: patientName, date_from: "2020-01-01", date_to: "2030-12-31", page_size: 200 },
@@ -79,7 +104,7 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
   const patientAppointments = (aptData?.appointments ?? []).filter((a) => a.patient_id === id);
 
   const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString("en-US", {
+    return new Date(dateStr).toLocaleDateString("fr-FR", {
       month: "short",
       day: "numeric",
       year: "numeric",
@@ -87,7 +112,7 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
   };
 
   const formatTime = (dateStr: string) => {
-    return new Date(dateStr).toLocaleTimeString("en-US", {
+    return new Date(dateStr).toLocaleTimeString("fr-FR", {
       hour: "2-digit",
       minute: "2-digit",
     });
@@ -245,8 +270,8 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
         <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
           {[
             { label: "Lead Score", value: `${p.lead_score}/100`, icon: Star, color: "#F59E0B" },
-            { label: "Total Spent", value: `$${p.total_spent.toLocaleString()}`, icon: DollarSign, color: "#10B981" },
-            { label: "Lifetime Value", value: `$${p.lifetime_value.toLocaleString()}`, icon: DollarSign, color: "#059669" },
+            { label: "Total Spent", value: `${p.total_spent.toLocaleString()} MAD`, icon: DollarSign, color: "#10B981" },
+            { label: "Lifetime Value", value: `${p.lifetime_value.toLocaleString()} MAD`, icon: DollarSign, color: "#059669" },
             { label: "Patient Since", value: formatDate(p.created_at), icon: Calendar, color: "#3B82F6" },
           ].map((stat) => {
             const Icon = stat.icon;
@@ -334,8 +359,20 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
 
       {activeTab === "dossier" && (
         <div className="space-y-6">
+          {/* Active session — DoctorBento for doctors, SessionChecklist for reception */}
+          {sessionCtx?.active && isDoctor && (
+            <DoctorBento
+              patientId={id}
+              patientName={patientName}
+              patient={patient}
+            />
+          )}
+          {sessionCtx?.active && !isDoctor && (
+            <SessionChecklist patientId={id} patientName={patientName} />
+          )}
+
           {/* Quick actions */}
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Link
               href={`/appointments/new?patient=${id}`}
               className="flex items-center gap-1.5 rounded-lg border border-border bg-white px-3 py-2 text-sm font-medium text-text-primary hover:bg-gray-50"
@@ -343,72 +380,150 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
               <CalendarPlus className="h-4 w-4" />
               Nouveau RDV
             </Link>
+            <NewInvoiceDialog patientId={id} triggerLabel="Nouvelle facture" />
+            <NewPrescriptionDialog patientId={id} triggerLabel="Nouvelle ordonnance" />
           </div>
 
-          {/* Treatment history */}
+          {/* Plans & Séances */}
           <div className="rounded-xl border border-border bg-white p-5">
-            <h3 className="text-base font-semibold text-text-primary">Historique des traitements</h3>
-            {patientAppointments.length === 0 ? (
-              <div className="mt-4 py-6 text-center">
-                <FileText className="mx-auto h-7 w-7 text-text-muted" />
-                <p className="mt-2 text-sm text-text-secondary">Aucun traitement enregistre</p>
-              </div>
+            <h3 className="mb-4 text-base font-semibold text-text-primary">Plans de traitement</h3>
+            <ProgrammePlansSection patientId={id} />
+          </div>
+
+          {/* Factures */}
+          <div className="rounded-xl border border-border bg-white p-5">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-semibold text-text-primary">Factures</h3>
+              <span className="text-xs text-text-muted">{invoices.length} facture{invoices.length !== 1 ? "s" : ""}</span>
+            </div>
+            {invoices.length === 0 ? (
+              <p className="mt-4 text-center text-sm text-text-muted">Aucune facture</p>
             ) : (
               <div className="mt-4 space-y-2">
-                {patientAppointments
-                  .sort((a, b) => b.appointment_date.localeCompare(a.appointment_date) || b.start_time.localeCompare(a.start_time))
-                  .map((apt) => {
-                    const isCompleted = apt.status === "completed";
-                    const isCancelled = apt.status === "cancelled" || apt.status === "no_show";
-                    const statusColor = {
-                      completed: "bg-emerald-50 text-emerald-700",
-                      cancelled: "bg-red-50 text-red-600",
-                      no_show: "bg-gray-100 text-gray-500",
-                      scheduled: "bg-amber-50 text-amber-700",
-                      confirmed: "bg-blue-50 text-blue-700",
-                      checked_in: "bg-emerald-50 text-emerald-700",
-                      in_progress: "bg-purple-50 text-purple-700",
-                    }[apt.status] || "bg-gray-100 text-gray-600";
-
-                    return (
-                      <Link
-                        key={apt.id}
-                        href={`/appointments/${apt.id}`}
-                        className={`flex items-center gap-4 rounded-lg border border-border p-4 transition-colors hover:bg-gray-50 ${isCancelled ? "opacity-50" : ""}`}
-                      >
-                        <div className="flex h-10 w-10 shrink-0 flex-col items-center justify-center rounded-lg bg-gray-50">
-                          <span className="text-[10px] font-semibold text-text-secondary">
-                            {new Date(apt.appointment_date + "T00:00:00").toLocaleDateString("fr-FR", { month: "short" }).toUpperCase()}
-                          </span>
-                          <span className="text-sm font-bold text-text-primary">
-                            {new Date(apt.appointment_date + "T00:00:00").getDate()}
-                          </span>
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className={`text-sm font-medium text-text-primary ${isCancelled ? "line-through" : ""}`}>
-                            {apt.treatment}
-                          </p>
-                          <p className="text-xs text-text-muted">
-                            {shortTime(apt.start_time)} - {shortTime(apt.end_time)}
-                            {apt.doctor_name && ` · ${apt.doctor_name}`}
-                          </p>
-                          {apt.notes && (
-                            <p className="mt-1 text-xs text-text-secondary line-clamp-1">{apt.notes}</p>
-                          )}
-                        </div>
-                        <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-medium ${statusColor}`}>
-                          {apt.status.replace("_", " ").replace(/\b\w/g, (c) => c.toUpperCase())}
-                        </span>
-                      </Link>
-                    );
-                  })}
+                {invoices.map((inv) => (
+                  <Link
+                    key={inv.id}
+                    href={`/invoices/${inv.id}`}
+                    className="flex items-center justify-between rounded-lg border border-border p-3 transition-colors hover:bg-gray-50"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Receipt className="h-4 w-4 text-text-muted" />
+                      <div>
+                        <span className="text-sm font-medium text-text-primary">{inv.number || "Brouillon"}</span>
+                        <span className="ml-2 text-xs text-text-muted">{formatDate(inv.created_at)}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-mono font-medium text-text-primary">{inv.total.toLocaleString("fr-FR")} MAD</span>
+                      <Badge variant={inv.status === "paid" ? "success" : inv.status === "issued" ? "default" : "outline"}>
+                        {inv.status === "paid" ? "Payée" : inv.status === "issued" ? "Émise" : inv.status === "draft" ? "Brouillon" : inv.status}
+                      </Badge>
+                    </div>
+                  </Link>
+                ))}
               </div>
             )}
           </div>
 
-          {/* Medical notes */}
+          {/* Ordonnances */}
           <div className="rounded-xl border border-border bg-white p-5">
-            <h3 className="text-base font-semibold text-text-primary">Notes medicales</h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-semibold text-text-primary">Ordonnances</h3>
+              <span className="text-xs text-text-muted">{prescriptions.length} ordonnance{prescriptions.length !== 1 ? "s" : ""}</span>
+            </div>
+            {prescriptions.length === 0 ? (
+              <p className="mt-4 text-center text-sm text-text-muted">Aucune ordonnance</p>
+            ) : (
+              <div className="mt-4 space-y-2">
+                {prescriptions.map((rx) => (
+                  <Link
+                    key={rx.id}
+                    href={`/prescriptions/${rx.id}`}
+                    className="flex items-center justify-between rounded-lg border border-border p-3 transition-colors hover:bg-gray-50"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Pill className="h-4 w-4 text-text-muted" />
+                      <div>
+                        <span className="text-sm font-medium text-text-primary">{rx.number}</span>
+                        <span className="ml-2 text-xs text-text-muted">{formatDate(rx.issue_date)}</span>
+                      </div>
+                    </div>
+                    <Badge variant={rx.status === "signed" ? "success" : "outline"}>
+                      {rx.status === "signed" ? "Signée" : rx.status === "draft" ? "Brouillon" : rx.status}
+                    </Badge>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Consentements */}
+          <div className="rounded-xl border border-border bg-white p-5">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-semibold text-text-primary">Consentements</h3>
+              <span className="text-xs text-text-muted">{consents.length}</span>
+            </div>
+            {consents.length === 0 ? (
+              <p className="mt-4 text-center text-sm text-text-muted">Aucun consentement</p>
+            ) : (
+              <div className="mt-4 space-y-2">
+                {consents.map((c) => (
+                  <div
+                    key={c.id}
+                    className="flex items-center justify-between rounded-lg border border-border p-3"
+                  >
+                    <div className="flex items-center gap-3">
+                      <ShieldCheck className="h-4 w-4 text-text-muted" />
+                      <div>
+                        <span className="text-sm font-medium text-text-primary">{c.title}</span>
+                        {c.treatment_name && (
+                          <span className="ml-2 text-xs text-text-muted">{c.treatment_name}</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={c.status === "signed" ? "success" : c.status === "pending" ? "warning" : "outline"}>
+                        {c.status === "signed" ? "Signé" : c.status === "pending" ? "En attente" : c.status}
+                      </Badge>
+                      {c.status === "signed" && c.signed_at && (
+                        <span className="text-[10px] text-text-muted">{formatDate(c.signed_at)}</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Photos */}
+          <div className="rounded-xl border border-border bg-white p-5">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-semibold text-text-primary">Photos</h3>
+              <span className="text-xs text-text-muted">{photos.length} photo{photos.length !== 1 ? "s" : ""}</span>
+            </div>
+            {photos.length === 0 ? (
+              <p className="mt-4 text-center text-sm text-text-muted">Aucune photo</p>
+            ) : (
+              <div className="mt-4 grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-6">
+                {photos.map((photo) => (
+                  <div key={photo.id} className="group relative aspect-square overflow-hidden rounded-lg border border-border bg-gray-50">
+                    <img
+                      src={photoFileUrl(photo.id)}
+                      alt={`${photo.stage} - ${photo.zone_slug}`}
+                      className="h-full w-full object-cover"
+                    />
+                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent px-2 py-1.5">
+                      <span className="text-[10px] font-medium text-white capitalize">{photo.stage}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Notes médicales */}
+          <div className="rounded-xl border border-border bg-white p-5">
+            <h3 className="text-base font-semibold text-text-primary">Notes médicales</h3>
             <div className="mt-4">
               <textarea
                 placeholder="Ajouter une note..."
@@ -434,7 +549,7 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
                   <div key={note.id} className="rounded-lg border border-border p-3">
                     {note.is_pinned && (
                       <span className="mb-1.5 inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700">
-                        <Pin className="h-3 w-3" /> Epingle
+                        <Pin className="h-3 w-3" /> Épinglé
                       </span>
                     )}
                     <p className="text-sm text-text-primary">{note.content}</p>
@@ -445,13 +560,6 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
             ) : (
               <p className="mt-4 text-xs text-text-muted">Aucune note</p>
             )}
-          </div>
-
-          {/* Treatment plans placeholder */}
-          <div className="rounded-xl border border-dashed border-border bg-gray-50 p-5 text-center">
-            <FileText className="mx-auto h-7 w-7 text-text-muted" />
-            <p className="mt-2 text-sm font-medium text-text-primary">Plans de traitement</p>
-            <p className="mt-1 text-xs text-text-secondary">Bientot disponible - gestion des plans de traitement personnalises</p>
           </div>
         </div>
       )}
