@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Clinicovia — Smart Clinic OS Master Plan v2</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+<style>
+  :root { --navy: #0D4F6C; --gold: #C9A96E; --bg: #FAFAF7; --card: #FFFFFF; --border: #E8E0CC; --text: #1F1A14; --muted: #8A7A66; --green: #2E7D32; --blue: #1565C0; --orange: #F57F17; --red: #C62828; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; padding: 40px 20px; }
+  .container { max-width: 960px; margin: 0 auto; }
+  h1 { font-size: 28px; color: var(--navy); margin-bottom: 4px; }
+  .subtitle { color: var(--muted); font-size: 14px; margin-bottom: 32px; }
+  .version { display: inline-block; background: var(--navy); color: white; font-size: 11px; padding: 2px 8px; border-radius: 4px; margin-left: 8px; vertical-align: middle; }
+  h2 { font-size: 20px; color: var(--navy); margin: 36px 0 16px; padding-bottom: 8px; border-bottom: 2px solid var(--gold); }
+  h3 { font-size: 15px; color: var(--text); margin: 16px 0 8px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin: 12px 0; }
+  .card.highlight { border-left: 4px solid var(--gold); }
+  .card.arch { border-left: 4px solid var(--navy); }
+  .card.danger { border-left: 4px solid var(--red); background: #FFF8F8; }
+  .card.fix { border-left: 4px solid var(--green); background: #F8FFF8; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+  .badge-new { background: #E8F5E9; color: var(--green); }
+  .badge-edit { background: #FFF8E1; color: var(--orange); }
+  .badge-done { background: #E3F2FD; color: var(--blue); }
+  .badge-restructure { background: #FCE4EC; color: var(--red); }
+  .badge-critical { background: #C62828; color: white; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13px; }
+  th { background: #F5F0E6; text-align: left; padding: 8px 12px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); border-bottom: 1px solid var(--border); }
+  td { padding: 8px 12px; border-bottom: 1px solid #f0ebe0; vertical-align: top; }
+  code { background: #F5F0E6; padding: 2px 6px; border-radius: 3px; font-size: 12px; }
+  .phase { display: flex; gap: 12px; align-items: flex-start; margin: 14px 0; }
+  .phase-num { width: 32px; height: 32px; background: var(--navy); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; flex-shrink: 0; }
+  .phase-content { flex: 1; }
+  .phase-label { font-weight: 600; font-size: 15px; }
+  .phase-desc { font-size: 13px; color: var(--muted); margin-top: 2px; }
+  .mermaid { margin: 16px 0; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 700px) { .grid-2 { grid-template-columns: 1fr; } }
+  .flow-box { padding: 14px; border: 1px solid var(--border); border-radius: 6px; background: #FDFCF9; }
+  .flow-box h4 { font-size: 13px; color: var(--navy); margin-bottom: 8px; }
+  .flow-box ol { padding-left: 18px; font-size: 13px; }
+  .flow-box ol li { margin: 4px 0; }
+  .decision { background: #F0F4EC; border: 1px solid #C5E1A5; border-radius: 6px; padding: 10px 14px; margin: 6px 0; font-size: 13px; }
+  .decision strong { color: var(--green); }
+  .decided { color: var(--green); font-weight: 600; }
+  .vs-table { border: 2px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .vs-table th:first-child { background: #FFEBEE; color: var(--red); }
+  .vs-table th:last-child { background: #E8F5E9; color: var(--green); }
+  .arrow { text-align: center; font-size: 20px; color: var(--navy); padding: 8px; }
+  .step-flow { display: flex; gap: 0; align-items: stretch; margin: 16px 0; flex-wrap: wrap; }
+  .step-box { flex: 1; min-width: 140px; padding: 12px; border: 1px solid var(--border); background: white; position: relative; }
+  .step-box:not(:last-child)::after { content: "→"; position: absolute; right: -12px; top: 50%; transform: translateY(-50%); font-size: 18px; color: var(--navy); z-index: 1; }
+  .step-box .step-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+  .step-box .step-who { font-size: 10px; color: var(--muted); margin-bottom: 4px; }
+  .step-box ul { font-size: 12px; padding-left: 14px; margin: 0; }
+  .step-box ul li { margin: 2px 0; }
+  .step-1 { border-top: 3px solid #1565C0; }
+  .step-1 .step-title { color: #1565C0; }
+  .step-2 { border-top: 3px solid #F57F17; }
+  .step-2 .step-title { color: #F57F17; }
+  .step-3 { border-top: 3px solid #2E7D32; }
+  .step-3 .step-title { color: #2E7D32; }
+  .step-4 { border-top: 3px solid #7B1FA2; }
+  .step-4 .step-title { color: #7B1FA2; }
+  .step-5 { border-top: 3px solid #C62828; }
+  .step-5 .step-title { color: #C62828; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>Smart Clinic OS <span class="version">v2</span></h1>
+<p class="subtitle">Doctor-owned services → Reception workflow → Plans & Séances → Calendar → Documents — all connected</p>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2>🚨 Reception Workflow — Current vs. Fixed</h2>
+
+<div class="card danger">
+<h3>Current Problem</h3>
+<table class="vs-table">
+  <tr><th style="width:50%">❌ Current (broken)</th><th>✅ Fixed</th></tr>
+  <tr>
+    <td>Doctor starts séance → facture created as <strong>ISSUED</strong> immediately</td>
+    <td>Doctor starts séance → facture created as <strong>DRAFT</strong></td>
+  </tr>
+  <tr>
+    <td>Reception sees "Payé" button — can't edit amount, items, or discount</td>
+    <td>Reception sees <strong>"Réviser"</strong> button — can edit items, adjust price, add discount, then <strong>validate</strong></td>
+  </tr>
+  <tr>
+    <td>Consent + payment mixed in "En consultation" column</td>
+    <td>Clear separation: consent signing during consultation, payment at checkout</td>
+  </tr>
+  <tr>
+    <td>"À encaisser" column only shows ordonnances</td>
+    <td>"À encaisser" shows: validated facture (ready to pay) + ordonnances + final "Payé" + "Libérer"</td>
+  </tr>
+</table>
+</div>
+
+<div class="card fix">
+<h3>Fixed Flow — Step by Step</h3>
+
+<div class="step-flow">
+  <div class="step-box step-1">
+    <div class="step-title">1. Doctor starts séance</div>
+    <div class="step-who">👨‍⚕️ Doctor portal</div>
+    <ul>
+      <li>Clicks "Commencer"</li>
+      <li>Edits consent + price if needed</li>
+      <li>Sends to reception</li>
+    </ul>
+  </div>
+  <div class="step-box step-2">
+    <div class="step-title">2. Reception: documents</div>
+    <div class="step-who">📋 En consultation column</div>
+    <ul>
+      <li>Sees "Documents reçus"</li>
+      <li>Consent: <strong>imprimer → signer</strong></li>
+      <li>Facture (DRAFT): <strong>réviser → éditer → valider</strong></li>
+    </ul>
+  </div>
+  <div class="step-box step-3">
+    <div class="step-title">3. Doctor finishes</div>
+    <div class="step-who">👨‍⚕️ Doctor portal</div>
+    <ul>
+      <li>Completes séance steps</li>
+      <li>Clicks "Terminer la visite"</li>
+      <li>Creates ordonnance if needed</li>
+      <li>Patient → À encaisser</li>
+    </ul>
+  </div>
+  <div class="step-box step-4">
+    <div class="step-title">4. Caisse: payment</div>
+    <div class="step-who">💰 À encaisser column</div>
+    <ul>
+      <li>Facture is ISSUED (validated)</li>
+      <li>Reception sees total</li>
+      <li>Collects payment (cash/card/cheque)</li>
+      <li>Print facture PDF</li>
+    </ul>
+  </div>
+  <div class="step-box step-5">
+    <div class="step-title">5. Release</div>
+    <div class="step-who">📋 Reception</div>
+    <ul>
+      <li>Print ordonnances</li>
+      <li>Give documents to patient</li>
+      <li>Click "Libérer"</li>
+      <li>Patient done ✓</li>
+    </ul>
+  </div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2>The Big Picture</h2>
+
+<div class="card arch">
+<p><strong>Core principle:</strong> Doctors own their services. Everything else (plans, séances, calendar, walk-in, factures, consents) derives from the doctor + service pair. Reception validates documents before payment.</p>
+</div>
+
+<div class="mermaid">
+graph TB
+  subgraph DOCTOR["🩺 Doctor Portal"]
+    DS[Mes Services<br/>add / edit / price / consent]
+  end
+
+  subgraph RECEPTION["📋 Reception Workflow"]
+    WI[Walk-in: pick Doctor → Service]
+    Q[Salle d'attente<br/>assigned to doctor]
+    REV[Review: consent print + facture edit]
+    PAY[Caisse: collect payment + print]
+  end
+
+  subgraph PLANNING["📊 Plans & Séances"]
+    TP[Treatment Plan<br/>doctor + service + sessions]
+    SE[Séance<br/>linked to doctor + service]
+  end
+
+  subgraph CALENDAR["📅 Calendar"]
+    CAL[Doctor columns<br/>time slots by service duration]
+  end
+
+  subgraph DOCUMENTS["📄 Documents"]
+    CON[Consent PDF<br/>from doctor template]
+    FAC[Facture<br/>DRAFT → reviewed → ISSUED → PAID]
+    ORD[Ordonnance PDF]
+    GC[Global Consent<br/>first visit]
+  end
+
+  DS --> TP
+  DS --> WI
+  DS --> CAL
+  TP --> SE
+  SE --> Q
+  WI --> Q
+  Q --> REV
+  REV --> CON
+  REV --> FAC
+  SE --> ORD
+  FAC --> PAY
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2>Data Model Changes</h2>
+
+<div class="card">
+<h3>New: <code>doctor_services</code> table</h3>
+<table>
+  <tr><th>Column</th><th>Type</th><th>Description</th></tr>
+  <tr><td>id</td><td>UUID PK</td><td></td></tr>
+  <tr><td>clinic_id</td><td>UUID FK</td><td>Tenant</td></tr>
+  <tr><td>doctor_id</td><td>UUID FK → users</td><td>The doctor who offers this service</td></tr>
+  <tr><td>name</td><td>varchar(255)</td><td>e.g. "Botox", "Rhinoplastie"</td></tr>
+  <tr><td>category</td><td>varchar(100)</td><td>e.g. "Médecine esthétique", "Chirurgie"</td></tr>
+  <tr><td>description</td><td>text</td><td>Service description</td></tr>
+  <tr><td>duration_minutes</td><td>int</td><td>Default appointment duration</td></tr>
+  <tr><td>default_price</td><td>float</td><td>Default price in MAD</td></tr>
+  <tr><td>consent_template</td><td>text</td><td>Doctor's custom consent text for this service</td></tr>
+  <tr><td>is_active</td><td>bool</td><td>Doctor can deactivate services</td></tr>
+  <tr><td>sort_order</td><td>int</td><td>Display order</td></tr>
+</table>
+</div>
+
+<div class="card">
+<h3>Schema Changes to Existing Tables</h3>
+<table>
+  <tr><th>Table</th><th>Change</th><th>Why</th></tr>
+  <tr><td><code>appointments</code></td><td>Add <code>doctor_service_id</code> FK (nullable)</td><td>Links appointment to doctor + service. Duration + doctor derived</td></tr>
+  <tr><td><code>treatment_plans</code></td><td>Add <code>doctor_service_id</code> FK (nullable)</td><td>Plan linked to doctor's service. Price inherited</td></tr>
+  <tr><td><code>invoices</code></td><td>Status change: prepare-session creates as <strong>DRAFT</strong> not ISSUED</td><td>Reception must validate before ISSUED</td></tr>
+</table>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2>Facture Lifecycle — New State Machine</h2>
+
+<div class="mermaid">
+stateDiagram-v2
+  [*] --> DRAFT: Doctor starts séance
+  DRAFT --> DRAFT: Reception edits<br/>(add items, adjust price, discount)
+  DRAFT --> ISSUED: Reception validates<br/>"Valider la facture"
+  ISSUED --> PARTIAL: Partial payment
+  ISSUED --> PAID: Full payment
+  PARTIAL --> PAID: Remaining paid
+  ISSUED --> CANCELLED: Cancelled
+  DRAFT --> CANCELLED: Cancelled
+</div>
+
+<div class="card">
+<h3>Reception Facture Actions by Status</h3>
+<table>
+  <tr><th>Status</th><th>Where shown</th><th>Reception can</th></tr>
+  <tr><td><span class="badge" style="background:#E3F2FD;color:#1565C0;">DRAFT</span></td><td>"En consultation" column</td><td>Preview · Edit line items · Adjust price · Add discount · <strong>Valider</strong></td></tr>
+  <tr><td><span class="badge" style="background:#FFF8E1;color:#F57F17;">ISSUED</span></td><td>"À encaisser" column</td><td>View · Print PDF · <strong>Record payment</strong> (cash/card/cheque) · Partial payment</td></tr>
+  <tr><td><span class="badge" style="background:#E8F5E9;color:#2E7D32;">PAID</span></td><td>"À encaisser" column</td><td>Print PDF · Libérer patient</td></tr>
+</table>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2>Connected Flows</h2>
+
+<div class="grid-2">
+  <div class="flow-box">
+    <h4>🚶 Walk-in (Reception)</h4>
+    <ol>
+      <li>Patient arrives → Walk-in dialog</li>
+      <li>Fill/select patient info</li>
+      <li><strong>Pick doctor</strong> (Amr / Meryem)</li>
+      <li><strong>Pick service</strong> (filtered by doctor)</li>
+      <li>→ Appointment created (doctor + service + duration)</li>
+      <li>→ Patient enters queue assigned to doctor</li>
+    </ol>
+  </div>
+
+  <div class="flow-box">
+    <h4>📋 Create Treatment Plan</h4>
+    <ol>
+      <li>From patient dossier → "Nouveau plan"</li>
+      <li><strong>Pick doctor → pick service</strong></li>
+      <li>Number of sessions + interval</li>
+      <li>Price auto-fills from service config</li>
+      <li>→ Sessions auto-created, linked to doctor+service</li>
+      <li>→ Appointments auto-scheduled in doctor's calendar</li>
+    </ol>
+  </div>
+
+  <div class="flow-box">
+    <h4>▶️ Commencer Séance</h4>
+    <ol>
+      <li>Consent pre-fills from doctor's service template</li>
+      <li>Price pre-fills from doctor's service config</li>
+      <li>Doctor edits if needed ✓</li>
+      <li>Consent created (PENDING)</li>
+      <li>Facture created as <strong>DRAFT</strong></li>
+      <li>→ Sent to reception for review</li>
+    </ol>
+  </div>
+
+  <div class="flow-box">
+    <h4>📅 Calendar (restructured)</h4>
+    <ol>
+      <li>Day view: <strong>columns per doctor</strong></li>
+      <li>Slots sized by service duration</li>
+      <li>Color-coded by service category</li>
+      <li>New appointment: pick doctor → service → slot</li>
+      <li>No double-booking (exact durations)</li>
+      <li>Walk-in appointments appear live</li>
+    </ol>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2>Build Phases (8 phases)</h2>
+
+<div class="card">
+
+<div class="phase">
+  <span class="phase-num">1</span>
+  <div class="phase-content">
+    <div class="phase-label">Doctor Services — Model + API + Migration</div>
+    <div class="phase-desc">Create doctor_services table + CRUD API. Seed Refine services for Amr + Meryem. Add doctor_service_id FK to appointments + treatment_plans. Migrate existing data.</div>
+  </div>
+</div>
+
+<div class="phase">
+  <span class="phase-num">2</span>
+  <div class="phase-content">
+    <div class="phase-label">Doctor Portal — "Mes Services" Page</div>
+    <div class="phase-desc">New page: list/add/edit/remove services. Configure consent template + price + duration. Sidebar link for doctor role only.</div>
+  </div>
+</div>
+
+<div class="phase">
+  <span class="phase-num">3</span>
+  <div class="phase-content">
+    <div class="phase-label">Walk-in + Appointment → Doctor + Service Picker</div>
+    <div class="phase-desc">Refactor WalkInDialog: pick doctor → pick service. Same for new appointment. Salle d'attente shows assigned doctor on patient card.</div>
+  </div>
+</div>
+
+<div class="phase">
+  <span class="phase-num" style="background:#C62828;">4</span>
+  <div class="phase-content">
+    <div class="phase-label">Reception Workflow Fix <span class="badge badge-critical">CRITICAL</span></div>
+    <div class="phase-desc">
+      <strong>Facture: DRAFT → review → ISSUED → pay.</strong><br/>
+      • prepare-session creates facture as DRAFT (not ISSUED)<br/>
+      • "En consultation" column: reception can preview + edit facture (items, price, discount) + validate<br/>
+      • "À encaisser" column: only ISSUED factures → collect payment (cash/card/cheque) + print PDF<br/>
+      • Clear step: validate facture → then accept payment. No mixing.
+    </div>
+  </div>
+</div>
+
+<div class="phase">
+  <span class="phase-num">5</span>
+  <div class="phase-content">
+    <div class="phase-label">Plans & Séances → Linked to Doctor Service</div>
+    <div class="phase-desc">NewPlanDialog: doctor + service picker → price/duration auto-fill. Sessions inherit doctor_service. Commencer séance pre-fills from config.</div>
+  </div>
+</div>
+
+<div class="phase">
+  <span class="phase-num">6</span>
+  <div class="phase-content">
+    <div class="phase-label">Calendar Restructure — Doctor Columns</div>
+    <div class="phase-desc">Day view: one column per doctor. Slots by duration. Color by category. New appointment flow: pick doctor → service → slot. Prevents double-booking.</div>
+  </div>
+</div>
+
+<div class="phase">
+  <span class="phase-num">7</span>
+  <div class="phase-content">
+    <div class="phase-label">Professional Documents (PDFs)</div>
+    <div class="phase-desc">New consent PDF template. Logo in all templates. Consent PDF endpoint. Global consent (first visit). Logo upload in settings.</div>
+  </div>
+</div>
+
+<div class="phase">
+  <span class="phase-num">8</span>
+  <div class="phase-content">
+    <div class="phase-label">Dossier Integration + Polish</div>
+    <div class="phase-desc">Patient dossier: consents with PDF, factures section, global consent badge. Wizard: consent indicator. Queue: PDF download buttons.</div>
+  </div>
+</div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2>Files — Full Inventory</h2>
+
+<div class="card">
+<table>
+  <tr><th>File</th><th></th><th>Phase</th></tr>
+  <tr><td colspan="3" style="background:#F5F0E6;font-weight:600;">Phase 1 — Doctor Services Model</td></tr>
+  <tr><td><code>backend/app/models/doctor_service.py</code></td><td><span class="badge badge-new">NEW</span></td><td>1</td></tr>
+  <tr><td><code>backend/app/api/v1/doctor_services.py</code></td><td><span class="badge badge-new">NEW</span></td><td>1</td></tr>
+  <tr><td><code>backend/app/api/v1/router.py</code></td><td><span class="badge badge-edit">EDIT</span></td><td>1</td></tr>
+  <tr><td><code>backend/alembic/versions/xxx_doctor_services.py</code></td><td><span class="badge badge-new">NEW</span></td><td>1</td></tr>
+  <tr><td><code>backend/app/models/appointment.py</code></td><td><span class="badge badge-edit">EDIT</span></td><td>1</td></tr>
+  <tr><td><code>backend/app/models/treatment_plan.py</code></td><td><span class="badge badge-edit">EDIT</span></td><td>1</td></tr>
+
+  <tr><td colspan="3" style="background:#F5F0E6;font-weight:600;">Phase 2 — Doctor Portal</td></tr>
+  <tr><td><code>frontend/app/(dashboard)/doctor/services/page.tsx</code></td><td><span class="badge badge-new">NEW</span></td><td>2</td></tr>
+  <tr><td><code>frontend/lib/api/doctor-services.ts</code></td><td><span class="badge badge-new">NEW</span></td><td>2</td></tr>
+  <tr><td><code>frontend/components/layout/sidebar.tsx</code></td><td><span class="badge badge-edit">EDIT</span></td><td>2</td></tr>
+
+  <tr><td colspan="3" style="background:#F5F0E6;font-weight:600;">Phase 3 — Walk-in + Appointment Picker</td></tr>
+  <tr><td><code>frontend/app/(dashboard)/queue/page.tsx</code> (WalkInDialog)</td><td><span class="badge badge-restructure">RESTRUCTURE</span></td><td>3</td></tr>
+  <tr><td><code>frontend/components/calendar/quick-add-menu.tsx</code></td><td><span class="badge badge-edit">EDIT</span></td><td>3</td></tr>
+  <tr><td><code>backend/app/api/v1/doctor_services.py</code></td><td><span class="badge badge-edit">EDIT</span></td><td>3 — add GET /doctor-services/all (reception view)</td></tr>
+
+  <tr><td colspan="3" style="background:#FFEBEE;font-weight:600;">Phase 4 — Reception Workflow Fix 🚨</td></tr>
+  <tr><td><code>backend/app/api/v1/queue.py</code></td><td><span class="badge badge-restructure">RESTRUCTURE</span></td><td>4 — prepare-session: DRAFT not ISSUED</td></tr>
+  <tr><td><code>backend/app/api/v1/billing.py</code></td><td><span class="badge badge-edit">EDIT</span></td><td>4 — add validate (DRAFT→ISSUED) endpoint</td></tr>
+  <tr><td><code>frontend/app/(dashboard)/queue/page.tsx</code></td><td><span class="badge badge-restructure">RESTRUCTURE</span></td><td>4 — split document actions: review vs. pay</td></tr>
+  <tr><td><code>frontend/components/queue/facture-review-dialog.tsx</code></td><td><span class="badge badge-new">NEW</span></td><td>4 — inline facture editor for reception</td></tr>
+
+  <tr><td colspan="3" style="background:#F5F0E6;font-weight:600;">Phase 5 — Plans & Séances</td></tr>
+  <tr><td><code>frontend/components/plans/new-plan-dialog.tsx</code></td><td><span class="badge badge-edit">EDIT</span></td><td>5 — doctor + service picker</td></tr>
+  <tr><td><code>frontend/components/plans/commencer-seance-dialog.tsx</code></td><td><span class="badge badge-done">DONE</span></td><td>5 — edit icons done, add config fetch</td></tr>
+
+  <tr><td colspan="3" style="background:#F5F0E6;font-weight:600;">Phase 6 — Calendar</td></tr>
+  <tr><td><code>frontend/app/(dashboard)/calendar/page.tsx</code></td><td><span class="badge badge-restructure">RESTRUCTURE</span></td><td>6 — doctor columns</td></tr>
+  <tr><td><code>backend/app/api/v1/calendar.py</code></td><td><span class="badge badge-restructure">RESTRUCTURE</span></td><td>6 — group by doctor</td></tr>
+
+  <tr><td colspan="3" style="background:#F5F0E6;font-weight:600;">Phase 7 — PDFs</td></tr>
+  <tr><td><code>backend/app/templates/consent.html</code></td><td><span class="badge badge-new">NEW</span></td><td>7</td></tr>
+  <tr><td><code>backend/app/templates/invoice.html</code></td><td><span class="badge badge-edit">EDIT</span></td><td>7 — add logo</td></tr>
+  <tr><td><code>backend/app/templates/prescription.html</code></td><td><span class="badge badge-edit">EDIT</span></td><td>7 — add logo</td></tr>
+  <tr><td><code>backend/app/services/pdf.py</code></td><td><span class="badge badge-edit">EDIT</span></td><td>7 — consent PDF renderer</td></tr>
+  <tr><td><code>backend/app/api/v1/consents.py</code></td><td><span class="badge badge-edit">EDIT</span></td><td>7 — PDF endpoint + global consent</td></tr>
+  <tr><td><code>frontend/app/(dashboard)/settings/clinic/page.tsx</code></td><td><span class="badge badge-edit">EDIT</span></td><td>7 — logo upload</td></tr>
+
+  <tr><td colspan="3" style="background:#F5F0E6;font-weight:600;">Phase 8 — Dossier</td></tr>
+  <tr><td><code>frontend/components/patient/consents-section.tsx</code></td><td><span class="badge badge-edit">EDIT</span></td><td>8</td></tr>
+  <tr><td><code>frontend/app/(dashboard)/patients/[id]/page.tsx</code></td><td><span class="badge badge-edit">EDIT</span></td><td>8 — global consent badge</td></tr>
+</table>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2>Decisions — Resolved</h2>
+
+<div class="card">
+  <div class="decision"><strong>D1: Global consent</strong> → <span class="decided">One-time per patient forever</span></div>
+  <div class="decision"><strong>D2: Logo</strong> → <span class="decided">Upload via Settings page</span></div>
+  <div class="decision"><strong>D3: Consent risks</strong> → <span class="decided">Free-text per service</span> (doctor writes in their portal)</div>
+  <div class="decision"><strong>D4: Photo authorization</strong> → <span class="decided">Section in global consent</span></div>
+  <div class="decision"><strong>D5: Old treatments table</strong> → <span class="decided">Keep, migrate data to doctor_services, new code uses doctor_services only</span></div>
+  <div class="decision"><strong>D6: Facture on séance start</strong> → <span class="decided">Created as DRAFT — reception validates before payment</span></div>
+  <div class="decision"><strong>D7: Payment methods</strong> → <span class="decided">Cash, card, cheque, virement — reception picks at caisse</span></div>
+</div>
+
+</div>
+<script>mermaid.initialize({startOnLoad:true, theme:'neutral'});</script>
+</body>
+</html>

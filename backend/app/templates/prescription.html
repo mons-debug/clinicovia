@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>{{ prescription.number }}</title>
+<style>
+  @page {
+    size: A4;
+    margin: 18mm 16mm 22mm 16mm;
+    @bottom-center {
+      content: "Page " counter(page) " / " counter(pages);
+      font-family: 'DejaVu Sans', sans-serif;
+      font-size: 9px;
+      color: #94a3b8;
+    }
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'DejaVu Sans', sans-serif;
+    font-size: 11px;
+    color: #1F1A14;
+    line-height: 1.45;
+  }
+
+  .letterhead { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 14px; border-bottom: 2px solid {{ clinic.primary_color or '#0D4F6C' }}; margin-bottom: 22px; }
+  .letterhead .clinic-name { font-size: 18px; font-weight: 700; color: {{ clinic.primary_color or '#0D4F6C' }}; }
+  .letterhead .clinic-meta { margin-top: 4px; color: #4A3F32; font-size: 10px; }
+  .letterhead .clinic-meta div { margin-top: 1px; }
+  .letterhead .doc-block { text-align: right; }
+  .letterhead .doc-title { font-size: 22px; font-weight: 700; letter-spacing: 0.4px; color: #1F1A14; }
+  .letterhead .doc-number { font-family: 'DejaVu Sans Mono', monospace; font-size: 13px; font-weight: 600; color: {{ clinic.primary_color or '#0D4F6C' }}; margin-top: 4px; }
+  .letterhead .doc-date { font-size: 10px; color: #4A3F32; margin-top: 4px; }
+
+  .meta-grid { display: flex; gap: 20px; margin-bottom: 18px; }
+  .meta-card { flex: 1; border: 1px solid #D9CFB8; border-radius: 4px; padding: 10px 12px; }
+  .meta-card .label { font-size: 8.5px; text-transform: uppercase; letter-spacing: 0.6px; color: #8A7A66; margin-bottom: 4px; }
+  .meta-card .name { font-weight: 700; font-size: 11.5px; color: #1F1A14; margin-bottom: 4px; }
+  .meta-card .row { font-size: 9.5px; color: #4A3F32; margin-top: 1px; }
+
+  .diagnosis { margin-bottom: 14px; padding: 10px 12px; background: #F5F0E6; border-left: 3px solid {{ clinic.primary_color or '#0D4F6C' }}; border-radius: 2px; }
+  .diagnosis .label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.6px; color: #8A7A66; margin-bottom: 2px; }
+  .diagnosis .text { font-size: 11px; color: #1F1A14; font-style: italic; }
+
+  .rx-symbol { font-size: 32px; font-weight: 700; font-family: 'DejaVu Serif', serif; color: {{ clinic.primary_color or '#0D4F6C' }}; line-height: 1; margin-bottom: 12px; }
+
+  .lines { margin-top: 6px; }
+  .line { padding: 12px 0; border-bottom: 1px dashed #D9CFB8; }
+  .line:last-child { border-bottom: none; }
+  .line .head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px; }
+  .line .num { font-family: 'DejaVu Sans Mono', monospace; font-size: 13px; font-weight: 700; color: {{ clinic.primary_color or '#0D4F6C' }}; min-width: 24px; }
+  .line .dci { font-weight: 700; font-size: 12.5px; }
+  .line .strength { color: #4A3F32; font-size: 11px; }
+  .line .brand { color: #8A7A66; font-style: italic; font-size: 10px; margin-left: 4px; }
+  .line .form { color: #8A7A66; font-size: 10px; margin-left: 4px; }
+  .line .posology { margin: 4px 0 4px 32px; font-size: 11px; }
+  .line .duration { margin-left: 32px; font-size: 10.5px; color: #4A3F32; }
+  .line .duration strong { color: #1F1A14; }
+  .line .note { margin: 4px 0 0 32px; padding: 6px 10px; background: #FBF6EC; border-left: 2px solid #B8915A; font-size: 10px; color: #4A3F32; }
+
+  .notes { margin-top: 18px; padding: 10px 12px; background: #FBF6EC; border-left: 3px solid #B8915A; font-size: 10px; color: #4A3F32; border-radius: 2px; }
+
+  .renew { margin-top: 14px; padding: 8px 12px; border: 1px solid #4A6B3F; background: #F0F4EC; color: #4A6B3F; font-size: 10.5px; border-radius: 3px; font-weight: 600; }
+
+  .signature-area { margin-top: 32px; display: flex; justify-content: space-between; gap: 20px; }
+  .signature-area .doctor-block { flex: 1; }
+  .signature-area .doctor-block .label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.6px; color: #8A7A66; margin-bottom: 4px; }
+  .signature-area .doctor-block .name { font-weight: 700; font-size: 12px; }
+  .signature-area .doctor-block .meta { font-size: 9.5px; color: #4A3F32; margin-top: 2px; }
+  .signature-area .stamp-box { width: 200px; height: 80px; border: 1px dashed #D9CFB8; border-radius: 3px; display: flex; align-items: center; justify-content: center; font-size: 9px; color: #8A7A66; }
+
+  .footer { margin-top: 28px; padding-top: 12px; border-top: 1px solid #D9CFB8; font-size: 9px; color: #8A7A66; line-height: 1.5; text-align: center; }
+  .footer .legal { margin-top: 4px; font-size: 8.5px; }
+
+  .badge-cancelled { display: inline-block; padding: 3px 10px; background: #C0392B; color: white; font-weight: 700; font-size: 11px; letter-spacing: 0.6px; border-radius: 3px; margin-left: 8px; }
+</style>
+</head>
+<body>
+
+<!-- Letterhead -->
+<div class="letterhead">
+  <div style="display:flex;align-items:center;gap:10px;">
+    {% if clinic.logo_url %}<img src="{{ clinic.logo_url }}" alt="{{ clinic.name }}" style="max-height:40px;max-width:160px;">{% endif %}
+    <div>
+    <div class="clinic-name">{{ clinic.name }}</div>
+    <div class="clinic-meta">
+      {% if clinic.address %}<div>{{ clinic.address }}</div>{% endif %}
+      {% if clinic.city or clinic.country %}<div>{{ clinic.city or '' }}{% if clinic.city and clinic.country %}, {% endif %}{{ clinic.country or '' }}</div>{% endif %}
+      {% if clinic.phone %}<div>Tél : {{ clinic.phone }}</div>{% endif %}
+      {% if clinic.email %}<div>{{ clinic.email }}</div>{% endif %}
+    </div>
+    </div>
+  </div>
+  <div class="doc-block">
+    <div class="doc-title">ORDONNANCE
+      {% if prescription.status == 'cancelled' %}<span class="badge-cancelled">ANNULÉE</span>{% endif %}
+    </div>
+    <div class="doc-number">{{ prescription.number }}</div>
+    <div class="doc-date">Délivrée le {{ prescription.issue_date | fmt_date }}</div>
+  </div>
+</div>
+
+<!-- Doctor + patient -->
+<div class="meta-grid">
+  <div class="meta-card">
+    <div class="label">Médecin prescripteur</div>
+    <div class="name">{% if doctor %}Dr. {{ doctor.first_name }} {{ doctor.last_name }}{% else %}—{% endif %}</div>
+    {% if clinic.ice %}<div class="row">ICE : {{ clinic.ice }}</div>{% endif %}
+    {% if clinic.if_number %}<div class="row">IF : {{ clinic.if_number }}</div>{% endif %}
+  </div>
+  <div class="meta-card">
+    <div class="label">Patient</div>
+    <div class="name">{{ patient.first_name }} {{ patient.last_name }}</div>
+    {% if patient.cnie %}<div class="row">CNIE : {{ patient.cnie }}</div>{% endif %}
+    {% if patient.date_of_birth %}<div class="row">Né(e) le {{ patient.date_of_birth | fmt_date }}</div>{% endif %}
+    {% if patient.phone %}<div class="row">{{ patient.phone_country_code }}{{ patient.phone }}</div>{% endif %}
+  </div>
+</div>
+
+{% if prescription.diagnosis %}
+<div class="diagnosis">
+  <div class="label">Indication</div>
+  <div class="text">{{ prescription.diagnosis }}</div>
+</div>
+{% endif %}
+
+<div class="rx-symbol">℞</div>
+
+<div class="lines">
+  {% for li in prescription.lines %}
+  <div class="line">
+    <div class="head">
+      <span class="num">{{ loop.index }}.</span>
+      <span class="dci">{{ li.dci }}</span>
+      {% if li.strength %}<span class="strength">{{ li.strength }}</span>{% endif %}
+      {% if li.brand %}<span class="brand">({{ li.brand }})</span>{% endif %}
+      {% if li.form %}<span class="form">— {{ li.form | form_label }}</span>{% endif %}
+    </div>
+    <div class="posology">{{ li.posology }}</div>
+    {% if li.duration %}<div class="duration"><strong>Durée :</strong> {{ li.duration }}</div>{% endif %}
+    {% if li.note %}<div class="note">{{ li.note }}</div>{% endif %}
+  </div>
+  {% endfor %}
+</div>
+
+{% if prescription.renewable %}
+<div class="renew">✓ Ordonnance renouvelable</div>
+{% endif %}
+
+{% if prescription.notes %}
+<div class="notes">{{ prescription.notes }}</div>
+{% endif %}
+
+<!-- Signature -->
+<div class="signature-area">
+  <div class="doctor-block">
+    <div class="label">Signature du médecin</div>
+    <div class="name">{% if doctor %}Dr. {{ doctor.first_name }} {{ doctor.last_name }}{% endif %}</div>
+    <div class="meta">{{ clinic.name }}</div>
+  </div>
+  <div class="stamp-box">Cachet et signature</div>
+</div>
+
+<div class="footer">
+  <div>{{ clinic.name }}{% if clinic.phone %} · {{ clinic.phone }}{% endif %}{% if clinic.email %} · {{ clinic.email }}{% endif %}</div>
+  <div class="legal">
+    {% if clinic.ice %}ICE : {{ clinic.ice }} · {% endif %}
+    {% if clinic.if_number %}IF : {{ clinic.if_number }} · {% endif %}
+    {% if clinic.rc_number %}RC : {{ clinic.rc_number }}{% endif %}
+  </div>
+</div>
+
+</body>
+</html>

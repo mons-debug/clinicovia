@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Clinicovia — Clinic OS Logic Map</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+<style>
+  :root { --navy: #0D4F6C; --gold: #C9A96E; --bg: #FAFAF7; --card: #FFFFFF; --border: #E8E0CC; --text: #1F1A14; --muted: #8A7A66; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; padding: 40px 20px; }
+  .container { max-width: 1000px; margin: 0 auto; }
+  h1 { font-size: 26px; color: var(--navy); margin-bottom: 4px; }
+  .subtitle { color: var(--muted); font-size: 14px; margin-bottom: 32px; }
+  h2 { font-size: 19px; color: var(--navy); margin: 36px 0 14px; padding-bottom: 8px; border-bottom: 2px solid var(--gold); }
+  h3 { font-size: 15px; color: var(--text); margin: 16px 0 8px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin: 12px 0; }
+  .card.rule { border-left: 4px solid var(--navy); }
+  .card.warn { border-left: 4px solid #F57F17; background: #FFFDF5; }
+  .card.key { border-left: 4px solid #C62828; background: #FFFAFA; }
+  .mermaid { margin: 16px 0; overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13px; }
+  th { background: #F5F0E6; text-align: left; padding: 8px 12px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); border-bottom: 1px solid var(--border); }
+  td { padding: 8px 12px; border-bottom: 1px solid #f0ebe0; vertical-align: top; }
+  code { background: #F5F0E6; padding: 2px 6px; border-radius: 3px; font-size: 12px; }
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+  .tag-doc { background: #E3F2FD; color: #1565C0; }
+  .tag-rec { background: #FFF8E1; color: #F57F17; }
+  .tag-sys { background: #F3E5F5; color: #7B1FA2; }
+  .tag-auto { background: #E8F5E9; color: #2E7D32; }
+  .parallel { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0; }
+  .parallel > div { padding: 16px; border-radius: 8px; }
+  .parallel .doctor-side { background: #E3F2FD; border: 1px solid #90CAF9; }
+  .parallel .reception-side { background: #FFF8E1; border: 1px solid #FFE082; }
+  .parallel h4 { font-size: 13px; margin-bottom: 8px; }
+  .parallel ol { padding-left: 18px; font-size: 13px; }
+  .parallel ol li { margin: 4px 0; }
+  @media (max-width: 700px) { .parallel { grid-template-columns: 1fr; } }
+  .scenario { background: white; border: 1px solid var(--border); border-radius: 6px; padding: 14px; margin: 8px 0; }
+  .scenario h4 { font-size: 14px; color: var(--navy); margin-bottom: 6px; }
+  .scenario .path { font-size: 13px; padding: 6px 10px; background: #F5F0E6; border-radius: 4px; margin: 6px 0; font-family: monospace; }
+  .scenario p { font-size: 13px; margin: 4px 0; }
+  .rule-box { background: #F0F4EC; border: 1px solid #C5E1A5; border-radius: 6px; padding: 10px 14px; margin: 8px 0; font-size: 13px; }
+  .rule-box strong { color: #2E7D32; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>Clinic OS — Logic Map</h1>
+<p class="subtitle">State machines, parallel workflows, every scenario with a clear path. No ambiguity.</p>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2>1. The Five Entities & Their States</h2>
+
+<p>Everything in the clinic maps to these five things. Each has a clear lifecycle. They connect at specific points.</p>
+
+<div class="card">
+<h3>A. Appointment (rendez-vous)</h3>
+<div class="mermaid">
+stateDiagram-v2
+  [*] --> scheduled: Booked (walk-in or planned)
+  scheduled --> confirmed: Patient confirms
+  scheduled --> checked_in: Patient arrives
+  confirmed --> checked_in: Patient arrives
+  checked_in --> in_progress: Doctor starts
+  in_progress --> completed: Doctor finishes
+  scheduled --> no_show: Didn't come (30min+)
+  scheduled --> cancelled: Cancelled
+  confirmed --> cancelled: Cancelled
+  checked_in --> cancelled: Cancelled
+</div>
+<div class="rule-box"><strong>Rule:</strong> One appointment = one patient + one doctor + one service + one time slot. Appointment OWNS the calendar slot.</div>
+</div>
+
+<div class="card">
+<h3>B. Patient Journey (queue position)</h3>
+<div class="mermaid">
+stateDiagram-v2
+  [*] --> awaiting: Arrives at clinic
+  [*] --> in_room: Fast-track (clinic empty)
+  awaiting --> in_room: Called by doctor
+  in_room --> checkout: Doctor finishes (Terminer)
+  checkout --> done: Paid + released
+  awaiting --> left: Patient leaves before seen
+</div>
+<div class="rule-box"><strong>Rule:</strong> Queue = today only. Resets every morning. Stale entries from yesterday get flagged for cleanup.</div>
+</div>
+
+<div class="card">
+<h3>C. Facture (invoice)</h3>
+<div class="mermaid">
+stateDiagram-v2
+  [*] --> draft: Doctor starts séance
+  draft --> draft: Reception edits
+  draft --> issued: Reception validates
+  issued --> partial: Partial payment
+  issued --> paid: Full payment
+  partial --> paid: Remaining paid
+  draft --> cancelled: Cancelled
+  issued --> cancelled: Cancelled
+</div>
+<div class="rule-box"><strong>Rule:</strong> Facture stays DRAFT until reception validates. No payment possible on DRAFT. Reception MUST review before issuing.</div>
+</div>
+
+<div class="card">
+<h3>D. Consent</h3>
+<div class="mermaid">
+stateDiagram-v2
+  [*] --> pending: Created on séance start
+  pending --> signed: Patient signs at reception
+  pending --> declined: Patient refuses
+  declined --> [*]: Séance blocked
+</div>
+<div class="rule-box"><strong>Rule:</strong> If declined → séance cannot proceed. Doctor is notified. Appointment → cancelled. DRAFT facture → cancelled.</div>
+</div>
+
+<div class="card">
+<h3>E. Plan & Séances</h3>
+<div class="mermaid">
+stateDiagram-v2
+  state "Plan" as plan {
+    [*] --> active: Created
+    active --> completed: All sessions done
+    active --> abandoned: Patient stops mid-way
+  }
+  state "Séance" as seance {
+    [*] --> scheduled_s: Auto-created with plan
+    scheduled_s --> in_progress_s: Doctor starts
+    in_progress_s --> completed_s: Doctor finishes
+    scheduled_s --> cancelled_s: Cancelled
+  }
+</div>
+<div class="rule-box"><strong>Rule:</strong> Each séance = one appointment in calendar. Plan abandoned → remaining séances cancelled → their appointments cancelled → their DRAFT factures cancelled.</div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2>2. How They Connect</h2>
+
+<div class="card rule">
+<h3>The Chain</h3>
+<div class="mermaid">
+graph LR
+  DS[Doctor Service] --> AP[Appointment]
+  DS --> PL[Plan]
+  PL --> SE[Séance]
+  SE --> AP
+  AP --> QU[Queue Position]
+  SE --> CO[Consent]
+  SE --> FA[Facture]
+  SE --> OR[Ordonnance]
+  AP --> CAL[Calendar Slot]
+</div>
+
+<table>
+  <tr><th>Connection</th><th>Rule</th></tr>
+  <tr><td>Doctor Service → Appointment</td><td>Every appointment references a doctor_service. This gives: doctor, service name, duration, price.</td></tr>
+  <tr><td>Doctor Service → Plan</td><td>Plan is for a specific doctor's service. Price + consent inherited.</td></tr>
+  <tr><td>Plan → Séances</td><td>Plan auto-creates N séances. Each séance gets its own appointment.</td></tr>
+  <tr><td>Séance → Appointment</td><td>1:1 link. Séance is the clinical side, appointment is the scheduling side.</td></tr>
+  <tr><td>Appointment → Queue</td><td>When patient checks in, appointment becomes a queue entry for today.</td></tr>
+  <tr><td>Appointment → Calendar</td><td>Appointment owns a time slot. Duration from doctor_service.</td></tr>
+  <tr><td>Séance → Consent + Facture</td><td>Created when doctor starts the séance. Consent from template, facture from price.</td></tr>
+</table>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2>3. The Parallel Workflow</h2>
+
+<p>This is the key insight: <strong>doctor and reception work in parallel</strong>, not sequentially. While doctor treats the patient, reception handles documents.</p>
+
+<div class="parallel">
+  <div class="doctor-side">
+    <h4>🩺 Doctor (en consultation)</h4>
+    <ol>
+      <li>Opens séance → "Commencer"</li>
+      <li>Edits consent text + price if needed</li>
+      <li>Sends to reception</li>
+      <li><em>— treats patient —</em></li>
+      <li>Takes before photos</li>
+      <li>Writes SOAP note</li>
+      <li>Takes after photos</li>
+      <li>Creates ordonnance (optional)</li>
+      <li>Clicks "Terminer"</li>
+    </ol>
+  </div>
+  <div class="reception-side">
+    <h4>📋 Reception (in parallel)</h4>
+    <ol>
+      <li>Sees "Documents reçus" notification</li>
+      <li>Prints consent → patient signs</li>
+      <li>Marks consent as signed</li>
+      <li>Reviews facture (DRAFT)</li>
+      <li>Edits if needed (items, price, discount)</li>
+      <li>Validates facture → ISSUED</li>
+      <li><em>— waits for doctor to finish —</em></li>
+      <li>Patient moves to "À encaisser"</li>
+      <li>Collects payment → prints facture + ordonnance</li>
+      <li>Releases patient</li>
+    </ol>
+  </div>
+</div>
+
+<div class="card key">
+<h3>Critical Timing Rule</h3>
+<p><strong>What if doctor clicks "Terminer" but reception hasn't validated the facture yet?</strong></p>
+<p>Two options:</p>
+<table>
+  <tr><th>Option A: Block</th><th>Option B: Allow (recommended)</th></tr>
+  <tr>
+    <td>Doctor can't click Terminer until facture is ISSUED. Forces reception to act first.</td>
+    <td>Doctor clicks Terminer freely. Patient moves to "À encaisser" with DRAFT facture. Reception validates + collects payment there. More flexible — doctor isn't blocked by reception speed.</td>
+  </tr>
+</table>
+<div class="rule-box"><strong>Decision: Option B.</strong> Doctor and reception work independently. If facture is still DRAFT when patient reaches "À encaisser", reception validates it there. No blocking.</div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2>4. Every Scenario — Clear Path</h2>
+
+<div class="scenario">
+  <h4>S1: Normal appointment (happy path)</h4>
+  <div class="path">Book → Arrive → Salle d'attente → Doctor calls → En consultation → Documents sent → Reception signs consent + validates facture → Doctor finishes → À encaisser → Pay → Print → Release</div>
+  <table>
+    <tr><th>Entity</th><th>Path</th></tr>
+    <tr><td>Appointment</td><td>scheduled → checked_in → in_progress → completed</td></tr>
+    <tr><td>Queue</td><td>awaiting → in_room → checkout → done</td></tr>
+    <tr><td>Consent</td><td>pending → signed</td></tr>
+    <tr><td>Facture</td><td>draft → issued → paid</td></tr>
+  </table>
+</div>
+
+<div class="scenario">
+  <h4>S2: Walk-in, clinic empty (fast-track)</h4>
+  <div class="path">Walk-in → Pick doctor + service → Appointment created → Skip salle d'attente → Directly en consultation → normal flow continues</div>
+  <table>
+    <tr><th>Entity</th><th>Path</th></tr>
+    <tr><td>Appointment</td><td>scheduled → in_progress (skip checked_in)</td></tr>
+    <tr><td>Queue</td><td>directly in_room (skip awaiting)</td></tr>
+  </table>
+  <div class="rule-box"><strong>Trigger:</strong> Reception sees doctor has no patient in_room and no one awaiting. "Envoyer directement" button appears on walk-in dialog.</div>
+</div>
+
+<div class="scenario">
+  <h4>S3: Walk-in, calendar full</h4>
+  <div class="path">Walk-in → Pick doctor → Calendar shows "complet aujourd'hui" → Shows next available slot per doctor → Book for another day OR add to end of today (doctor decides)</div>
+  <p><strong>Reception sees:</strong> "Dr. Meryem: prochaine dispo demain 09h30" / "Dr. Amr: prochaine dispo aujourd'hui 16h00"</p>
+  <div class="rule-box"><strong>No waitlist needed.</strong> Just show next available and let reception book it. Simple.</div>
+</div>
+
+<div class="scenario">
+  <h4>S4: Patient no-show</h4>
+  <div class="path">Appointment time passes → 15min grace → Reception clicks "Absent" → Slot freed → No-show count +1 on dossier</div>
+  <table>
+    <tr><th>Entity</th><th>Path</th></tr>
+    <tr><td>Appointment</td><td>scheduled → no_show</td></tr>
+    <tr><td>Queue</td><td>never entered</td></tr>
+    <tr><td>Calendar</td><td>slot freed immediately</td></tr>
+    <tr><td>Patient dossier</td><td>no_show_count += 1</td></tr>
+  </table>
+  <div class="rule-box"><strong>No auto-mark.</strong> Reception decides — maybe patient called to say they're late. Only manual "Absent" button.</div>
+</div>
+
+<div class="scenario">
+  <h4>S5: Consent refused</h4>
+  <div class="path">Consent printed → Patient reads → Refuses to sign → Reception marks "Refusé" → Doctor notified → Séance cancelled → DRAFT facture cancelled → Patient released or rescheduled</div>
+  <table>
+    <tr><th>Entity</th><th>Path</th></tr>
+    <tr><td>Consent</td><td>pending → declined</td></tr>
+    <tr><td>Séance</td><td>in_progress → cancelled</td></tr>
+    <tr><td>Facture</td><td>draft → cancelled</td></tr>
+    <tr><td>Appointment</td><td>in_progress → cancelled</td></tr>
+    <tr><td>Queue</td><td>in_room → checkout (to release) or awaiting (to reschedule)</td></tr>
+  </table>
+  <div class="rule-box"><strong>Cascade:</strong> consent declined triggers automatic cancellation of séance + draft facture. Doctor sees "Consentement refusé" alert in their dossier view.</div>
+</div>
+
+<div class="scenario">
+  <h4>S6: Patient cancels mid-plan</h4>
+  <div class="path">Plan has 6 sessions, 3 completed → Patient says stop → Reception/doctor marks plan "Abandonné" → Remaining sessions + appointments cancelled</div>
+  <table>
+    <tr><th>What</th><th>Action</th></tr>
+    <tr><td>Completed sessions (1-3)</td><td>Untouched. History preserved.</td></tr>
+    <tr><td>Paid factures (1-3)</td><td>Untouched. Already paid.</td></tr>
+    <tr><td>Remaining sessions (4-6)</td><td>→ cancelled</td></tr>
+    <tr><td>Their appointments</td><td>→ cancelled (calendar freed)</td></tr>
+    <tr><td>Their DRAFT factures (if any)</td><td>→ cancelled</td></tr>
+    <tr><td>Plan status</td><td>active → abandoned</td></tr>
+  </table>
+</div>
+
+<div class="scenario">
+  <h4>S7: Patient arrives early, wants earlier slot</h4>
+  <div class="path">Patient has 15h appointment → Arrives at 13h → Doctor has gap at 13h30 → Reception clicks "Avancer" → Appointment moves to 13h30 → Patient enters queue</div>
+  <div class="rule-box"><strong>Reception sees doctor's live calendar.</strong> If a gap exists, "Avancer le RDV" button appears. Appointment time updates, calendar updates, queue order updates.</div>
+</div>
+
+<div class="scenario">
+  <h4>S8: Patient wants additional service</h4>
+  <div class="path">Patient came for Botox (Meryem) → Also wants Rhinoplastie consultation (Amr) → Reception books second appointment for another day</div>
+  <table>
+    <tr><th>What</th><th>Logic</th></tr>
+    <tr><td>Same patient, same day, same doctor?</td><td>Possible but rare. Add extra time to current appointment.</td></tr>
+    <tr><td>Same patient, same day, different doctor?</td><td>Only if patient finishes first appointment. Sequential, not parallel.</td></tr>
+    <tr><td>Same patient, different day?</td><td>Normal booking. Just a new appointment linked to same dossier.</td></tr>
+  </table>
+  <div class="rule-box"><strong>All appointments — same dossier.</strong> Patient dossier shows every appointment across all doctors, all services, all dates. One patient = one dossier = complete history.</div>
+</div>
+
+<div class="scenario">
+  <h4>S9: Appointment runs over</h4>
+  <div class="path">Botox (30min) started at 10h00 → It's 10h40, still in_progress → Calendar shows overrun in red → Next patient's wait time updated</div>
+  <table>
+    <tr><th>What</th><th>Logic</th></tr>
+    <tr><td>Calendar</td><td>Slot visually extends past scheduled end. Red border = overrun.</td></tr>
+    <tr><td>Next patient</td><td>Queue shows updated estimated wait time based on actual consultation duration.</td></tr>
+    <tr><td>No auto-action</td><td>Doctor finishes when they finish. System just reflects reality.</td></tr>
+  </table>
+  <div class="rule-box"><strong>Calendar = reality.</strong> When appointment is in_progress, actual start time is tracked. Duration = max(service_duration, actual_duration). Calendar shows actual, not planned.</div>
+</div>
+
+<div class="scenario">
+  <h4>S10: Split payment</h4>
+  <div class="path">Facture: 1500 MAD → Patient pays 1000 cash → Receipt printed → Facture: PARTIAL (500 remaining) → Next visit: pays 500 by card → Facture: PAID</div>
+  <div class="rule-box"><strong>Payment dialog</strong> at caisse: enter amount + pick method (cash/card/cheque/virement). Can record multiple payments. Facture stays PARTIAL until total covered. Outstanding balance visible on patient dossier.</div>
+</div>
+
+<div class="scenario">
+  <h4>S11: Doctor absent</h4>
+  <div class="path">Doctor marks "Absent aujourd'hui" → All their scheduled appointments for today flagged → Reception sees alert → Bulk reschedule or cancel</div>
+  <div class="rule-box"><strong>Not auto-cancel.</strong> Reception decides per appointment: reschedule (pick new date) or cancel + notify patient. Calendar shows doctor's column as blocked.</div>
+</div>
+
+<div class="scenario">
+  <h4>S12: End of day cleanup</h4>
+  <div class="path">20h00 → Queue has 0 patients (normal) OR has stale entries → Next morning: system flags yesterday's unresolved entries</div>
+  <div class="rule-box"><strong>Morning check:</strong> Any patient still "awaiting" or "in_room" from yesterday? Flag for reception to clean up. Don't auto-resolve — could be data entry that was missed.</div>
+</div>
+
+<div class="scenario">
+  <h4>S13: Patient wants to modify existing appointment</h4>
+  <div class="path">Patient calls → Change date, service, or doctor</div>
+  <table>
+    <tr><th>Change</th><th>Logic</th></tr>
+    <tr><td>Change date/time</td><td>Show available slots for same doctor + service. Move appointment.</td></tr>
+    <tr><td>Change service</td><td>Duration may change → available slots may differ. Update appointment.</td></tr>
+    <tr><td>Change doctor</td><td>Different calendar entirely. Cancel old, create new with new doctor's service.</td></tr>
+  </table>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2>5. Calendar as Live Truth</h2>
+
+<div class="card rule">
+<h3>Calendar is not just bookings — it's the live state of the clinic</h3>
+<table>
+  <tr><th>Calendar shows</th><th>Source</th></tr>
+  <tr><td>Future appointments (blue)</td><td>Booked appointments with status: scheduled/confirmed</td></tr>
+  <tr><td>Patient arrived (yellow)</td><td>Appointment status: checked_in</td></tr>
+  <tr><td>In consultation (green, pulsing)</td><td>Appointment status: in_progress. Actual duration tracked live.</td></tr>
+  <tr><td>Running over (red border)</td><td>in_progress + elapsed > service_duration</td></tr>
+  <tr><td>Completed (gray)</td><td>Appointment status: completed</td></tr>
+  <tr><td>No-show (strikethrough)</td><td>Appointment status: no_show</td></tr>
+  <tr><td>Free slots (empty)</td><td>No appointment in that time range for that doctor</td></tr>
+</table>
+</div>
+
+<div class="card">
+<h3>Calendar Structure</h3>
+<div class="mermaid">
+graph TB
+  subgraph DAY_VIEW["Day View"]
+    subgraph COL_M["Dr. Meryem"]
+      M1["09:00 Botox · Fatima<br/>30min 🟢"]
+      M2["09:30 Fillers · Sara<br/>45min 🔵"]
+      M3["10:15 — free —"]
+      M4["10:30 PRP · Ahmed<br/>45min 🟡 arrived"]
+    end
+    subgraph COL_A["Dr. Amr"]
+      A1["09:00 Consultation · Omar<br/>30min ✅ done"]
+      A2["09:30 — free —"]
+      A3["10:00 Rhinoplastie consult · Nadia<br/>30min 🔵"]
+    end
+  end
+</div>
+<p style="font-size:13px;color:var(--muted);margin-top:8px;">🟢 in_progress &nbsp; 🔵 scheduled &nbsp; 🟡 checked_in &nbsp; ✅ completed &nbsp; Each column = one doctor. Slot height = service duration.</p>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2>6. Summary Rules</h2>
+
+<div class="card rule">
+<table>
+  <tr><th>#</th><th>Rule</th><th>Why</th></tr>
+  <tr><td>1</td><td>Every appointment references a doctor_service</td><td>Doctor, service, duration, price all derived from one source</td></tr>
+  <tr><td>2</td><td>One patient can't have overlapping appointments</td><td>One body, one place at a time</td></tr>
+  <tr><td>3</td><td>Facture starts as DRAFT, reception validates to ISSUED</td><td>Reception must review before any payment</td></tr>
+  <tr><td>4</td><td>Consent declined → cascades: séance + facture cancelled</td><td>Can't treat without consent</td></tr>
+  <tr><td>5</td><td>Plan abandoned → remaining sessions + appointments cancelled</td><td>Clean up future bookings</td></tr>
+  <tr><td>6</td><td>Doctor and reception work in parallel</td><td>Neither blocks the other</td></tr>
+  <tr><td>7</td><td>Doctor can Terminer even if facture is still DRAFT</td><td>Reception validates at checkout — no blocking</td></tr>
+  <tr><td>8</td><td>Calendar = live state, not just bookings</td><td>Shows actual duration, overruns, arrivals, completions</td></tr>
+  <tr><td>9</td><td>No-show is manual, not automatic</td><td>Patient might be late, not absent</td></tr>
+  <tr><td>10</td><td>Queue resets daily, stale entries flagged</td><td>Prevents ghost patients in the system</td></tr>
+  <tr><td>11</td><td>All appointments linked to patient dossier</td><td>One dossier = complete history across all doctors + services</td></tr>
+  <tr><td>12</td><td>Fast-track: if doctor is free, skip salle d'attente</td><td>No forced waiting when no one is waiting</td></tr>
+</table>
+</div>
+
+</div>
+<script>mermaid.initialize({startOnLoad:true, theme:'neutral', flowchart: { useMaxWidth: true }});</script>
+</body>
+</html>

@@ -51,7 +51,7 @@ async def send_meta_event(
     if event.value is not None:
         event_payload["custom_data"] = {
             "value": float(event.value),
-            "currency": event.currency or "AED",
+            "currency": event.currency or "MAD",
         }
 
     payload = {"data": [event_payload]}

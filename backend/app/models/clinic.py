@@ -47,9 +47,15 @@ class Clinic(Base, TimestampMixin):
     address: Mapped[str | None] = mapped_column(Text, nullable=True)
     city: Mapped[str | None] = mapped_column(String(100), nullable=True)
     country: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    timezone: Mapped[str] = mapped_column(String(50), default="Asia/Dubai")
-    currency: Mapped[str] = mapped_column(String(10), default="AED")
-    language: Mapped[str] = mapped_column(String(10), default="en")
+    timezone: Mapped[str] = mapped_column(String(50), default="Africa/Casablanca")
+    currency: Mapped[str] = mapped_column(String(10), default="MAD")
+    language: Mapped[str] = mapped_column(String(10), default="fr")
+
+    # Moroccan legal IDs (printed on factures + ordonnances)
+    ice: Mapped[str | None] = mapped_column(String(32), nullable=True)  # Identifiant Commun de l'Entreprise
+    if_number: Mapped[str | None] = mapped_column(String(32), nullable=True)  # Identifiant Fiscal
+    rc_number: Mapped[str | None] = mapped_column(String(32), nullable=True)  # Registre du Commerce
+    cnss: Mapped[str | None] = mapped_column(String(32), nullable=True)  # Caisse Nationale de Sécurité Sociale
 
     # Subscription
     plan: Mapped[SubscriptionPlan] = mapped_column(

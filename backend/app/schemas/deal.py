@@ -9,7 +9,7 @@ class DealCreate(BaseModel):
     patient_id: uuid.UUID
     title: str = Field(min_length=1, max_length=255)
     value: float = Field(ge=0, default=0.0)
-    currency: str = "AED"
+    currency: str = "MAD"
     treatment: str | None = None
     temperature: str = "warm"
     assigned_to: uuid.UUID | None = None

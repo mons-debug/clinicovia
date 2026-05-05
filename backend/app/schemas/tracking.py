@@ -75,7 +75,7 @@ class ConversionEventResponse(BaseModel):
     trigger_id: uuid.UUID | None = None
     patient_id: uuid.UUID | None = None
     value: Decimal | None = None
-    currency: str = "AED"
+    currency: str = "MAD"
     status: str
     error_message: str | None = None
     attempts: int = 0
@@ -98,4 +98,4 @@ class ConversionStatsResponse(BaseModel):
     by_event_name: dict = {}
     by_status: dict = {}
     total_value: Decimal = Decimal("0")
-    currency: str = "AED"
+    currency: str = "MAD"

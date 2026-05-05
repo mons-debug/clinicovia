@@ -38,3 +38,7 @@ cryptography==44.0.3
 
 # Utilities
 python-dateutil==2.9.0.post0
+
+# PDF generation (factures + ordonnances)
+weasyprint==63.1
+jinja2==3.1.4

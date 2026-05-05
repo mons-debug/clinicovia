@@ -50,6 +50,7 @@ export interface TreatmentResponse {
   price: number;
   currency: string;
   category: string | null;
+  specialty: string | null;
 }
 
 export interface TreatmentListResponse {
@@ -59,11 +60,14 @@ export interface TreatmentListResponse {
 export interface AppointmentCreateInput {
   patient_id: string;
   doctor_id?: string | null;
+  doctor_service_id?: string | null;
   appointment_date: string;
   start_time: string;
   end_time: string;
   duration_minutes?: number;
   treatment: string;
+  kind?: string;
+  room?: string | null;
   notes?: string | null;
 }
 
@@ -134,8 +138,9 @@ export async function updateAppointmentStatus(id: string, status: string): Promi
   });
 }
 
-export async function listTreatments(): Promise<TreatmentListResponse> {
-  return apiClient<TreatmentListResponse>("/appointments/treatments", { token: getToken() });
+export async function listTreatments(specialty?: string): Promise<TreatmentListResponse> {
+  const qs = specialty ? `?specialty=${encodeURIComponent(specialty)}` : "";
+  return apiClient<TreatmentListResponse>(`/appointments/treatments${qs}`, { token: getToken() });
 }
 
 export async function sendAppointmentWhatsApp(
@@ -171,10 +176,10 @@ export function useAppointment(id: string) {
   });
 }
 
-export function useTreatments() {
+export function useTreatments(specialty?: string) {
   return useQuery({
-    queryKey: ["treatments"],
-    queryFn: () => listTreatments(),
+    queryKey: ["treatments", specialty ?? "all"],
+    queryFn: () => listTreatments(specialty),
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 }

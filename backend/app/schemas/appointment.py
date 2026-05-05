@@ -8,11 +8,14 @@ from pydantic import BaseModel, Field
 class AppointmentCreate(BaseModel):
     patient_id: uuid.UUID
     doctor_id: uuid.UUID | None = None
+    doctor_service_id: uuid.UUID | None = None
     appointment_date: date
     start_time: time
     end_time: time
     duration_minutes: int = 30
     treatment: str = Field(min_length=1, max_length=255)
+    kind: str | None = "consultation"
+    room: str | None = Field(None, max_length=64)
     notes: str | None = None
 
 
@@ -46,9 +49,12 @@ class AppointmentResponse(BaseModel):
     end_time: time
     duration_minutes: int
     treatment: str
+    kind: str = "consultation"
     status: str
+    room: str | None = None
     notes: str | None
     is_first_visit: bool
+    needs_confirmation: bool = False
     created_at: datetime
     updated_at: datetime
     model_config = {"from_attributes": True}
@@ -79,6 +85,7 @@ class TreatmentResponse(BaseModel):
     price: float
     currency: str
     category: str | None
+    specialty: str | None = None
     model_config = {"from_attributes": True}
 
 

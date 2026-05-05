@@ -7,6 +7,10 @@ type Action = "read" | "create" | "edit" | "delete" | "full";
 type Module =
   | "dashboard"
   | "patients"
+  | "queue"
+  | "calendar"
+  | "invoices"
+  | "plans"
   | "pipeline"
   | "whatsapp"
   | "ai_agents"
@@ -19,13 +23,18 @@ type Module =
   | "settings"
   | "team"
   | "billing"
-  | "admin";
+  | "admin"
+  | "doctor_services";
 
 // Permission matrix: role -> module -> allowed actions
 const PERMISSION_MATRIX: Record<Role, Partial<Record<Module, Action[]>>> = {
   [ROLES.SUPER_ADMIN]: {
     dashboard: ["full"],
     patients: ["full"],
+    queue: ["full"],
+    calendar: ["full"],
+    invoices: ["full"],
+    plans: ["full"],
     pipeline: ["full"],
     whatsapp: ["full"],
     ai_agents: ["full"],
@@ -43,6 +52,10 @@ const PERMISSION_MATRIX: Record<Role, Partial<Record<Module, Action[]>>> = {
   [ROLES.CLINIC_OWNER]: {
     dashboard: ["full"],
     patients: ["full"],
+    queue: ["full"],
+    calendar: ["full"],
+    invoices: ["full"],
+    plans: ["full"],
     pipeline: ["full"],
     whatsapp: ["full"],
     ai_agents: ["full"],
@@ -59,6 +72,10 @@ const PERMISSION_MATRIX: Record<Role, Partial<Record<Module, Action[]>>> = {
   [ROLES.MANAGER]: {
     dashboard: ["full"],
     patients: ["full"],
+    queue: ["full"],
+    calendar: ["full"],
+    invoices: ["full"],
+    plans: ["full"],
     pipeline: ["full"],
     whatsapp: ["full"],
     ai_agents: ["full"],
@@ -72,12 +89,15 @@ const PERMISSION_MATRIX: Record<Role, Partial<Record<Module, Action[]>>> = {
     team: ["read"],
   },
   [ROLES.RECEPTIONIST]: {
+    // Front-desk view: queue, calendar, patients, invoices.
+    // Hide: pipeline, whatsapp inbox, ai_agents, campaigns, forms,
+    // doctors, analytics, ai_agents — pure operations only.
     dashboard: ["read"],
     patients: ["read", "create"],
-    pipeline: ["read"],
-    whatsapp: ["read", "create"],
+    queue: ["full"],
+    calendar: ["read", "edit"],
+    invoices: ["read", "create", "edit"],
     appointments: ["full"],
-    forms: ["read"],
   },
   [ROLES.SALES_AGENT]: {
     dashboard: ["read"],
@@ -97,10 +117,14 @@ const PERMISSION_MATRIX: Record<Role, Partial<Record<Module, Action[]>>> = {
   [ROLES.DOCTOR]: {
     dashboard: ["read"],
     patients: ["read", "create", "edit"],
+    queue: ["full"],
+    calendar: ["read", "edit"],
+    plans: ["full"],
     appointments: ["read", "create", "edit"],
     doctors: ["read"],
     settings: ["read"],
     analytics: ["read"],
+    doctor_services: ["full"],
   },
 };
 

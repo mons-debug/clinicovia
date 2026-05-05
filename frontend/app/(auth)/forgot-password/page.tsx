@@ -2,9 +2,11 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Button, Label, TextInput } from "flowbite-react";
 import { Mail, KeyRound, ArrowLeft, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 export default function ForgotPasswordPage() {
   const [loading, setLoading] = useState(false);
@@ -58,28 +60,31 @@ export default function ForgotPasswordPage() {
             </p>
 
             <form onSubmit={handleSubmit} className="mt-6 space-y-4 text-left">
-              <div>
-                <Label htmlFor="email" className="mb-2 block">Email address</Label>
-                <TextInput
-                  id="email"
-                  type="email"
-                  icon={Mail}
-                  placeholder="you@clinic.com"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
+              <div className="space-y-2">
+                <Label htmlFor="email">Email address</Label>
+                <div className="relative">
+                  <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="you@clinic.com"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
               </div>
 
-              <button
+              <Button
                 type="submit"
                 disabled={loading}
-                className="group flex w-full items-center justify-center gap-2 rounded-lg px-5 py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
-                style={{ backgroundColor: "var(--primary-light)" }}
+                size="lg"
+                className="w-full bg-[var(--primary-light)] hover:bg-[var(--primary-light)]/90"
               >
                 {loading ? "Sending..." : "Send Reset Link"}
-                {!loading && <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />}
-              </button>
+                {!loading && <ArrowRight className="h-4 w-4" />}
+              </Button>
             </form>
           </>
         ) : (
@@ -102,22 +107,23 @@ export default function ForgotPasswordPage() {
             </p>
 
             <div className="mt-6 space-y-3">
-              <button
-                className="w-full rounded-lg border border-border bg-gray-50 px-5 py-3 text-sm font-medium text-text-primary transition-colors hover:bg-gray-100"
+              <Button
+                variant="secondary"
+                className="w-full"
                 onClick={() => window.open("mailto:", "_blank")}
               >
                 Open Email App
-              </button>
-              <button
-                className="text-sm font-medium transition-opacity hover:opacity-80"
-                style={{ color: "var(--primary-light)" }}
+              </Button>
+              <Button
+                variant="link"
+                className="text-[var(--primary-light)]"
                 onClick={() => {
                   setSent(false);
                   toast.info("You can resend the link.");
                 }}
               >
                 Didn&apos;t receive it? Resend
-              </button>
+              </Button>
             </div>
           </>
         )}

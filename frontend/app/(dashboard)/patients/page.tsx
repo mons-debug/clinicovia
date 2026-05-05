@@ -20,6 +20,7 @@ import { toast } from "sonner";
 import { DataTable } from "@/components/shared/data-table";
 import { StatusBadge, getStatusVariant } from "@/components/shared/status-badge";
 import { EmptyState } from "@/components/shared/empty-state";
+import { WalkInDialog } from "@/components/queue/walk-in-dialog";
 import { LEAD_SOURCES } from "@/lib/constants";
 import {
   usePatients,
@@ -53,6 +54,14 @@ export default function PatientsPage() {
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [deleteTarget, setDeleteTarget] = useState<Patient | null>(null);
 
+  // Lifecycle tab — read from ?tab= so dashboard KPI links land on the
+  // right view by default
+  const [tab, setTab] = useState<"all" | "leads" | "patients" | "active">(() => {
+    if (typeof window === "undefined") return "all";
+    const t = new URLSearchParams(window.location.search).get("tab");
+    return t === "leads" || t === "patients" || t === "active" ? t : "all";
+  });
+
   // Debounce search
   const debounceTimer = useState<ReturnType<typeof setTimeout> | null>(null);
   const handleSearch = useCallback(
@@ -73,10 +82,11 @@ export default function PatientsPage() {
       page_size: pageSize,
       search: debouncedSearch || undefined,
       status: statusFilter !== "all" ? statusFilter : undefined,
+      tab,
       sort_by: sortBy,
       sort_dir: sortDir,
     }),
-    [page, pageSize, debouncedSearch, statusFilter, sortBy, sortDir]
+    [page, pageSize, debouncedSearch, statusFilter, tab, sortBy, sortDir]
   );
 
   const { data, isLoading, isError, error } = usePatients(params);
@@ -205,13 +215,6 @@ export default function PatientsPage() {
             >
               <Eye className="h-4 w-4" />
             </Link>
-            <Link
-              href={`/patients/${row.original.id}/edit`}
-              className="rounded-md p-1.5 text-text-muted transition-colors hover:bg-gray-100 hover:text-text-primary"
-              title="Edit"
-            >
-              <Pencil className="h-4 w-4" />
-            </Link>
             <button
               onClick={() => setDeleteTarget(row.original)}
               className="rounded-md p-1.5 text-text-muted transition-colors hover:bg-red-50 hover:text-red-600"
@@ -245,39 +248,29 @@ export default function PatientsPage() {
             <Download className="h-4 w-4" />
             Export
           </button>
-          <Link
-            href="/patients/new"
-            className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-            style={{ backgroundColor: "var(--primary-light)" }}
-          >
-            <Plus className="h-4 w-4" />
-            Add Patient
-          </Link>
+          <WalkInDialog triggerLabel="Nouveau patient" />
         </div>
       </div>
 
-      {/* Status filter tabs */}
-      <div className="flex gap-1 rounded-lg bg-gray-100 p-1">
-        {[
-          { key: "all", label: "All" },
-          { key: "new", label: "New" },
-          { key: "active", label: "Active" },
-          { key: "vip", label: "VIP" },
-          { key: "inactive", label: "Inactive" },
-        ].map((tab) => (
+      {/* Lifecycle tabs */}
+      <div className="flex flex-wrap gap-1 border-b border-border">
+        {([
+          { key: "all", label: "Tous" },
+          { key: "leads", label: "Leads WhatsApp" },
+          { key: "patients", label: "Patients" },
+          { key: "active", label: "Actifs" },
+        ] as const).map((t) => (
           <button
-            key={tab.key}
-            onClick={() => {
-              setStatusFilter(tab.key);
-              setPage(1);
-            }}
-            className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-              statusFilter === tab.key
-                ? "bg-white text-text-primary shadow-sm"
-                : "text-text-secondary hover:text-text-primary"
+            key={t.key}
+            type="button"
+            onClick={() => { setTab(t.key); setPage(1); }}
+            className={`rounded-t-lg border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
+              tab === t.key
+                ? "border-[var(--primary)] text-[var(--primary)]"
+                : "border-transparent text-text-secondary hover:text-text-primary"
             }`}
           >
-            {tab.label}
+            {t.label}
           </button>
         ))}
       </div>
@@ -287,7 +280,7 @@ export default function PatientsPage() {
         <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
         <input
           type="text"
-          placeholder="Search patients by name, email, phone..."
+          placeholder="Rechercher par nom, e-mail, téléphone…"
           value={search}
           onChange={(e) => handleSearch(e.target.value)}
           className="w-full rounded-lg border border-border bg-white py-2 pl-10 pr-4 text-sm placeholder:text-text-muted focus:border-primary-light focus:outline-none focus:ring-1 focus:ring-primary-light"

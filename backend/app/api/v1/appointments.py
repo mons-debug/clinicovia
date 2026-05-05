@@ -201,11 +201,14 @@ async def create_appointment(
         clinic_id=clinic_id,
         patient_id=body.patient_id,
         doctor_id=body.doctor_id,
+        doctor_service_id=body.doctor_service_id,
         appointment_date=body.appointment_date,
         start_time=body.start_time,
         end_time=body.end_time,
         duration_minutes=body.duration_minutes,
         treatment=body.treatment,
+        kind=(body.kind or "consultation"),
+        room=body.room,
         notes=body.notes,
         is_first_visit=is_first,
     )
@@ -259,14 +262,23 @@ async def create_appointment(
 
 @router.get("/treatments", response_model=TreatmentListResponse)
 async def list_treatments(
+    specialty: str | None = Query(None, description="Filter by doctor specialty (aesthetic_medicine | plastic_surgery)"),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     clinic_id = _get_clinic_id(user)
-    result = await db.execute(
-        select(Treatment).where(Treatment.clinic_id == clinic_id, Treatment.is_active == True)  # noqa: E712
-        .order_by(Treatment.name)
+    query = select(Treatment).where(
+        Treatment.clinic_id == clinic_id,
+        Treatment.is_active == True,  # noqa: E712
     )
+    if specialty:
+        # Surface treatments matching the specialty + treatments with no
+        # specialty constraint (NULL = available to any doctor).
+        query = query.where(
+            (Treatment.specialty == specialty) | (Treatment.specialty.is_(None))
+        )
+    query = query.order_by(Treatment.category.asc().nullslast(), Treatment.name)
+    result = await db.execute(query)
     treatments = result.scalars().all()
     return TreatmentListResponse(
         treatments=[TreatmentResponse.model_validate(t) for t in treatments]

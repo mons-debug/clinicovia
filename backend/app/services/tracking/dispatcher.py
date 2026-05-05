@@ -85,7 +85,7 @@ async def create_conversion_events(
     trigger_id: uuid.UUID | None = None,
     patient_id: uuid.UUID | None = None,
     value: Decimal | None = None,
-    currency: str = "AED",
+    currency: str = "MAD",
 ) -> list[ConversionEvent]:
     """Create ConversionEvent records for all enabled platforms and return them."""
     integrations = await get_enabled_integrations(db, clinic_id)

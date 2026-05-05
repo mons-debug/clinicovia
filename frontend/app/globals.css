@@ -1,8 +1,6 @@
 @import "tailwindcss";
-@import "flowbite-react/plugin/tailwindcss";
-@source "../.flowbite-react/class-list.json";
 
-/* ===== Clinicfy Design Tokens ===== */
+/* ===== Clinicovia Design Tokens ===== */
 
 :root {
   /* Brand Colors */

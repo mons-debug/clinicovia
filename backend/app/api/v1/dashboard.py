@@ -6,9 +6,13 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models.user import User
-from app.models.patient import Patient, PatientStatus
 from app.middleware.auth import get_current_user
+from app.models.appointment import Appointment, AppointmentStatus
+from app.models.billing import Invoice, InvoiceStatus
+from app.models.clinic import Role
+from app.models.patient import IntakeStatus, Patient, PatientStatus
+from app.models.treatment_plan import PlanStatus, TreatmentPlan
+from app.models.user import User
 
 router = APIRouter()
 
@@ -18,6 +22,11 @@ def _get_clinic_id(user: User) -> uuid.UUID:
     if not membership:
         return uuid.uuid4()  # fallback - won't match anything
     return membership.clinic_id
+
+
+def _is_doctor(user: User) -> bool:
+    membership = next((m for m in user.memberships if m.is_active), None)
+    return membership is not None and membership.role == Role.DOCTOR
 
 
 @router.get("/stats")
@@ -77,6 +86,197 @@ async def dashboard_stats(
         "revenue_mtd": 0,
         "avg_response_time": 0,
         "active_conversations": 0,
+    }
+
+
+@router.get("/summary")
+async def dashboard_summary(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """One-shot dashboard payload with the metrics the home page actually shows.
+
+    When the logged-in user is a DOCTOR, today_appointments, plans, and
+    the appointment list are filtered by doctor_id = user.id so each
+    doctor only sees their own workload. Reception / owner see everything.
+    """
+    clinic_id = _get_clinic_id(user)
+    doctor_only = _is_doctor(user)
+    today = date.today()
+    week_ago = today - timedelta(days=7)
+    month_start = today.replace(day=1)
+
+    # Today's appointments (any status except cancelled / no_show)
+    today_q = select(func.count(Appointment.id)).where(
+        Appointment.clinic_id == clinic_id,
+        Appointment.appointment_date == today,
+        Appointment.status.notin_([AppointmentStatus.CANCELLED, AppointmentStatus.NO_SHOW]),
+    )
+    if doctor_only:
+        today_q = today_q.where(Appointment.doctor_id == user.id)
+    today_appts = (await db.execute(today_q)).scalar_one()
+
+    # Yesterday's appointments — for delta
+    yest_q = select(func.count(Appointment.id)).where(
+        Appointment.clinic_id == clinic_id,
+        Appointment.appointment_date == today - timedelta(days=1),
+        Appointment.status.notin_([AppointmentStatus.CANCELLED, AppointmentStatus.NO_SHOW]),
+    )
+    if doctor_only:
+        yest_q = yest_q.where(Appointment.doctor_id == user.id)
+    yest_appts = (await db.execute(yest_q)).scalar_one()
+
+    # Patients in queue (intake_pending + awaiting_doctor + in_room)
+    in_queue = (await db.execute(
+        select(func.count(Patient.id)).where(
+            Patient.clinic_id == clinic_id,
+            Patient.intake_status.in_([
+                IntakeStatus.INTAKE_PENDING,
+                IntakeStatus.AWAITING_DOCTOR,
+                IntakeStatus.IN_ROOM,
+            ]),
+            Patient.archived_at.is_(None),
+        )
+    )).scalar_one()
+
+    # New patients this week (excluding leads — leads tracked separately)
+    new_week = (await db.execute(
+        select(func.count(Patient.id)).where(
+            Patient.clinic_id == clinic_id,
+            Patient.is_active == True,  # noqa: E712
+            Patient.intake_status != IntakeStatus.LEAD,
+            func.date(Patient.created_at) >= week_ago,
+        )
+    )).scalar_one()
+
+    # WhatsApp leads this week (still in LEAD state)
+    leads_week = (await db.execute(
+        select(func.count(Patient.id)).where(
+            Patient.clinic_id == clinic_id,
+            Patient.is_active == True,  # noqa: E712
+            Patient.intake_status == IntakeStatus.LEAD,
+            func.date(Patient.created_at) >= week_ago,
+        )
+    )).scalar_one()
+
+    # Total active leads (not yet visited)
+    leads_total = (await db.execute(
+        select(func.count(Patient.id)).where(
+            Patient.clinic_id == clinic_id,
+            Patient.is_active == True,  # noqa: E712
+            Patient.intake_status == IntakeStatus.LEAD,
+        )
+    )).scalar_one()
+
+    # Active treatment plans
+    plans_q = select(func.count(TreatmentPlan.id)).where(
+        TreatmentPlan.clinic_id == clinic_id,
+        TreatmentPlan.status == PlanStatus.ACTIVE,
+    )
+    if doctor_only:
+        plans_q = plans_q.where(TreatmentPlan.doctor_id == user.id)
+    active_plans = (await db.execute(plans_q)).scalar_one()
+
+    # Revenue MTD — sum total_paid on issued/partial/paid invoices this month
+    revenue_mtd = (await db.execute(
+        select(func.coalesce(func.sum(Invoice.total_paid), 0.0)).where(
+            Invoice.clinic_id == clinic_id,
+            Invoice.issue_date >= month_start,
+            Invoice.status.in_([InvoiceStatus.ISSUED, InvoiceStatus.PARTIAL, InvoiceStatus.PAID]),
+        )
+    )).scalar_one()
+
+    # Revenue last month (for delta)
+    last_month_end = month_start - timedelta(days=1)
+    last_month_start = last_month_end.replace(day=1)
+    revenue_last_month = (await db.execute(
+        select(func.coalesce(func.sum(Invoice.total_paid), 0.0)).where(
+            Invoice.clinic_id == clinic_id,
+            Invoice.issue_date >= last_month_start,
+            Invoice.issue_date <= last_month_end,
+            Invoice.status.in_([InvoiceStatus.ISSUED, InvoiceStatus.PARTIAL, InvoiceStatus.PAID]),
+        )
+    )).scalar_one()
+
+    # Today's appointments — full list with patient info for the side panel
+    today_list_q = (
+        select(Appointment, Patient)
+        .join(Patient, Patient.id == Appointment.patient_id)
+        .where(
+            Appointment.clinic_id == clinic_id,
+            Appointment.appointment_date == today,
+        )
+        .order_by(Appointment.start_time.asc())
+        .limit(10)
+    )
+    if doctor_only:
+        today_list_q = today_list_q.where(Appointment.doctor_id == user.id)
+    today_list_res = await db.execute(today_list_q)
+    today_appointments = [
+        {
+            "id": str(appt.id),
+            "patient_name": f"{p.first_name} {p.last_name}",
+            "patient_id": str(p.id),
+            "start_time": appt.start_time.strftime("%H:%M") if appt.start_time else "",
+            "treatment": appt.treatment,
+            "status": appt.status.value,
+            "room": appt.room,
+        }
+        for appt, p in today_list_res.all()
+    ]
+
+    # Recent patients — for doctors, show only patients they've treated
+    if doctor_only:
+        rp_res = await db.execute(
+            select(Patient)
+            .join(Appointment, Appointment.patient_id == Patient.id)
+            .where(
+                Patient.clinic_id == clinic_id,
+                Patient.is_active == True,  # noqa: E712
+                Appointment.doctor_id == user.id,
+            )
+            .group_by(Patient.id)
+            .order_by(func.max(Appointment.appointment_date).desc())
+            .limit(5)
+        )
+    else:
+        rp_res = await db.execute(
+            select(Patient)
+            .where(Patient.clinic_id == clinic_id, Patient.is_active == True)  # noqa: E712
+            .order_by(Patient.created_at.desc())
+            .limit(5)
+        )
+    recent_patients_list = [
+        {
+            "id": str(p.id),
+            "name": f"{p.first_name} {p.last_name}",
+            "phone": f"{p.phone_country_code}{p.phone}" if p.phone else "",
+            "intake_status": p.intake_status.value if p.intake_status else None,
+            "lead_source": p.lead_source.value if p.lead_source else None,
+            "created_at": p.created_at.isoformat() if p.created_at else None,
+        }
+        for p in rp_res.scalars().all()
+    ]
+
+    return {
+        "user": {
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+        },
+        "metrics": {
+            "today_appointments": today_appts,
+            "today_appointments_delta": today_appts - yest_appts,
+            "in_queue": in_queue,
+            "new_patients_week": new_week,
+            "leads_week": leads_week,
+            "leads_total": leads_total,
+            "active_plans": active_plans,
+            "revenue_mtd": float(revenue_mtd),
+            "revenue_last_month": float(revenue_last_month),
+            "currency": "MAD",
+        },
+        "today_appointments": today_appointments,
+        "recent_patients": recent_patients_list,
     }
 
 

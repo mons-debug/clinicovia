@@ -3,10 +3,34 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Button, Label, TextInput, Select, Checkbox } from "flowbite-react";
 import { Mail, Lock, User, Building2, Phone, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { CLINIC_TYPES, COUNTRY_CODES } from "@/lib/constants";
+
+function InputWithIcon({
+  Icon,
+  ...props
+}: { Icon?: React.ComponentType<{ className?: string }> } & React.InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <div className="relative">
+      {Icon && (
+        <Icon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
+      )}
+      <Input className={Icon ? "pl-9" : undefined} {...props} />
+    </div>
+  );
+}
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -17,7 +41,7 @@ export default function RegisterPage() {
     clinicName: "",
     clinicType: "",
     email: "",
-    countryCode: "+971",
+    countryCode: "+212",
     phone: "",
     password: "",
     confirmPassword: "",
@@ -42,7 +66,7 @@ export default function RegisterPage() {
     }
     setLoading(true);
     try {
-      // TODO: Connect to backend in Phase 1.1
+      // TODO: replaced by Clerk SignUp in W1.4
       toast.success("Account created! Please verify your email.");
       router.push("/login");
     } catch {
@@ -52,7 +76,6 @@ export default function RegisterPage() {
     }
   };
 
-  // Password strength
   const getPasswordStrength = () => {
     const p = form.password;
     if (!p) return { score: 0, label: "", color: "" };
@@ -61,50 +84,50 @@ export default function RegisterPage() {
     if (/[A-Z]/.test(p)) score++;
     if (/[0-9]/.test(p)) score++;
     if (/[^A-Za-z0-9]/.test(p)) score++;
-    if (score <= 1) return { score, label: "Weak", color: "bg-danger" };
-    if (score <= 2) return { score, label: "Medium", color: "bg-warning" };
-    return { score, label: "Strong", color: "bg-success" };
+    if (score <= 1) return { score, label: "Weak", color: "bg-[var(--danger)]" };
+    if (score <= 2) return { score, label: "Medium", color: "bg-[var(--warning)]" };
+    return { score, label: "Strong", color: "bg-[var(--success)]" };
   };
 
   const strength = getPasswordStrength();
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50/50 px-4 py-12">
+    <div className="flex min-h-screen items-center justify-center bg-[var(--background)] px-4 py-12">
       <div className="w-full max-w-[560px] rounded-2xl bg-white p-8 shadow-card">
         {/* Header */}
         <div className="mb-8 text-center">
           <div className="mb-4 flex items-center justify-center gap-2">
             <div
               className="flex h-9 w-9 items-center justify-center rounded-xl text-sm font-bold text-white"
-              style={{ backgroundColor: "#3EC8A0" }}
+              style={{ backgroundColor: "var(--primary-light)" }}
             >
               C
             </div>
-            <span className="text-xl font-bold" style={{ color: "var(--primary)" }}>
-              Clinicovia
-            </span>
+            <span className="text-xl font-bold text-[var(--primary)]">Clinicovia</span>
           </div>
-          <h2 className="text-2xl font-bold text-text-primary">Create Your Clinic Account</h2>
-          <p className="mt-1 text-sm text-text-secondary">Get started in 2 minutes — no credit card required</p>
+          <h2 className="text-2xl font-bold text-[var(--text-primary)]">Create Your Clinic Account</h2>
+          <p className="mt-1 text-sm text-[var(--text-secondary)]">
+            Get started in 2 minutes — no credit card required
+          </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
           {/* Name */}
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="firstName" className="mb-2 block">First Name</Label>
-              <TextInput
+            <div className="space-y-2">
+              <Label htmlFor="firstName">First Name</Label>
+              <InputWithIcon
                 id="firstName"
-                icon={User}
+                Icon={User}
                 placeholder="First name"
                 required
                 value={form.firstName}
                 onChange={(e) => updateForm("firstName", e.target.value)}
               />
             </div>
-            <div>
-              <Label htmlFor="lastName" className="mb-2 block">Last Name</Label>
-              <TextInput
+            <div className="space-y-2">
+              <Label htmlFor="lastName">Last Name</Label>
+              <Input
                 id="lastName"
                 placeholder="Last name"
                 required
@@ -115,11 +138,11 @@ export default function RegisterPage() {
           </div>
 
           {/* Clinic */}
-          <div>
-            <Label htmlFor="clinicName" className="mb-2 block">Clinic Name</Label>
-            <TextInput
+          <div className="space-y-2">
+            <Label htmlFor="clinicName">Clinic Name</Label>
+            <InputWithIcon
               id="clinicName"
-              icon={Building2}
+              Icon={Building2}
               placeholder="Your clinic name"
               required
               value={form.clinicName}
@@ -127,28 +150,32 @@ export default function RegisterPage() {
             />
           </div>
 
-          <div>
-            <Label htmlFor="clinicType" className="mb-2 block">Clinic Type</Label>
+          <div className="space-y-2">
+            <Label htmlFor="clinicType">Clinic Type</Label>
             <Select
-              id="clinicType"
-              required
               value={form.clinicType}
-              onChange={(e) => updateForm("clinicType", e.target.value)}
+              onValueChange={(v) => updateForm("clinicType", v)}
             >
-              <option value="">Select clinic type...</option>
-              {CLINIC_TYPES.map((type) => (
-                <option key={type} value={type}>{type}</option>
-              ))}
+              <SelectTrigger id="clinicType">
+                <SelectValue placeholder="Select clinic type..." />
+              </SelectTrigger>
+              <SelectContent>
+                {CLINIC_TYPES.map((type) => (
+                  <SelectItem key={type} value={type}>
+                    {type}
+                  </SelectItem>
+                ))}
+              </SelectContent>
             </Select>
           </div>
 
           {/* Contact */}
-          <div>
-            <Label htmlFor="email" className="mb-2 block">Email</Label>
-            <TextInput
+          <div className="space-y-2">
+            <Label htmlFor="email">Email</Label>
+            <InputWithIcon
               id="email"
               type="email"
-              icon={Mail}
+              Icon={Mail}
               placeholder="you@clinic.com"
               required
               value={form.email}
@@ -156,25 +183,29 @@ export default function RegisterPage() {
             />
           </div>
 
-          <div>
-            <Label htmlFor="phone" className="mb-2 block">Phone</Label>
+          <div className="space-y-2">
+            <Label htmlFor="phone">Phone</Label>
             <div className="flex gap-2">
               <Select
-                className="w-32"
                 value={form.countryCode}
-                onChange={(e) => updateForm("countryCode", e.target.value)}
+                onValueChange={(v) => updateForm("countryCode", v)}
               >
-                {COUNTRY_CODES.map((c) => (
-                  <option key={c.code} value={c.code}>
-                    {c.flag} {c.code}
-                  </option>
-                ))}
+                <SelectTrigger className="w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {COUNTRY_CODES.map((c) => (
+                    <SelectItem key={c.code} value={c.code}>
+                      {c.flag} {c.code}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
               </Select>
-              <TextInput
+              <InputWithIcon
                 id="phone"
                 type="tel"
-                icon={Phone}
-                placeholder="50 123 4567"
+                Icon={Phone}
+                placeholder="6 12 34 56 78"
                 className="flex-1"
                 required
                 value={form.phone}
@@ -184,12 +215,12 @@ export default function RegisterPage() {
           </div>
 
           {/* Password */}
-          <div>
-            <Label htmlFor="password" className="mb-2 block">Password</Label>
-            <TextInput
+          <div className="space-y-2">
+            <Label htmlFor="password">Password</Label>
+            <InputWithIcon
               id="password"
               type="password"
-              icon={Lock}
+              Icon={Lock}
               placeholder="Create a strong password"
               required
               value={form.password}
@@ -207,17 +238,17 @@ export default function RegisterPage() {
                     />
                   ))}
                 </div>
-                <p className="mt-1 text-xs text-text-secondary">{strength.label}</p>
+                <p className="mt-1 text-xs text-[var(--text-secondary)]">{strength.label}</p>
               </div>
             )}
           </div>
 
-          <div>
-            <Label htmlFor="confirmPassword" className="mb-2 block">Confirm Password</Label>
-            <TextInput
+          <div className="space-y-2">
+            <Label htmlFor="confirmPassword">Confirm Password</Label>
+            <InputWithIcon
               id="confirmPassword"
               type="password"
-              icon={Lock}
+              Icon={Lock}
               placeholder="Confirm your password"
               required
               value={form.confirmPassword}
@@ -227,22 +258,27 @@ export default function RegisterPage() {
 
           {/* Location */}
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="country" className="mb-2 block">Country</Label>
+            <div className="space-y-2">
+              <Label htmlFor="country">Country</Label>
               <Select
-                id="country"
                 value={form.country}
-                onChange={(e) => updateForm("country", e.target.value)}
+                onValueChange={(v) => updateForm("country", v)}
               >
-                <option value="">Select country</option>
-                {COUNTRY_CODES.map((c) => (
-                  <option key={c.country} value={c.country}>{c.country}</option>
-                ))}
+                <SelectTrigger id="country">
+                  <SelectValue placeholder="Select country" />
+                </SelectTrigger>
+                <SelectContent>
+                  {COUNTRY_CODES.map((c) => (
+                    <SelectItem key={c.country} value={c.country}>
+                      {c.country}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
               </Select>
             </div>
-            <div>
-              <Label htmlFor="city" className="mb-2 block">City</Label>
-              <TextInput
+            <div className="space-y-2">
+              <Label htmlFor="city">City</Label>
+              <Input
                 id="city"
                 placeholder="City"
                 value={form.city}
@@ -256,38 +292,34 @@ export default function RegisterPage() {
             <Checkbox
               id="terms"
               checked={form.agreeTerms}
-              onChange={(e) => updateForm("agreeTerms", e.target.checked)}
+              onCheckedChange={(checked) => updateForm("agreeTerms", checked === true)}
             />
-            <Label htmlFor="terms" className="text-sm">
+            <Label htmlFor="terms" className="text-sm leading-5">
               I agree to the{" "}
-              <a href="#" className="font-medium" style={{ color: "var(--primary-light)" }}>
+              <a href="#" className="font-medium text-[var(--primary-light)]">
                 Terms of Service
               </a>{" "}
               and{" "}
-              <a href="#" className="font-medium" style={{ color: "var(--primary-light)" }}>
+              <a href="#" className="font-medium text-[var(--primary-light)]">
                 Privacy Policy
               </a>
             </Label>
           </div>
 
-          <button
+          <Button
             type="submit"
             disabled={loading}
-            className="group flex w-full items-center justify-center gap-2 rounded-lg px-5 py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
-            style={{ backgroundColor: "var(--primary-light)" }}
+            size="lg"
+            className="w-full bg-[var(--primary-light)] hover:bg-[var(--primary-light)]/90"
           >
             {loading ? "Creating account..." : "Create Account"}
-            {!loading && <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />}
-          </button>
+            {!loading && <ArrowRight className="h-4 w-4" />}
+          </Button>
         </form>
 
-        <p className="mt-6 text-center text-sm text-text-secondary">
+        <p className="mt-6 text-center text-sm text-[var(--text-secondary)]">
           Already have an account?{" "}
-          <Link
-            href="/login"
-            className="font-semibold"
-            style={{ color: "var(--primary-light)" }}
-          >
+          <Link href="/login" className="font-semibold text-[var(--primary-light)]">
             Sign in
           </Link>
         </p>

@@ -91,7 +91,76 @@ async def get_or_create_conversation(
     db.add(conv)
     await db.commit()
     await db.refresh(conv)
+
+    # New conversation → upsert a Patient lead so reception sees them in
+    # the salle d'attente "À l'accueil" column.
+    await _auto_attach_patient(db, conv)
+
     return conv
+
+
+async def _auto_attach_patient(db: AsyncSession, conv: WhatsAppConversation) -> None:
+    """If the conversation has no patient yet, find one by phone or create
+    a fresh lead with intake_status=intake_pending so the queue board picks
+    it up. Idempotent + non-fatal if anything errors (best-effort)."""
+    from app.models.patient import (
+        ChannelPref,
+        IntakeStatus,
+        LeadSource,
+        Patient,
+        PatientStatus,
+    )
+    try:
+        if conv.patient_id:
+            return
+        phone = (conv.contact_phone or "").strip()
+        if not phone:
+            return
+
+        # Match an existing patient by phone (last 8 digits — handles
+        # mixed country-code formats).
+        last8 = phone[-8:]
+        existing = await db.execute(
+            select(Patient).where(
+                Patient.clinic_id == conv.clinic_id,
+                Patient.phone.ilike(f"%{last8}"),
+                Patient.is_active == True,  # noqa: E712
+            ).limit(1)
+        )
+        patient = existing.scalar_one_or_none()
+
+        if patient is None:
+            name = (conv.contact_name or "").strip() or f"WhatsApp {last8}"
+            parts = name.split(" ", 1)
+            first_name = parts[0]
+            last_name = parts[1] if len(parts) > 1 else "(WhatsApp)"
+
+            patient = Patient(
+                clinic_id=conv.clinic_id,
+                first_name=first_name,
+                last_name=last_name,
+                phone=phone,
+                phone_country_code="+212",
+                channel_pref=ChannelPref.WHATSAPP,
+                language_pref="fr",
+                lead_source=LeadSource.WHATSAPP,
+                status=PatientStatus.NEW,
+                # LEAD = chatting on WhatsApp, hasn't physically arrived
+                # yet. Stays out of /queue board + /calendar; visible only
+                # in /patients?filter=leads, the WA inbox, and the
+                # "Leads (7j)" dashboard KPI. Calendar "Arrivé" event
+                # promotes them to awaiting_doctor on first visit.
+                intake_status=IntakeStatus.LEAD,
+                requested_service="Demande WhatsApp",
+                whatsapp_id=conv.jid,
+            )
+            db.add(patient)
+            await db.flush()
+
+        conv.patient_id = patient.id
+        await db.commit()
+    except Exception:
+        await db.rollback()
 
 
 async def list_conversations(

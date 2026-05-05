@@ -129,8 +129,25 @@ const NAV_GROUPS: NavGroup[] = [
     module: "patients",
     children: [
       { label: "All Patients", href: "/patients", icon: Users },
-      { label: "Add Patient", href: "/patients/new", icon: UserPlus },
     ],
+  },
+  {
+    label: "Salle d'attente",
+    href: "/queue",
+    icon: ClipboardList,
+    module: "queue",
+  },
+  {
+    label: "Calendrier",
+    href: "/calendar",
+    icon: Calendar,
+    module: "calendar",
+  },
+  {
+    label: "Factures",
+    href: "/invoices",
+    icon: FileText,
+    module: "invoices",
   },
   {
     label: "Pipeline",
@@ -192,14 +209,10 @@ const NAV_GROUPS: NavGroup[] = [
     module: "doctors",
   },
   {
-    label: "Appointments",
-    href: "/appointments",
-    icon: Calendar,
-    module: "appointments",
-    children: [
-      { label: "Calendar", href: "/appointments", icon: Calendar },
-      { label: "Book New", href: "/appointments/new", icon: CalendarPlus },
-    ],
+    label: "Mes Services",
+    href: "/doctor/services",
+    icon: ClipboardList,
+    module: "doctor_services",
   },
   {
     label: "Analytics",

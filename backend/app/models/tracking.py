@@ -75,7 +75,7 @@ class ConversionEvent(Base, TenantMixin):
         UUID(as_uuid=True), ForeignKey("patients.id", ondelete="SET NULL"), nullable=True
     )
     value: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
-    currency: Mapped[str] = mapped_column(String(3), default="AED")
+    currency: Mapped[str] = mapped_column(String(3), default="MAD")
     status: Mapped[EventStatus] = mapped_column(Enum(EventStatus), default=EventStatus.PENDING)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     attempts: Mapped[int] = mapped_column(Integer, default=0)

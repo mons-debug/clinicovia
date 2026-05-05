@@ -4,6 +4,14 @@ from app.models.clinic import Clinic, ClinicMembership
 from app.models.patient import Patient, PatientNote, PatientActivity, PatientTag
 from app.models.pipeline import Deal, DealActivity
 from app.models.appointment import Appointment, Treatment
+from app.models.treatment_plan import TreatmentPlan, TreatmentSession
+from app.models.billing import Invoice, Payment, InvoiceCounter
+from app.models.prescription import Drug, Prescription, PrescriptionCounter
+from app.models.photo import BodyZone, PatientPhoto
+from app.models.consultation import Consultation, ConsultationCounter
+from app.models.screening import PatientScreening
+from app.models.consent import PatientConsent
+from app.models.doctor_service import DoctorService
 from app.models.form import Form, FormSubmission
 from app.models.whatsapp import WhatsAppSession, WhatsAppConversation, WhatsAppMessage
 from app.models.tracking import TrackingIntegration, EventMapping, ConversionEvent
@@ -26,6 +34,19 @@ __all__ = [
     "DealActivity",
     "Appointment",
     "Treatment",
+    "TreatmentPlan",
+    "TreatmentSession",
+    "Invoice",
+    "Payment",
+    "InvoiceCounter",
+    "Drug",
+    "Prescription",
+    "PrescriptionCounter",
+    "BodyZone",
+    "PatientPhoto",
+    "Consultation",
+    "ConsultationCounter",
+    "PatientScreening",
     "Form",
     "FormSubmission",
     "WhatsAppSession",
@@ -40,4 +61,5 @@ __all__ = [
     "AgentTask",
     "AgentEventLog",
     "KnowledgeBaseEntry",
+    "DoctorService",
 ]

@@ -1,9 +1,12 @@
 "use client";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { NextIntlClientProvider } from "next-intl";
 import { Toaster } from "sonner";
 import { useState, useEffect, useRef } from "react";
 import { useAuthStore } from "@/stores/auth-store";
+import { useLocaleStore } from "@/stores/locale-store";
+import { getMessages, isRtl, defaultLocale } from "@/lib/i18n";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -103,16 +106,32 @@ export function Providers({ children }: { children: React.ReactNode }) {
       })
   );
 
+  const locale = useLocaleStore((s) => s.locale) ?? defaultLocale;
+
+  useEffect(() => {
+    if (typeof document !== "undefined") {
+      document.documentElement.lang = locale;
+      document.documentElement.dir = isRtl(locale) ? "rtl" : "ltr";
+    }
+  }, [locale]);
+
   return (
-    <QueryClientProvider client={queryClient}>
-      <TokenRefresher />
-      {children}
-      <Toaster
-        position="top-right"
-        richColors
-        closeButton
-        duration={5000}
-      />
-    </QueryClientProvider>
+    <NextIntlClientProvider
+      locale={locale}
+      messages={getMessages(locale)}
+      timeZone="Africa/Casablanca"
+      now={new Date()}
+    >
+      <QueryClientProvider client={queryClient}>
+        <TokenRefresher />
+        {children}
+        <Toaster
+          position="top-right"
+          richColors
+          closeButton
+          duration={5000}
+        />
+      </QueryClientProvider>
+    </NextIntlClientProvider>
   );
 }
