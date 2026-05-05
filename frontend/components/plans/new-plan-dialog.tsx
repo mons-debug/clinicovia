@@ -325,7 +325,7 @@ export function NewPlanDialog({
           {triggerLabel}
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Nouveau plan de traitement</DialogTitle>
           <DialogDescription>
@@ -561,49 +561,64 @@ export function NewPlanDialog({
               )}
             </div>
 
-            {/* Projected dates */}
-            {projectedDates.length > 0 && autoSchedule && (
-              <div className="rounded-lg border border-[var(--border)] bg-white overflow-hidden">
-                <div className="flex items-center gap-1.5 px-3 py-2 bg-[var(--background)] border-b border-[var(--border)]">
-                  <CalendarDays className="h-3.5 w-3.5 text-[var(--text-muted)]" />
-                  <p className="text-xs font-bold text-[var(--text-primary)]">
-                    Dates projetées
+            {/* Generated séances timeline */}
+            {projectedDates.length > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-bold uppercase tracking-wider text-[var(--text-primary)]">
+                    Séances générées ({projectedDates.length})
+                  </p>
+                  <p className="text-xs text-[var(--text-muted)]">
+                    {computedTotal > 0 && `Total : ${computedTotal.toLocaleString("fr-FR")} MAD`}
                   </p>
                 </div>
-                <div className="divide-y divide-[var(--border)]">
+
+                <div className="rounded-xl border border-[var(--border)] bg-white overflow-hidden">
                   {projectedDates.map((d, i) => {
-                    const dayOfWeek =
-                      FR_DAYS[new Date(d).getDay()];
+                    const dayOfWeek = FR_DAYS[new Date(d).getDay()];
+                    const dateLabel = new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
                     const count = dayCounts.get(d) ?? 0;
                     const busy = count > 6;
+                    const isFirst = i === 0;
+                    const isLast = i === projectedDates.length - 1;
                     return (
-                      <div
-                        key={d}
-                        className="flex items-center justify-between px-3 py-2 text-xs"
-                      >
-                        <span className="flex items-center gap-2">
-                          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--primary-lighter)] text-[10px] font-bold text-[var(--primary)]">
+                      <div key={d} className={cn("flex items-center gap-4 px-4 py-3", !isLast && "border-b border-[var(--border)]")}>
+                        {/* Timeline dot */}
+                        <div className="flex flex-col items-center">
+                          <div className={cn(
+                            "flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold",
+                            isFirst ? "bg-[var(--primary)] text-white" : "bg-gray-100 text-[var(--text-muted)]"
+                          )}>
                             {i + 1}
-                          </span>
-                          <span className="text-[var(--text-muted)]">
-                            {dayOfWeek}{" "}
-                            {new Date(d).toLocaleDateString("fr-FR", {
-                              day: "numeric",
-                              month: "short",
-                            })}
-                          </span>
-                        </span>
-                        <span
-                          className={cn(
-                            "flex items-center gap-1",
-                            busy
-                              ? "font-bold text-amber-700"
-                              : "text-[var(--text-muted)]"
+                          </div>
+                        </div>
+                        {/* Séance info */}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-[var(--text-primary)]">
+                            Séance {i + 1} — {selectedService?.name ?? title}
+                          </p>
+                          <p className="text-xs text-[var(--text-muted)]">
+                            {dayOfWeek}. {dateLabel}{autoSchedule ? ` à ${defaultHour}h00` : ""}
+                            {selectedDoctorName && ` · ${selectedDoctorName}`}
+                          </p>
+                        </div>
+                        {/* Price + calendar load */}
+                        <div className="flex items-center gap-3 shrink-0">
+                          {sessionPrice && (
+                            <span className="font-mono text-xs font-medium text-[var(--text-primary)]">
+                              {Number(sessionPrice).toLocaleString("fr-FR")} MAD
+                            </span>
                           )}
-                        >
-                          {busy && <AlertTriangle className="h-3 w-3" />}
-                          {count} RDV
-                        </span>
+                          {autoSchedule && (
+                            <span className={cn(
+                              "flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium",
+                              busy ? "bg-amber-50 text-amber-700" : "bg-emerald-50 text-emerald-700"
+                            )}>
+                              {busy && <AlertTriangle className="h-3 w-3" />}
+                              {count} RDV ce jour
+                            </span>
+                          )}
+                        </div>
                       </div>
                     );
                   })}
