@@ -29,7 +29,7 @@ const settingCards: SettingCard[] = [
     description: "Manage your clinic info, logo, and branding",
     href: "/settings/clinic",
     icon: Building2,
-    iconColor: "#0D4F6C",
+    iconColor: "var(--primary)",
     iconBgColor: "#E0F2FE",
   },
   {
@@ -69,7 +69,7 @@ const settingCards: SettingCard[] = [
     description: "Configure AI agent behavior and knowledge",
     href: "/settings/ai-config",
     icon: Bot,
-    iconColor: "#0D4F6C",
+    iconColor: "var(--primary)",
     iconBgColor: "#E0F2FE",
   },
   {
@@ -85,7 +85,7 @@ const settingCards: SettingCard[] = [
     description: "Manage subscription and payments",
     href: "/settings/billing",
     icon: CreditCard,
-    iconColor: "#0D4F6C",
+    iconColor: "var(--primary)",
     iconBgColor: "#E0F2FE",
   },
 ];

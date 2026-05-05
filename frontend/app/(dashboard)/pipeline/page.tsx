@@ -254,7 +254,7 @@ export default function PipelinePage() {
                                     <div className="flex items-center gap-2">
                                       <div
                                         className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
-                                        style={{ backgroundColor: "#0D4F6C" }}
+                                        style={{ backgroundColor: "var(--primary)" }}
                                       >
                                         {initials}
                                       </div>

@@ -125,7 +125,7 @@ export default function PatientsPage() {
           const initials = `${p.first_name[0]}${p.last_name[0]}`;
           return (
             <Link href={`/patients/${p.id}`} className="flex items-center gap-3 group">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white" style={{ backgroundColor: "#0D4F6C" }}>
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white" style={{ backgroundColor: "var(--primary)" }}>
                 {initials}
               </div>
               <div>

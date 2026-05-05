@@ -49,7 +49,7 @@ export default function FormsPage() {
   };
 
   const statCards = [
-    { label: "Total Forms", value: stats?.total ?? 0, icon: FileText, color: "#0D4F6C", bg: "bg-sky-50" },
+    { label: "Total Forms", value: stats?.total ?? 0, icon: FileText, color: "var(--primary)", bg: "bg-sky-50" },
     { label: "Total Submissions", value: stats?.total_submissions ?? 0, icon: BarChart3, color: "#3EC8A0", bg: "bg-emerald-50" },
     { label: "Active Forms", value: stats?.active ?? 0, icon: CheckCircle, color: "#10B981", bg: "bg-green-50" },
   ];
@@ -155,7 +155,7 @@ export default function FormsPage() {
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-2.5">
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-50">
-                    <ClipboardList className="h-4 w-4 text-[#0D4F6C]" />
+                    <ClipboardList className="h-4 w-4 text-primary" />
                   </div>
                   <h3 className="text-sm font-semibold text-text-primary leading-tight">{form.title}</h3>
                 </div>

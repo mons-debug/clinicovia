@@ -106,7 +106,7 @@ export default function AppointmentsListPage() {
                   <tr key={apt.id} className="hover:bg-gray-50/50">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white" style={{ backgroundColor: "#0D4F6C" }}>
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white" style={{ backgroundColor: "var(--primary)" }}>
                           {apt.patient_initials}
                         </div>
                         <span className="font-medium text-text-primary">{apt.patient_name}</span>

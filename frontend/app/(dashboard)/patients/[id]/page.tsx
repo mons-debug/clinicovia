@@ -54,10 +54,7 @@ import { Badge } from "@/components/ui/badge";
 type TabKey = "overview" | "dossier" | "conversations" | "notes" | "activity";
 
 function shortTime(time: string): string {
-  const [h, m] = time.split(":").map(Number);
-  const ampm = h >= 12 ? "PM" : "AM";
-  const h12 = h % 12 || 12;
-  return `${h12}:${m.toString().padStart(2, "0")} ${ampm}`;
+  return time.slice(0, 5);
 }
 
 export default function PatientProfilePage(props: { params: Promise<{ id: string }> }) {
@@ -73,11 +70,11 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
   const { data: sessionCtx } = useSessionContext(id);
 
   const tabs: { key: TabKey; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-    ...(isDoctor ? [] : [{ key: "overview" as TabKey, label: "Overview", icon: User }]),
+    ...(isDoctor ? [] : [{ key: "overview" as TabKey, label: "Aperçu", icon: User }]),
     { key: "dossier", label: "Dossier", icon: FolderOpen },
     ...(isDoctor ? [] : [{ key: "conversations" as TabKey, label: "Conversations", icon: MessageSquare }]),
     { key: "notes", label: "Notes", icon: StickyNote },
-    ...(isDoctor ? [] : [{ key: "activity" as TabKey, label: "Activity", icon: Activity }]),
+    ...(isDoctor ? [] : [{ key: "activity" as TabKey, label: "Activité", icon: Activity }]),
   ];
   const connectedSessions = (sessionsData?.sessions || []).filter((s) => s.status === "connected");
   const { data: notes = [] } = usePatientNotes(id);
@@ -120,15 +117,15 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
 
   const handleAddNote = async () => {
     if (!noteContent.trim()) {
-      toast.error("Note content cannot be empty");
+      toast.error("Le contenu ne peut pas être vide");
       return;
     }
     try {
       await createNoteMutation.mutateAsync({ content: noteContent.trim() });
       setNoteContent("");
-      toast.success("Note added");
+      toast.success("Note ajoutée");
     } catch {
-      toast.error("Failed to add note");
+      toast.error("Erreur lors de l'ajout");
     }
   };
 
@@ -136,7 +133,7 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
     return (
       <div className="flex items-center justify-center p-12">
         <Loader2 className="h-6 w-6 animate-spin text-text-muted" />
-        <span className="ml-2 text-sm text-text-secondary">Loading patient...</span>
+        <span className="ml-2 text-sm text-text-secondary">Chargement...</span>
       </div>
     );
   }
@@ -149,12 +146,12 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
           className="inline-flex items-center gap-1.5 text-sm font-medium text-text-secondary transition-colors hover:text-text-primary"
         >
           <ArrowLeft className="h-4 w-4" />
-          Back to Patients
+          Retour aux patients
         </Link>
         <div className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 p-4">
           <AlertCircle className="h-5 w-5 text-red-500" />
           <p className="text-sm text-red-700">
-            {error instanceof Error ? error.message : "Patient not found"}
+            {error instanceof Error ? error.message : "Patient introuvable"}
           </p>
         </div>
       </div>
@@ -171,7 +168,7 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
         className="inline-flex items-center gap-1.5 text-sm font-medium text-text-secondary transition-colors hover:text-text-primary"
       >
         <ArrowLeft className="h-4 w-4" />
-        Back to Patients
+        Retour aux patients
       </Link>
 
       {/* Patient header card */}
@@ -179,8 +176,7 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex items-start gap-4">
             <div
-              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-lg font-bold text-white"
-              style={{ backgroundColor: "#0D4F6C" }}
+              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-lg font-bold text-white bg-primary"
             >
               {p.first_name[0]}{p.last_name[0]}
             </div>
@@ -313,12 +309,12 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
       {activeTab === "overview" && (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <div className="rounded-xl border border-border bg-white p-5 lg:col-span-2">
-            <h3 className="text-base font-semibold text-text-primary">Patient Details</h3>
+            <h3 className="text-base font-semibold text-text-primary">Informations patient</h3>
             <div className="mt-4 grid grid-cols-2 gap-4">
               {[
-                { label: "Full Name", value: `${p.first_name} ${p.last_name}` },
-                { label: "Gender", value: p.gender ? p.gender.charAt(0).toUpperCase() + p.gender.slice(1) : "--" },
-                { label: "Date of Birth", value: p.date_of_birth || "--" },
+                { label: "Nom complet", value: `${p.first_name} ${p.last_name}` },
+                { label: "Genre", value: p.gender ? p.gender.charAt(0).toUpperCase() + p.gender.slice(1) : "--" },
+                { label: "Date de naissance", value: p.date_of_birth || "--" },
                 { label: "Lead Source", value: p.lead_source || "--" },
                 { label: "Treatment Interests", value: p.treatment_interests || "--" },
                 { label: "Address", value: [p.city, p.country].filter(Boolean).join(", ") || "--" },
@@ -350,7 +346,7 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
                 </div>
               ))}
               {activities.length === 0 && (
-                <p className="text-xs text-text-muted">No activity yet</p>
+                <p className="text-xs text-text-muted">Aucune activité</p>
               )}
             </div>
           </div>
@@ -625,7 +621,7 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
           {/* Add note */}
           <div className="rounded-xl border border-border bg-white p-4">
             <textarea
-              placeholder="Add a note..."
+              placeholder="Ajouter une note..."
               rows={2}
               value={noteContent}
               onChange={(e) => setNoteContent(e.target.value)}
@@ -638,7 +634,7 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
                 className="rounded-lg px-4 py-1.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-60"
                 style={{ backgroundColor: "var(--primary-light)" }}
               >
-                {createNoteMutation.isPending ? "Saving..." : "Save Note"}
+                {createNoteMutation.isPending ? "Enregistrement..." : "Enregistrer"}
               </button>
             </div>
           </div>
@@ -658,7 +654,7 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
 
           {notes.length === 0 && (
             <div className="rounded-xl border border-border bg-white p-6 text-center">
-              <p className="text-sm text-text-secondary">No notes yet. Add your first note above.</p>
+              <p className="text-sm text-text-secondary">Aucune note. Ajoutez votre première note ci-dessus.</p>
             </div>
           )}
         </div>
@@ -684,7 +680,7 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
             </div>
           ) : (
             <div className="p-6 text-center">
-              <p className="text-sm text-text-secondary">No activity recorded yet.</p>
+              <p className="text-sm text-text-secondary">Aucune activité enregistrée.</p>
             </div>
           )}
         </div>

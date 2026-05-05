@@ -268,7 +268,7 @@ export default function WhatsAppInboxPage() {
                     >
                       <div
                         className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
-                        style={{ backgroundColor: "#0D4F6C" }}
+                        style={{ backgroundColor: "var(--primary)" }}
                       >
                         {p.first_name[0]}{p.last_name[0]}
                       </div>
@@ -316,7 +316,7 @@ export default function WhatsAppInboxPage() {
                 <div className="relative">
                   <div
                     className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
-                    style={{ backgroundColor: "#0D4F6C" }}
+                    style={{ backgroundColor: "var(--primary)" }}
                   >
                     {getInitials(conv.contact_name)}
                   </div>
@@ -350,7 +350,7 @@ export default function WhatsAppInboxPage() {
             {/* Chat header */}
             <div className="flex items-center justify-between border-b border-border px-4 py-3">
               <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold text-white" style={{ backgroundColor: "#0D4F6C" }}>
+                <div className="flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold text-white" style={{ backgroundColor: "var(--primary)" }}>
                   {getInitials(activeConv.contact_name)}
                 </div>
                 <div>
@@ -511,7 +511,7 @@ export default function WhatsAppInboxPage() {
             <div className="mt-2 max-h-48 space-y-1 overflow-y-auto">
               {conversations.filter((c) => c.id !== selectedConvId).map((conv) => (
                 <button key={conv.id} onClick={() => handleForward(forwardMsg, conv.id)} className="flex w-full items-center gap-2 rounded-lg p-2 text-left hover:bg-gray-50">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white" style={{ backgroundColor: "#0D4F6C" }}>
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white" style={{ backgroundColor: "var(--primary)" }}>
                     {getInitials(conv.contact_name)}
                   </div>
                   <div className="min-w-0">
@@ -689,7 +689,7 @@ function PatientInfoPanel({ conversation }: { conversation: Conversation }) {
   return (
     <div className="w-[280px] shrink-0 overflow-y-auto border-l border-border p-4">
       <div className="text-center">
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full text-lg font-bold text-white" style={{ backgroundColor: "#0D4F6C" }}>
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full text-lg font-bold text-white" style={{ backgroundColor: "var(--primary)" }}>
           {getInitials(conversation.contact_name)}
         </div>
         <h3 className="mt-3 text-sm font-bold text-text-primary">

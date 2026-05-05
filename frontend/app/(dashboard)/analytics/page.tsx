@@ -16,7 +16,7 @@ const revenueData = [
 ];
 
 const leadSources = [
-  { name: "WhatsApp", pct: 35, color: "#0D4F6C" },
+  { name: "WhatsApp", pct: 35, color: "var(--primary)" },
   { name: "Instagram", pct: 25, color: "#3EC8A0" },
   { name: "Google Ads", pct: 20, color: "#60A5FA" },
   { name: "Referral", pct: 12, color: "#F59E0B" },
@@ -61,7 +61,7 @@ export default function AnalyticsPage() {
               }`}
               style={
                 activeRange === range
-                  ? { backgroundColor: "#0D4F6C" }
+                  ? { backgroundColor: "var(--primary)" }
                   : undefined
               }
             >
@@ -79,7 +79,7 @@ export default function AnalyticsPage() {
           change="+12%"
           changeType="up"
           icon={DollarSign}
-          iconColor="#0D4F6C"
+          iconColor="var(--primary)"
           iconBgColor="#E0F2FE"
         />
         <KpiCard
@@ -131,7 +131,7 @@ export default function AnalyticsPage() {
                 className="w-full rounded-t-md transition-all"
                 style={{
                   height: `${(d.value / maxRevenue) * 160}px`,
-                  backgroundColor: "#0D4F6C",
+                  backgroundColor: "var(--primary)",
                   opacity: 0.7 + (d.value / maxRevenue) * 0.3,
                 }}
               />
@@ -216,7 +216,7 @@ export default function AnalyticsPage() {
                 <div
                   className="flex w-full items-center justify-center rounded-lg py-4 text-white"
                   style={{
-                    backgroundColor: "#0D4F6C",
+                    backgroundColor: "var(--primary)",
                     opacity,
                     width: `${widthPct}%`,
                     margin: "0 auto",

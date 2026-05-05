@@ -161,7 +161,7 @@ export default function NewDealPage() {
                       >
                         <div
                           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
-                          style={{ backgroundColor: "#0D4F6C" }}
+                          style={{ backgroundColor: "var(--primary)" }}
                         >
                           {p.first_name[0]}{p.last_name[0]}
                         </div>

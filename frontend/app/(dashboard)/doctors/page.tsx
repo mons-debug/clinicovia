@@ -105,7 +105,7 @@ export default function DoctorsPage() {
                 <div className="flex items-center gap-3">
                   <div
                     className="flex h-11 w-11 items-center justify-center rounded-full text-sm font-bold text-white"
-                    style={{ backgroundColor: "#0D4F6C" }}
+                    style={{ backgroundColor: "var(--primary)" }}
                   >
                     {doctor.first_name[0]}{doctor.last_name[0]}
                   </div>

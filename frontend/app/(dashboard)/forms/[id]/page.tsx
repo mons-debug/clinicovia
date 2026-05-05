@@ -52,7 +52,7 @@ export default function FormDetailPage(props: { params: Promise<{ id: string }> 
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <div className="flex items-center gap-3">
-              <ClipboardList className="h-6 w-6 text-[#0D4F6C]" />
+              <ClipboardList className="h-6 w-6 text-primary" />
               <h1 className="text-xl font-bold text-text-primary">{form.title}</h1>
               <StatusBadge status={form.status.charAt(0).toUpperCase() + form.status.slice(1)} variant={getStatusVariant(form.status)} dot />
             </div>
