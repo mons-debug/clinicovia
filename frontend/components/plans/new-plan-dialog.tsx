@@ -36,8 +36,9 @@ import {
 
 import { useCreatePlan } from "@/lib/api/plans";
 import { useCalendarRange } from "@/lib/api/calendar";
-import { useAllServices } from "@/lib/api/doctor-services";
+import { useAllServices, useMyServices } from "@/lib/api/doctor-services";
 import { DoctorServiceSelect } from "@/components/queue/walk-in-dialog";
+import { useAuthStore } from "@/stores/auth-store";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -49,7 +50,7 @@ interface Props {
 const FR_DAYS = ["dim", "lun", "mar", "mer", "jeu", "ven", "sam"];
 
 const STEPS = [
-  { label: "Médecin & Service", short: "1" },
+  { label: "Service", short: "1" },
   { label: "Détails du plan", short: "2" },
   { label: "Aperçu", short: "3" },
 ];
@@ -194,6 +195,8 @@ export function NewPlanDialog({
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(0);
   const router = useRouter();
+  const { currentRole, user } = useAuthStore();
+  const isDoctor = currentRole === "doctor";
 
   const [title, setTitle] = useState("");
   const [selectedDoctorId, setSelectedDoctorId] = useState("");
@@ -209,22 +212,28 @@ export function NewPlanDialog({
   const [autoSchedule, setAutoSchedule] = useState(true);
   const [defaultHour, setDefaultHour] = useState(10);
 
+  // Doctor sees only their services, admin/reception sees all
+  const { data: myServices } = useMyServices();
   const { data: serviceGroups } = useAllServices();
 
   const selectedService = useMemo(() => {
+    if (isDoctor && myServices) {
+      return myServices.find((s) => s.id === selectedServiceId) ?? null;
+    }
     if (!serviceGroups || !selectedServiceId) return null;
     for (const g of serviceGroups) {
       const s = g.services.find((sv) => sv.id === selectedServiceId);
       if (s) return s;
     }
     return null;
-  }, [serviceGroups, selectedServiceId]);
+  }, [isDoctor, myServices, serviceGroups, selectedServiceId]);
 
   const selectedDoctorName = useMemo(() => {
+    if (isDoctor && user) return `Dr. ${user.firstName} ${user.lastName}`;
     if (!serviceGroups || !selectedDoctorId) return "";
     const g = serviceGroups.find((g) => g.doctor_id === selectedDoctorId);
     return g?.doctor_name ?? "";
-  }, [serviceGroups, selectedDoctorId]);
+  }, [isDoctor, user, serviceGroups, selectedDoctorId]);
 
   const projectedDates = useMemo(() => {
     if (!startDate || totalSessions < 1) return [];
@@ -275,7 +284,7 @@ export function NewPlanDialog({
     }
   };
 
-  const canGoToStep2 = selectedDoctorId.length > 0;
+  const canGoToStep2 = isDoctor ? selectedServiceId.length > 0 : selectedDoctorId.length > 0;
   const canGoToStep3 = title.trim().length > 0 && totalSessions >= 1;
 
   const submit = async () => {
@@ -340,27 +349,48 @@ export function NewPlanDialog({
         {/* Step indicator */}
         <StepIndicator currentStep={step} totalSteps={3} />
 
-        {/* ─── Step 1: Doctor & Service ────────────────── */}
+        {/* ─── Step 1: Service selection ────────────────── */}
         {step === 0 && (
           <div className="space-y-4">
-            <DoctorServiceSelect
-              selectedDoctorId={selectedDoctorId}
-              selectedServiceId={selectedServiceId}
-              onDoctorChange={setSelectedDoctorId}
-              onServiceChange={handleServiceChange}
-            />
-            {selectedService && (
-              <div className="rounded-lg border border-[var(--border)] bg-[var(--background)] p-3">
-                <p className="text-xs font-medium text-[var(--text-primary)]">
-                  {selectedService.name}
-                </p>
-                <p className="text-[11px] text-[var(--text-muted)] mt-0.5">
-                  {selectedService.duration_minutes} min ·{" "}
-                  {selectedService.default_price > 0
-                    ? `${selectedService.default_price.toLocaleString("fr-FR")} MAD`
-                    : "Prix non défini"}
-                </p>
+            {isDoctor ? (
+              /* Doctor: show only their own services */
+              <div className="space-y-2">
+                <Label className="text-xs">Choisir un service</Label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {(myServices ?? []).map((svc) => (
+                    <button
+                      key={svc.id}
+                      type="button"
+                      onClick={() => handleServiceChange(svc.id)}
+                      className={cn(
+                        "flex items-center justify-between rounded-xl border p-3 text-left transition-all",
+                        selectedServiceId === svc.id
+                          ? "border-[var(--primary)] bg-[var(--primary-lighter)] ring-1 ring-[var(--primary)]"
+                          : "border-[var(--border)] hover:border-[var(--primary)] hover:shadow-sm"
+                      )}
+                    >
+                      <div>
+                        <p className="text-sm font-medium text-[var(--text-primary)]">{svc.name}</p>
+                        <p className="text-[11px] text-[var(--text-muted)] mt-0.5">
+                          {svc.duration_minutes} min
+                          {svc.default_price > 0 && ` · ${svc.default_price.toLocaleString("fr-FR")} MAD`}
+                        </p>
+                      </div>
+                      {selectedServiceId === svc.id && (
+                        <div className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--primary)] text-white text-[10px]">✓</div>
+                      )}
+                    </button>
+                  ))}
+                </div>
               </div>
+            ) : (
+              /* Admin/Reception: show doctor + service dropdowns */
+              <DoctorServiceSelect
+                selectedDoctorId={selectedDoctorId}
+                selectedServiceId={selectedServiceId}
+                onDoctorChange={setSelectedDoctorId}
+                onServiceChange={handleServiceChange}
+              />
             )}
           </div>
         )}
