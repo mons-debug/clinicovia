@@ -11,6 +11,7 @@ interface User {
   avatarUrl?: string;
   isVerified: boolean;
   isSuperAdmin: boolean;
+  specialty?: string | null;
 }
 
 interface Clinic {

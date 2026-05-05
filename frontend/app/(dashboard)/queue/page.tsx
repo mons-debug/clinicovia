@@ -522,9 +522,7 @@ export default function QueuePage() {
             </span>
           </p>
         </div>
-        {!isDoctor && (
-          <WalkInDialog />
-        )}
+        <WalkInDialog />
       </div>
 
       {/* Kanban columns */}

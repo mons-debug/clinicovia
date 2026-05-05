@@ -91,6 +91,7 @@ export default function LoginPage() {
           lastName: u.last_name,
           isVerified: u.is_verified,
           isSuperAdmin: u.is_super_admin,
+          specialty: u.specialty ?? null,
         },
         data.tokens.access_token,
         data.tokens.refresh_token,

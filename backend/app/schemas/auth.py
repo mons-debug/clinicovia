@@ -52,6 +52,7 @@ class UserResponse(BaseModel):
     is_active: bool
     is_verified: bool
     is_super_admin: bool
+    specialty: str | None = None
 
     model_config = {"from_attributes": True}
 
