@@ -11,12 +11,25 @@ import {
   Calendar,
   User,
   Play,
+  FolderPlus,
+  ClipboardList,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { NewPlanDialog } from "@/components/plans/new-plan-dialog";
 import { CommencerSeanceDialog } from "@/components/plans/commencer-seance-dialog";
 import { NewInvoiceDialog } from "@/components/billing/new-invoice-dialog";
@@ -138,6 +151,124 @@ function fmtShort(d: string | null): string {
   });
 }
 
+/* ─── New Programme Dialog ─────────────────────────────────── */
+function NewProgrammeDialog({
+  patientId,
+  triggerVariant = "outline",
+}: {
+  patientId: string;
+  triggerVariant?: "outline" | "default";
+}) {
+  const [open, setOpen] = useState(false);
+  const [title, setTitle] = useState("");
+  const [notes, setNotes] = useState("");
+  const createProgramme = useCreateProgramme();
+
+  const reset = () => {
+    setTitle("");
+    setNotes("");
+  };
+
+  const handleCreate = () => {
+    if (!title.trim()) return;
+    createProgramme.mutate(
+      {
+        patient_id: patientId,
+        title: title.trim(),
+        notes: notes.trim() || null,
+      },
+      {
+        onSuccess: () => {
+          toast.success("Programme créé");
+          reset();
+          setOpen(false);
+        },
+      }
+    );
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) reset(); }}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant={triggerVariant}>
+          <Plus className="h-3 w-3" />
+          Nouveau programme
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Nouveau programme</DialogTitle>
+          <DialogDescription>
+            Regroupez plusieurs plans de traitement sous un programme.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 py-2">
+          {/* Icon + title */}
+          <div className="flex items-start gap-4">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[var(--primary-lighter)]">
+              <FolderPlus className="h-5 w-5 text-[var(--primary)]" />
+            </div>
+            <div className="flex-1 space-y-2">
+              <Label htmlFor="prog-title" className="text-xs">
+                Nom du programme
+              </Label>
+              <Input
+                id="prog-title"
+                placeholder="ex. Rajeunissement visage"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && title.trim()) handleCreate();
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Notes */}
+          <div className="space-y-2">
+            <Label htmlFor="prog-notes" className="text-xs">
+              Notes (optionnel)
+            </Label>
+            <Textarea
+              id="prog-notes"
+              placeholder="Objectifs, remarques cliniques..."
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={3}
+              className="resize-none"
+            />
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => { reset(); setOpen(false); }}>
+            Annuler
+          </Button>
+          <Button
+            onClick={handleCreate}
+            disabled={!title.trim() || createProgramme.isPending}
+            className="gap-2"
+          >
+            {createProgramme.isPending ? (
+              <>
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Création...
+              </>
+            ) : (
+              <>
+                <Plus className="h-3 w-3" />
+                Créer le programme
+              </>
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 /* ─── Inline Séance Detail (expanded inside plan card) ──────── */
 function InlineSeanceDetail({
   planId,
@@ -161,9 +292,9 @@ function InlineSeanceDetail({
   const { plan, sessions, invoices: planInvoices } = timeline;
 
   return (
-    <div className="mt-2 rounded-lg border border-[var(--border)] bg-white overflow-hidden">
+    <div className="mt-3 rounded-xl border border-[var(--border)] bg-white overflow-hidden shadow-sm">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--border)] bg-[var(--background)]">
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-[var(--border)] bg-[var(--background)]">
         <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
           Séances — {plan.primary_service || plan.title}
         </p>
@@ -171,6 +302,13 @@ function InlineSeanceDetail({
           {sessions.filter((e) => e.session.status === "completed").length}/
           {plan.total_sessions} terminées
         </span>
+      </div>
+
+      {/* Segmented progress */}
+      <div className="px-4 pt-2.5 pb-1">
+        <SegmentedProgress
+          sessions={sessions.map((e) => ({ status: e.session.status }))}
+        />
       </div>
 
       {/* Séance rows */}
@@ -190,14 +328,14 @@ function InlineSeanceDetail({
             <div
               key={s.id}
               className={cn(
-                "flex items-center gap-3 px-3 py-2 text-xs",
+                "flex items-center gap-3 px-4 py-3 text-xs",
                 s.status === "in_progress" && "bg-blue-50/50"
               )}
             >
               {/* Number circle */}
               <span
                 className={cn(
-                  "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold",
+                  "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold",
                   s.status === "completed"
                     ? "bg-[var(--success)] text-white"
                     : s.status === "in_progress"
@@ -231,7 +369,7 @@ function InlineSeanceDetail({
 
               {/* Price */}
               {s.session_price != null && s.session_price > 0 && (
-                <span className="font-mono text-[10px] text-[var(--text-muted)]">
+                <span className="font-mono text-[11px] text-[var(--text-muted)]">
                   {s.session_price.toLocaleString("fr-FR")} MAD
                 </span>
               )}
@@ -343,7 +481,7 @@ function PlanCard({
           type="button"
           onClick={onToggle}
           className={cn(
-            "w-full rounded-xl border p-3 text-left transition-all",
+            "w-full rounded-xl border p-4 text-left transition-all",
             isSelected
               ? "border-[var(--primary)] bg-[var(--primary-lighter)] shadow-sm"
               : "border-[var(--border)] bg-white hover:border-[var(--primary)] hover:shadow-sm"
@@ -361,7 +499,7 @@ function PlanCard({
   return (
     <Link
       href={`/plans/${plan.id}`}
-      className="block rounded-xl border border-[var(--border)] bg-white p-3 transition-all hover:border-[var(--primary)] hover:shadow-sm"
+      className="block rounded-xl border border-[var(--border)] bg-white p-4 transition-all hover:border-[var(--primary)] hover:shadow-sm"
     >
       {content}
     </Link>
@@ -377,9 +515,6 @@ export function ProgrammePlansSection({
   const plans: TreatmentPlan[] = plansData?.plans ?? [];
   const { data: programmesData } = usePatientProgrammes(patientId);
   const programmes = programmesData?.programmes ?? [];
-  const createProgramme = useCreateProgramme();
-  const [newProgTitle, setNewProgTitle] = useState("");
-  const [showNewProg, setShowNewProg] = useState(false);
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
 
   const standalonePlans = plans.filter((p) => !p.programme_id);
@@ -407,74 +542,104 @@ export function ProgrammePlansSection({
 
       {/* Programmes */}
       {programmes.map((prog) => {
-        const progPct =
-          prog.total_sessions > 0
-            ? Math.round((prog.completed_sessions / prog.total_sessions) * 100)
-            : 0;
+        // Build a flat array of session statuses across all plans for the progress bar
+        const allSessions: Array<{ status: string }> = [];
+        for (const p of prog.plans) {
+          const completed = p.completed_sessions;
+          const remaining = p.total_sessions - completed;
+          for (let i = 0; i < completed; i++) allSessions.push({ status: "completed" });
+          for (let i = 0; i < remaining; i++) allSessions.push({ status: "planned" });
+        }
 
         return (
           <Card key={prog.id} className="overflow-hidden">
             {/* Programme header */}
-            <div className="flex items-center justify-between p-4 border-b border-[var(--border)]">
-              <div className="flex items-center gap-3">
-                <ProgressRing
-                  completed={prog.completed_sessions}
-                  total={prog.total_sessions}
-                  size={44}
-                />
-                <div>
-                  <p className="text-sm font-bold text-[var(--text-primary)]">
-                    {prog.title}
-                  </p>
-                  <p className="text-[11px] text-[var(--text-muted)]">
-                    {prog.plans.length} plan
-                    {prog.plans.length > 1 ? "s" : ""} ·{" "}
-                    {prog.total_cost.toLocaleString("fr-FR")} MAD
-                  </p>
+            <div className="p-4 pb-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <ProgressRing
+                    completed={prog.completed_sessions}
+                    total={prog.total_sessions}
+                    size={44}
+                  />
+                  <div>
+                    <p className="text-sm font-bold text-[var(--text-primary)]">
+                      {prog.title}
+                    </p>
+                    <p className="text-[11px] text-[var(--text-muted)]">
+                      {prog.plans.length} plan
+                      {prog.plans.length > 1 ? "s" : ""} ·{" "}
+                      {prog.total_cost.toLocaleString("fr-FR")} MAD
+                    </p>
+                  </div>
                 </div>
+                <Badge
+                  variant={prog.status === "active" ? "default" : "outline"}
+                  className="text-[10px]"
+                >
+                  {prog.status === "active" ? "Actif" : "Terminé"}
+                </Badge>
               </div>
-              <Badge
-                variant={prog.status === "active" ? "default" : "outline"}
-                className="text-[10px]"
-              >
-                {prog.status === "active" ? "Actif" : "Terminé"}
-              </Badge>
+              {/* Segmented progress bar under header */}
+              {allSessions.length > 0 && (
+                <div className="mt-3">
+                  <SegmentedProgress sessions={allSessions} />
+                </div>
+              )}
             </div>
 
-            {/* Plans inside programme */}
-            <div className="p-3 space-y-2">
-              {prog.plans.length === 0 && (
-                <p className="text-xs text-[var(--text-muted)] py-2 text-center">
-                  Aucun plan dans ce programme.
-                </p>
+            {/* Plans inside programme — connected with left border */}
+            <div className="px-4 pb-4 space-y-2">
+              {prog.plans.length === 0 ? (
+                <div className="rounded-xl border-2 border-dashed border-[var(--border)] bg-[var(--background)] p-6 text-center">
+                  <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-gray-100">
+                    <ClipboardList className="h-4 w-4 text-[var(--text-muted)]" />
+                  </div>
+                  <p className="text-xs font-medium text-[var(--text-primary)]">
+                    Aucun plan dans ce programme
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-[var(--text-muted)]">
+                    Ajoutez un premier plan pour commencer le suivi.
+                  </p>
+                  <div className="mt-3">
+                    <NewPlanDialog
+                      patientId={patientId}
+                      programmeId={prog.id}
+                      triggerLabel="Ajouter un plan"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="ml-1 border-l-2 border-[var(--primary-lighter)] pl-3 space-y-2">
+                  {prog.plans.map((pp) => (
+                    <PlanCard
+                      key={pp.id}
+                      plan={{
+                        id: pp.id,
+                        title: pp.title,
+                        primary_service: pp.primary_service,
+                        status: pp.status,
+                        total_sessions: pp.total_sessions,
+                        completed_sessions: pp.completed_sessions,
+                        estimated_total: pp.estimated_total,
+                      }}
+                      patientId={patientId}
+                      inline={inline}
+                      isSelected={selectedPlanId === pp.id}
+                      onToggle={() =>
+                        setSelectedPlanId(
+                          selectedPlanId === pp.id ? null : pp.id
+                        )
+                      }
+                    />
+                  ))}
+                  <NewPlanDialog
+                    patientId={patientId}
+                    programmeId={prog.id}
+                    triggerLabel="+ Ajouter un plan"
+                  />
+                </div>
               )}
-              {prog.plans.map((pp) => (
-                <PlanCard
-                  key={pp.id}
-                  plan={{
-                    id: pp.id,
-                    title: pp.title,
-                    primary_service: pp.primary_service,
-                    status: pp.status,
-                    total_sessions: pp.total_sessions,
-                    completed_sessions: pp.completed_sessions,
-                    estimated_total: pp.estimated_total,
-                  }}
-                  patientId={patientId}
-                  inline={inline}
-                  isSelected={selectedPlanId === pp.id}
-                  onToggle={() =>
-                    setSelectedPlanId(
-                      selectedPlanId === pp.id ? null : pp.id
-                    )
-                  }
-                />
-              ))}
-              <NewPlanDialog
-                patientId={patientId}
-                programmeId={prog.id}
-                triggerLabel="+ Ajouter un plan"
-              />
             </div>
           </Card>
         );
@@ -513,58 +678,8 @@ export function ProgrammePlansSection({
       {/* Actions */}
       {hasContent && (
         <div className="flex gap-2">
-          {showNewProg ? (
-            <div className="flex flex-1 gap-2">
-              <Input
-                placeholder="ex. Rajeunissement visage"
-                value={newProgTitle}
-                onChange={(e) => setNewProgTitle(e.target.value)}
-                className="flex-1"
-                autoFocus
-              />
-              <Button
-                size="sm"
-                onClick={() => {
-                  if (!newProgTitle.trim()) return;
-                  createProgramme.mutate(
-                    {
-                      patient_id: patientId,
-                      title: newProgTitle.trim(),
-                    },
-                    {
-                      onSuccess: () => {
-                        toast.success("Programme créé");
-                        setNewProgTitle("");
-                        setShowNewProg(false);
-                      },
-                    }
-                  );
-                }}
-                disabled={createProgramme.isPending}
-              >
-                Créer
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setShowNewProg(false)}
-              >
-                Annuler
-              </Button>
-            </div>
-          ) : (
-            <>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setShowNewProg(true)}
-              >
-                <Plus className="h-3 w-3" />
-                Nouveau programme
-              </Button>
-              <NewPlanDialog patientId={patientId} />
-            </>
-          )}
+          <NewProgrammeDialog patientId={patientId} />
+          <NewPlanDialog patientId={patientId} />
         </div>
       )}
     </div>
