@@ -32,6 +32,7 @@ import {
 import type { Patient } from "@/lib/api/patients";
 import { useSignConsent } from "@/lib/api/consents";
 import { useRecordPayment } from "@/lib/api/invoices";
+import { FactureReviewDialog } from "@/components/queue/facture-review-dialog";
 import { useAuthStore } from "@/stores/auth-store";
 import { cn } from "@/lib/utils";
 
@@ -291,21 +292,22 @@ function InRoomDocumentChips({ docs }: { docs: InRoomDocuments }) {
       {/* Consent */}
       {docs.consent_id && (
         <div className="rounded-md border border-emerald-200 bg-white p-2.5">
-          <div className="flex items-center justify-between mb-1">
+          <div className="flex flex-wrap items-center gap-1.5 mb-1">
             <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-800">
-              <FileText className="h-3.5 w-3.5" />
+              <FileText className="h-3.5 w-3.5 shrink-0" />
               Consentement
             </span>
+            <span className="flex-1" />
             {docs.consent_status === "signed" ? (
               <span className="flex items-center gap-1 text-[11px] font-medium text-emerald-700">
                 <CheckCircle2 className="h-3.5 w-3.5" /> Signé
               </span>
             ) : (
-              <div className="flex gap-1.5">
+              <div className="flex flex-wrap gap-1.5">
                 <Button size="sm" variant="outline" className="h-6 text-[11px]" onClick={() => window.open(`/api/v1/consents/${docs.consent_id}/pdf`, '_blank')}>
                   Imprimer
                 </Button>
-                <Button size="sm" className="h-6 text-[11px] bg-amber-500 hover:bg-amber-600" onClick={handleSign} disabled={signConsent.isPending}>
+                <Button size="sm" className="h-6 text-[11px] bg-amber-500 hover:bg-amber-600 whitespace-nowrap" onClick={handleSign} disabled={signConsent.isPending}>
                   Signé par patient
                 </Button>
               </div>
@@ -320,19 +322,31 @@ function InRoomDocumentChips({ docs }: { docs: InRoomDocuments }) {
       {/* Facture */}
       {docs.invoice_id && (
         <div className="rounded-md border border-emerald-200 bg-white p-2.5">
-          <div className="flex items-center justify-between mb-1">
+          <div className="flex flex-wrap items-center gap-1.5 mb-1">
             <Link href={`/invoices/${docs.invoice_id}`} className="flex items-center gap-1.5 text-xs font-medium text-emerald-800 hover:underline">
-              <Receipt className="h-3.5 w-3.5" />
+              <Receipt className="h-3.5 w-3.5 shrink-0" />
               Facture · {docs.invoice_total?.toLocaleString("fr-FR")} MAD
             </Link>
+            <span className="flex-1" />
             {docs.invoice_status === "paid" ? (
               <span className="flex items-center gap-1 text-[11px] font-medium text-emerald-700">
                 <CheckCircle2 className="h-3.5 w-3.5" /> Payé
               </span>
+            ) : docs.invoice_status === "draft" ? (
+              <div className="flex gap-1.5">
+                <FactureReviewDialog
+                  invoiceId={docs.invoice_id}
+                  lineItems={docs.invoice_line_items ?? [{ label: "Service", quantity: 1, unit_price: docs.invoice_total ?? 0 }]}
+                  discount={docs.invoice_discount ?? 0}
+                  total={docs.invoice_total ?? 0}
+                  currency="MAD"
+                  status="draft"
+                />
+              </div>
             ) : (
               <div className="flex gap-1.5">
                 <Button size="sm" variant="outline" className="h-6 text-[11px]" onClick={() => window.open(`/invoices/${docs.invoice_id}`, '_blank')}>
-                  Voir
+                  PDF
                 </Button>
                 <Button size="sm" className="h-6 text-[11px] bg-amber-500 hover:bg-amber-600" onClick={handlePay} disabled={recordPayment.isPending}>
                   Payé
@@ -340,7 +354,10 @@ function InRoomDocumentChips({ docs }: { docs: InRoomDocuments }) {
               </div>
             )}
           </div>
-          {docs.invoice_status !== "paid" && (
+          {docs.invoice_status === "draft" && (
+            <p className="text-[10px] text-gray-500">Réviser la facture → valider avant paiement</p>
+          )}
+          {docs.invoice_status === "issued" && (
             <p className="text-[10px] text-gray-500">Encaisser le paiement → cliquer Payé</p>
           )}
         </div>
@@ -367,19 +384,19 @@ function InRoomDocumentChips({ docs }: { docs: InRoomDocuments }) {
 function Column({ title, subtitle, count, accent, Icon, children, empty }: ColumnProps) {
   const isEmpty = count === 0;
   return (
-    <div className="flex flex-col rounded-xl border border-[var(--border)] bg-[var(--background)] p-3">
-      <div className="mb-3 flex items-center justify-between">
+    <div className="flex flex-col rounded-xl border border-[var(--border)] bg-[var(--background)] p-3 min-w-0 overflow-hidden">
+      <div className="mb-3 flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 min-w-0">
           <div
             className={cn(
-              "flex h-8 w-8 items-center justify-center rounded-lg",
+              "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg",
               accent
             )}
           >
             <Icon className="h-4 w-4" />
           </div>
           <div className="min-w-0">
-            <h3 className="truncate text-xs font-bold uppercase tracking-wide text-[var(--text-primary)]">
+            <h3 className="text-xs font-bold uppercase tracking-wide text-[var(--text-primary)]">
               {title}
             </h3>
             <p className="truncate text-[10px] text-[var(--text-muted)]">{subtitle}</p>
@@ -556,7 +573,7 @@ export default function QueuePage() {
 
         <Column
           title="À encaisser"
-          subtitle="Consultation finie · paiement"
+          subtitle="Traitement terminé · ordonnances"
           count={data.counts.checkout_pending ?? 0}
           accent="bg-rose-50 text-rose-700"
           Icon={Receipt}
@@ -564,35 +581,34 @@ export default function QueuePage() {
         >
           {(data.checkout_pending ?? []).map((p) => {
             const docs = (data.checkout_documents ?? []).find((d) => d.patient_id === p.id);
+            const hasOrdonnances = docs && docs.prescription_ids.length > 0;
             return (
               <div key={p.id}>
                 <PatientCard
                   patient={p}
-                  primaryAction={{ label: "Payé / clôturé", to: "active" }}
+                  primaryAction={{ label: "Terminé · libérer", to: "active" }}
                   secondaryAction={{ label: "Renvoyer au médecin", to: "in_room", variant: "ghost" }}
                 />
-                {/* Document links for reception */}
-                {docs && (docs.invoice_id || docs.prescription_ids.length > 0) && (
-                  <div className="mt-1 flex flex-wrap gap-2 rounded-md bg-rose-50 px-3 py-2">
-                    {docs.invoice_id && (
-                      <Link
-                        href={`/invoices/${docs.invoice_id}`}
-                        className="inline-flex items-center gap-1 rounded-md border border-rose-200 bg-white px-2 py-1 text-[11px] font-medium text-rose-700 hover:border-rose-400"
-                      >
-                        <Receipt className="h-3 w-3" />
-                        Facture · {docs.invoice_total ? `${docs.invoice_total} MAD` : docs.invoice_number}
-                      </Link>
-                    )}
-                    {docs.prescription_ids.map((rxId, i) => (
-                      <Link
-                        key={rxId}
-                        href={`/prescriptions/${rxId}`}
-                        className="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-white px-2 py-1 text-[11px] font-medium text-blue-700 hover:border-blue-400"
-                      >
-                        <FileText className="h-3 w-3" />
-                        {docs.prescription_numbers[i] || "Ordonnance"}
-                      </Link>
-                    ))}
+                {hasOrdonnances && (
+                  <div className="mt-1 space-y-1.5 rounded-md bg-blue-50 px-3 py-2">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-blue-600">Ordonnances à imprimer</p>
+                    <div className="flex flex-wrap gap-2">
+                      {docs.prescription_ids.map((rxId, i) => (
+                        <Link
+                          key={rxId}
+                          href={`/prescriptions/${rxId}`}
+                          className="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-white px-2 py-1 text-[11px] font-medium text-blue-700 hover:border-blue-400"
+                        >
+                          <FileText className="h-3 w-3" />
+                          {docs.prescription_numbers[i] || "Ordonnance"}
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {!hasOrdonnances && (
+                  <div className="mt-1 rounded-md bg-emerald-50 px-3 py-2">
+                    <p className="text-[11px] text-emerald-700">Aucune ordonnance · prêt à libérer</p>
                   </div>
                 )}
               </div>
@@ -605,7 +621,7 @@ export default function QueuePage() {
       <div className="rounded-lg border border-[var(--line-soft,_#E2E8F0)] bg-white p-4 text-xs text-[var(--text-muted)]">
         <span className="inline-flex items-center gap-1">
           <CheckCircle2 className="h-3 w-3 text-[var(--success)]" />
-          Le médecin clôture la consultation depuis le calendrier (Terminer) — le patient passe à « À encaisser » jusqu{"'"}à paiement.
+          Le médecin termine la séance (Terminer) — le patient passe à « À encaisser » pour ordonnances et sortie.
         </span>
       </div>
     </div>

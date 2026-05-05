@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import {
   CheckCircle2,
@@ -10,16 +10,16 @@ import {
   Camera,
   Pill,
   FileText,
+  ShieldCheck,
+  ClipboardCheck,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -37,11 +37,15 @@ interface Props {
   planTitle?: string | null;
   sessionNumber?: number | null;
   totalSessions?: number | null;
+  intervalValue?: number | null;
   soapExists?: boolean;
   ordonnanceExists?: boolean;
   ordonnanceCount?: number;
   photosBefore?: number;
   photosAfter?: number;
+  screeningOk?: boolean;
+  consentSigned?: boolean;
+  consentPending?: boolean;
   factureStatus?: string | null;
   factureAmount?: number | null;
 }
@@ -51,11 +55,13 @@ function StatusRow({
   label,
   value,
   done,
+  warn,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   value: string;
   done: boolean;
+  warn?: boolean;
 }) {
   return (
     <div className="flex items-center justify-between py-1.5">
@@ -64,7 +70,7 @@ function StatusRow({
         <span>{label}</span>
       </div>
       <div className="flex items-center gap-1.5">
-        <span className={`text-sm ${done ? "font-medium text-[var(--text-primary)]" : "text-[var(--text-muted)]"}`}>
+        <span className={`text-sm ${done ? "font-medium text-[var(--text-primary)]" : warn ? "font-medium text-amber-600" : "text-[var(--text-muted)]"}`}>
           {value}
         </span>
         {done ? (
@@ -87,27 +93,33 @@ export function TerminerVisiteButton({
   planTitle,
   sessionNumber,
   totalSessions,
+  intervalValue,
   soapExists,
   ordonnanceExists,
   ordonnanceCount = 0,
   photosBefore = 0,
   photosAfter = 0,
+  screeningOk,
+  consentSigned,
+  consentPending,
   factureStatus,
   factureAmount,
 }: Props) {
   const [open, setOpen] = useState(false);
   const isSeance = mode === "seance";
-  const alreadyPaid = factureStatus === "paid";
-  const defaultAmount = alreadyPaid ? String(factureAmount || 0) : (sessionPrice ? String(sessionPrice) : "");
-  const [amount, setAmount] = useState(defaultAmount);
-  const [editingAmount, setEditingAmount] = useState(!isSeance && !sessionPrice && !alreadyPaid);
+  const hasNextSession = isSeance && sessionNumber && totalSessions && sessionNumber < totalSessions;
   const [followUpWeeks, setFollowUpWeeks] = useState("");
   const [notes, setNotes] = useState("");
 
+  useEffect(() => {
+    if (hasNextSession && intervalValue && !followUpWeeks) {
+      setFollowUpWeeks(String(intervalValue));
+    }
+  }, [hasNextSession, intervalValue, followUpWeeks]);
+
   const mut = useCheckoutFromDossier();
 
-  const effectiveAmount = Number(amount) || 0;
-  const treatmentLabel = treatment || "Consultation";
+  const effectiveAmount = factureStatus === "paid" ? (factureAmount ?? 0) : (sessionPrice ?? 0);
 
   const submit = async () => {
     const weeks = followUpWeeks ? Number(followUpWeeks) : null;
@@ -120,17 +132,23 @@ export function TerminerVisiteButton({
       });
       toast.success(
         weeks
-          ? `Visite terminée · ${effectiveAmount} MAD · suivi dans ${weeks} sem.`
-          : `Visite terminée · ${effectiveAmount} MAD`
+          ? `Visite terminée · prochain RDV dans ${weeks} sem.`
+          : "Visite terminée"
       );
       setOpen(false);
-      setAmount("");
       setFollowUpWeeks("");
       setNotes("");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Échec");
     }
   };
+
+  const factureLabel = (() => {
+    if (factureStatus === "paid") return `${(factureAmount ?? 0).toLocaleString("fr-FR")} MAD · Payée`;
+    if (factureStatus === "issued") return `${(factureAmount ?? 0).toLocaleString("fr-FR")} MAD · Validée`;
+    if (factureStatus === "draft") return `${(factureAmount ?? 0).toLocaleString("fr-FR")} MAD · Brouillon`;
+    return "Non créée";
+  })();
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -142,7 +160,7 @@ export function TerminerVisiteButton({
           </Button>
         </DialogTrigger>
       ) : (
-        <span title="Complétez le screening et la consultation (SOAP) avant de terminer">
+        <span title={isSeance ? "Complétez le screening avant de terminer" : "Complétez le screening et la consultation (SOAP) avant de terminer"}>
           <Button variant="default" className="gap-2 bg-emerald-600 hover:bg-emerald-700 opacity-50 cursor-not-allowed" disabled>
             <CheckCircle2 className="h-4 w-4" />
             Terminer la visite
@@ -152,17 +170,24 @@ export function TerminerVisiteButton({
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Terminer la visite</DialogTitle>
-          <DialogDescription>{patientName}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Séance badge */}
-          {isSeance && planTitle && (
-            <div className="flex items-center gap-2 rounded-lg bg-teal-50 px-3 py-2">
-              <FileText className="h-4 w-4 text-teal-600" />
-              <span className="text-sm font-medium text-teal-800">
-                Séance {sessionNumber}/{totalSessions} — {planTitle}
-              </span>
+          {/* Context banner */}
+          {isSeance && planTitle ? (
+            <div className="rounded-lg bg-teal-50 px-3 py-2.5">
+              <div className="flex items-center gap-2">
+                <FileText className="h-4 w-4 text-teal-600" />
+                <span className="text-sm font-medium text-teal-800">
+                  Séance {sessionNumber}/{totalSessions} — {treatment || planTitle}
+                </span>
+              </div>
+              <p className="text-[11px] text-teal-600 mt-0.5 ml-6">{patientName}</p>
+            </div>
+          ) : (
+            <div className="rounded-lg bg-gray-50 px-3 py-2.5">
+              <p className="text-sm font-medium text-[var(--text-primary)]">{patientName}</p>
+              {treatment && <p className="text-xs text-[var(--text-muted)]">{treatment}</p>}
             </div>
           )}
 
@@ -173,11 +198,26 @@ export function TerminerVisiteButton({
             </p>
             <div className="divide-y divide-[var(--line-soft,_#E2E8F0)]">
               <StatusRow
-                icon={Stethoscope}
-                label="Consultation"
-                value={soapExists ? "SOAP créée" : "Non créée"}
-                done={!!soapExists}
+                icon={ShieldCheck}
+                label="Screening"
+                value={screeningOk ? "OK" : "Non évalué"}
+                done={!!screeningOk}
               />
+              <StatusRow
+                icon={ClipboardCheck}
+                label="Consentement"
+                value={consentSigned ? "Signé" : consentPending ? "En attente" : "—"}
+                done={!!consentSigned}
+                warn={!!consentPending}
+              />
+              {!isSeance && (
+                <StatusRow
+                  icon={Stethoscope}
+                  label="Note SOAP"
+                  value={soapExists ? "Rédigée" : "Non créée"}
+                  done={!!soapExists}
+                />
+              )}
               <StatusRow
                 icon={Camera}
                 label="Photos"
@@ -194,72 +234,42 @@ export function TerminerVisiteButton({
                 value={
                   ordonnanceCount > 0
                     ? `${ordonnanceCount} ordonnance${ordonnanceCount > 1 ? "s" : ""}`
-                    : "Aucune"
+                    : "Optionnel"
                 }
                 done={!!ordonnanceExists}
+              />
+              <StatusRow
+                icon={Receipt}
+                label="Facture"
+                value={factureLabel}
+                done={factureStatus === "paid" || factureStatus === "issued"}
+                warn={factureStatus === "draft"}
               />
             </div>
           </div>
 
-          {/* Facture preview */}
-          <div className="rounded-lg border border-[var(--border)] p-3">
-            <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
-              Facturation
-            </p>
-            {alreadyPaid ? (
-              <div className="flex items-center justify-between rounded-md bg-emerald-50 p-2.5">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                  <span className="text-sm font-medium text-emerald-800">Déjà payée</span>
-                </div>
-                <span className="text-lg font-bold font-mono text-emerald-800">
-                  {(factureAmount ?? 0).toLocaleString("fr-FR")} MAD
-                </span>
-              </div>
-            ) : editingAmount ? (
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-2">
-                  <Input
-                    type="number"
-                    inputMode="decimal"
-                    min={0}
-                    step={50}
-                    placeholder="0 = pas de facture"
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    className="flex-1"
-                    autoFocus
-                  />
-                  <span className="text-sm font-medium text-[var(--text-muted)]">MAD</span>
-                </div>
-                <p className="text-[11px] text-[var(--text-muted)]">{treatmentLabel}</p>
-              </div>
-            ) : (
-              <div
-                className="flex items-center justify-between rounded-md bg-[var(--background)] p-2.5 cursor-pointer hover:bg-gray-100 transition-colors"
-                onClick={() => setEditingAmount(true)}
-                title="Cliquer pour modifier"
-              >
-                <div>
-                  <p className="text-sm font-medium text-[var(--text-primary)]">{treatmentLabel}</p>
-                  <p className="text-[11px] text-[var(--text-muted)]">1 × {effectiveAmount.toLocaleString("fr-FR")} MAD</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-lg font-bold font-mono text-[var(--text-primary)]">
-                    {effectiveAmount.toLocaleString("fr-FR")} MAD
-                  </p>
-                  {effectiveAmount === 0 && (
-                    <Badge variant="outline" className="text-[10px]">Gratuit</Badge>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
+          {factureStatus === "draft" && (
+            <div className="rounded-lg bg-amber-50 border border-amber-200 p-3">
+              <p className="text-xs text-amber-700">
+                La facture est encore en brouillon. La réception la validera à l&apos;encaissement.
+              </p>
+            </div>
+          )}
+
+          {ordonnanceCount > 0 && (
+            <div className="rounded-lg bg-blue-50 border border-blue-200 p-3">
+              <p className="text-xs text-blue-700">
+                {ordonnanceCount} ordonnance{ordonnanceCount > 1 ? "s" : ""} sera{ordonnanceCount > 1 ? "ont" : ""} envoyée{ordonnanceCount > 1 ? "s" : ""} à la réception pour impression.
+              </p>
+            </div>
+          )}
 
           {/* Follow-up + notes */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="tv-followup" className="text-xs">Reprogrammer (semaines)</Label>
+              <Label htmlFor="tv-followup" className="text-xs">
+                {hasNextSession ? `Prochain RDV (séance ${(sessionNumber ?? 0) + 1})` : "Prochain RDV (semaines)"}
+              </Label>
               <Input
                 id="tv-followup"
                 type="number"
@@ -269,6 +279,11 @@ export function TerminerVisiteButton({
                 value={followUpWeeks}
                 onChange={(e) => setFollowUpWeeks(e.target.value)}
               />
+              {hasNextSession && (
+                <p className="text-[10px] text-[var(--text-muted)]">
+                  Pré-rempli selon l&apos;intervalle du plan
+                </p>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="tv-notes" className="text-xs">Notes réception</Label>
@@ -288,7 +303,7 @@ export function TerminerVisiteButton({
             {mut.isPending ? (
               <><Loader2 className="h-3 w-3 animate-spin" />Envoi…</>
             ) : (
-              <><Receipt className="h-3 w-3" />Envoyer à la réception</>
+              <><CheckCircle2 className="h-3 w-3" />Terminer & envoyer</>
             )}
           </Button>
         </DialogFooter>

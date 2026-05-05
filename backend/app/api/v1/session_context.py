@@ -51,6 +51,7 @@ class SessionContext(BaseModel):
     session_id: str | None = None
     session_number: int | None = None
     total_sessions: int | None = None
+    interval_value: int | None = None
     # Checklist flags
     screening_ok: bool = False
     screening_flags: int = 0
@@ -129,6 +130,7 @@ async def get_session_context(
             ctx.session_id = str(session.id)
             ctx.session_number = session.session_number
             ctx.total_sessions = plan.total_sessions
+            ctx.interval_value = plan.interval_value
             ctx.session_price = session.session_price
 
     # Screening
@@ -239,7 +241,11 @@ async def get_session_context(
             ctx.facture_status = latest_inv.status.value
             ctx.facture_amount = float(latest_inv.total)
 
-    # Can terminate: minimum = screening done + SOAP exists
-    ctx.can_terminate = ctx.screening_ok and ctx.soap_exists
+    # Séance mode: screening is enough (treatment = the consultation)
+    # Regular consultation: screening + SOAP required
+    if ctx.mode == "seance":
+        ctx.can_terminate = ctx.screening_ok
+    else:
+        ctx.can_terminate = ctx.screening_ok and ctx.soap_exists
 
     return ctx

@@ -100,7 +100,42 @@ export function useCreateInvoice() {
         body: JSON.stringify(data),
         token: token ?? undefined,
       }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["invoices"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["invoices"] });
+      qc.invalidateQueries({ queryKey: ["plans"] });
+      qc.invalidateQueries({ queryKey: ["session-context"] });
+    },
+  });
+}
+
+export interface InvoiceLineItem {
+  label: string;
+  quantity: number;
+  unit_price: number;
+}
+
+export interface InvoiceUpdateInput {
+  line_items?: InvoiceLineItem[];
+  discount?: number;
+  tva_rate?: number;
+  notes?: string;
+}
+
+export function useUpdateInvoice(invoiceId: string) {
+  const token = useAuthStore((s) => s.accessToken);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: InvoiceUpdateInput) =>
+      apiClient<Invoice>(`/invoices/${invoiceId}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+        token: token ?? undefined,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["invoices"] });
+      qc.invalidateQueries({ queryKey: ["invoices", "detail", invoiceId] });
+      qc.invalidateQueries({ queryKey: ["queue"] });
+    },
   });
 }
 
@@ -133,6 +168,9 @@ export function useRecordPayment(invoiceId: string) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["invoices"] });
       qc.invalidateQueries({ queryKey: ["invoices", "detail", invoiceId] });
+      qc.invalidateQueries({ queryKey: ["queue"] });
+      qc.invalidateQueries({ queryKey: ["session-context"] });
+      qc.invalidateQueries({ queryKey: ["plans"] });
     },
   });
 }

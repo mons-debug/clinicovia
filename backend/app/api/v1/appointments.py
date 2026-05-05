@@ -201,6 +201,7 @@ async def create_appointment(
         clinic_id=clinic_id,
         patient_id=body.patient_id,
         doctor_id=body.doctor_id,
+        doctor_service_id=body.doctor_service_id,
         appointment_date=body.appointment_date,
         start_time=body.start_time,
         end_time=body.end_time,

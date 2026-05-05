@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1 import auth, patients, dashboard, deals, appointments, forms, whatsapp, doctors, tracking, ai_agents, queue, calendar, treatment_plans, billing, clinics, prescriptions, photos, consultations, screening, consents, session_context
+from app.api.v1 import auth, patients, dashboard, deals, appointments, forms, whatsapp, doctors, tracking, ai_agents, queue, calendar, treatment_plans, billing, clinics, prescriptions, photos, consultations, screening, consents, session_context, doctor_services
 
 api_router = APIRouter()
 
@@ -26,6 +26,7 @@ api_router.include_router(whatsapp.router, prefix="/whatsapp", tags=["WhatsApp"]
 api_router.include_router(doctors.router, prefix="/doctors", tags=["Doctors"])
 api_router.include_router(tracking.router, prefix="/tracking", tags=["Tracking"])
 api_router.include_router(ai_agents.router, prefix="/ai-agents", tags=["AI Agents"])
+api_router.include_router(doctor_services.router, prefix="/doctor-services", tags=["Doctor Services"])
 
 # These will be added as we build each module:
 # api_router.include_router(conversations.router, prefix="/conversations", tags=["Conversations"])

@@ -79,13 +79,16 @@
 
 <!-- Letterhead -->
 <div class="letterhead">
-  <div>
+  <div style="display:flex;align-items:center;gap:10px;">
+    {% if clinic.logo_url %}<img src="{{ clinic.logo_url }}" alt="{{ clinic.name }}" style="max-height:40px;max-width:160px;">{% endif %}
+    <div>
     <div class="clinic-name">{{ clinic.name }}</div>
     <div class="clinic-meta">
       {% if clinic.address %}<div>{{ clinic.address }}</div>{% endif %}
       {% if clinic.city or clinic.country %}<div>{{ clinic.city or '' }}{% if clinic.city and clinic.country %}, {% endif %}{{ clinic.country or '' }}</div>{% endif %}
       {% if clinic.phone %}<div>Tél : {{ clinic.phone }}</div>{% endif %}
       {% if clinic.email %}<div>{{ clinic.email }}</div>{% endif %}
+    </div>
     </div>
   </div>
   <div class="doc-block">

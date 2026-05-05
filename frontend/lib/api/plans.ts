@@ -65,6 +65,7 @@ export interface PlanCreateInput {
   estimated_total?: number | null;
   currency?: string;
   doctor_id?: string | null;
+  doctor_service_id?: string | null;
   notes?: string | null;
   start_at?: string | null;
   session_price?: number | null;
@@ -201,6 +202,7 @@ export function useUpdateSession(planId: string) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["plans", "detail", planId] });
       qc.invalidateQueries({ queryKey: ["plans", "timeline", planId] });
+      qc.invalidateQueries({ queryKey: ["session-context"] });
     },
   });
 }
@@ -229,8 +231,13 @@ export function useAdvanceSession(planId: string) {
         }),
         token: token ?? undefined,
       }),
-    onSuccess: () => {
+    onSuccess: (session) => {
       qc.invalidateQueries({ queryKey: ["plans", "detail", planId] });
+      qc.invalidateQueries({ queryKey: ["plans", "timeline", planId] });
+      qc.invalidateQueries({ queryKey: ["plans", "patient"] });
+      qc.invalidateQueries({ queryKey: ["programmes", "patient"] });
+      qc.invalidateQueries({ queryKey: ["session-context"] });
+      qc.invalidateQueries({ queryKey: ["queue"] });
     },
   });
 }

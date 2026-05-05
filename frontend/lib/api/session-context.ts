@@ -12,6 +12,7 @@ export interface SessionContext {
   session_id: string | null;
   session_number: number | null;
   total_sessions: number | null;
+  interval_value: number | null;
   screening_ok: boolean;
   screening_flags: number;
   consent_signed: boolean;

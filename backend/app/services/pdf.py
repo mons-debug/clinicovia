@@ -106,3 +106,12 @@ def render_prescription_pdf(
         "prescription.html",
         clinic=clinic, patient=patient, prescription=prescription, doctor=doctor,
     )
+
+
+def render_consent_pdf(
+    *, clinic: Any, patient: Any, consent: Any, doctor: Any | None = None
+) -> bytes:
+    return _render_pdf(
+        "consent.html",
+        clinic=clinic, patient=patient, consent=consent, doctor=doctor,
+    )

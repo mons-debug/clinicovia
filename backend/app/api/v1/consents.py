@@ -1,18 +1,22 @@
-"""Patient consent forms API — create, sign, list, revoke."""
+"""Patient consent forms API — create, sign, list, revoke, PDF."""
 from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.middleware.auth import get_current_user
 from app.models.consent import ConsentStatus, ConsentType, PatientConsent
+from app.models.clinic import Clinic
 from app.models.patient import Patient
+from app.models.user import User as UserModel
 from app.models.user import User
 
 router = APIRouter()
@@ -163,3 +167,43 @@ async def revoke_consent(
     await db.commit()
     await db.refresh(consent)
     return ConsentResponse.model_validate(consent)
+
+
+@router.get("/{consent_id}/pdf")
+async def consent_pdf(
+    consent_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Render the consent as a downloadable PDF."""
+    clinic_id = _get_clinic_id(user)
+    res = await db.execute(
+        select(PatientConsent).where(
+            PatientConsent.id == consent_id,
+            PatientConsent.clinic_id == clinic_id,
+        )
+    )
+    consent = res.scalar_one_or_none()
+    if not consent:
+        raise HTTPException(status_code=404, detail="Consent not found")
+
+    clinic_res = await db.execute(select(Clinic).where(Clinic.id == clinic_id))
+    clinic = clinic_res.scalar_one()
+
+    patient_res = await db.execute(select(Patient).where(Patient.id == consent.patient_id))
+    patient = patient_res.scalar_one()
+
+    doctor = None
+    if consent.doctor_id:
+        doc_res = await db.execute(select(UserModel).where(UserModel.id == consent.doctor_id))
+        doctor = doc_res.scalar_one_or_none()
+
+    from app.services.pdf import render_consent_pdf
+    pdf_bytes = render_consent_pdf(clinic=clinic, patient=patient, consent=consent, doctor=doctor)
+
+    filename = f"consentement-{patient.last_name}-{consent.treatment_name or 'acte'}.pdf"
+    return StreamingResponse(
+        iter([pdf_bytes]),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{filename}"'},
+    )

@@ -84,7 +84,7 @@ class Invoice(Base, TimestampMixin, TenantMixin):
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
 
-    number: Mapped[str] = mapped_column(String(32), nullable=False)  # FAC-2026-0001
+    number: Mapped[str | None] = mapped_column(String(32), nullable=True)  # null while DRAFT, assigned on issue
     issue_date: Mapped[date] = mapped_column(Date, nullable=False)
 
     # Line items: [{ label, quantity, unit_price, total }]

@@ -32,6 +32,7 @@ from app.models.consent import PatientConsent, ConsentType, ConsentStatus
 from app.models.patient import IntakeStatus, Patient
 from app.models.prescription import Prescription
 from app.models.treatment_plan import TreatmentPlan, TreatmentSession, SessionStatus
+from app.models.doctor_service import DoctorService
 from app.models.user import User
 from app.schemas.appointment import AppointmentResponse
 from app.schemas.patient import PatientResponse
@@ -88,6 +89,8 @@ class InRoomDocuments(BaseModel):
     invoice_number: str | None = None
     invoice_total: float | None = None
     invoice_status: str | None = None
+    invoice_line_items: list[dict] | None = None
+    invoice_discount: float | None = None
     prescription_ids: list[str] = []
     prescription_numbers: list[str] = []
 
@@ -154,6 +157,9 @@ async def get_queue(
             doc.invoice_id = str(inv.id)
             doc.invoice_number = inv.number
             doc.invoice_total = float(inv.total)
+            doc.invoice_status = inv.status.value
+            doc.invoice_line_items = inv.line_items
+            doc.invoice_discount = float(inv.discount) if inv.discount else 0.0
 
         # Recent prescriptions (today)
         rx_res = await db.execute(
@@ -203,6 +209,8 @@ async def get_queue(
             doc.invoice_number = inv2.number
             doc.invoice_total = float(inv2.total)
             doc.invoice_status = inv2.status.value
+            doc.invoice_line_items = inv2.line_items
+            doc.invoice_discount = float(inv2.discount) if inv2.discount else 0.0
 
         # Prescriptions
         rx_res2 = await db.execute(
@@ -355,11 +363,8 @@ async def advance_intake(
 
 class WalkInRequest(BaseModel):
     requested_service: str | None = None
+    doctor_service_id: uuid.UUID | None = None
     note: str | None = None
-    # When true (default): existing patient arrives → flip to AWAITING_DOCTOR.
-    # When false: new patient just registered (still INTAKE_PENDING) — only
-    # create the calendar entry, leave intake_status untouched. Used so the
-    # new-patient walk-in flow can also surface on the calendar.
     flip_to_awaiting: bool = True
     is_first_visit: bool = False
 
@@ -401,20 +406,41 @@ async def walk_in_existing_patient(
     minute = (rounded.minute // 15) * 15
     rounded = rounded.replace(minute=minute)
 
-    # Status depends on whether reception is "checking them in" right
-    # now (existing patient → CHECKED_IN) vs "they just walked through
-    # the door, still filling form" (new patient → SCHEDULED).
+    # Resolve doctor_service if provided
+    ds_doctor_id = None
+    ds_name = (body.requested_service or "Walk-in").strip()
+    ds_duration = 30
+    ds_id = None
+    if body.doctor_service_id:
+        ds_res = await db.execute(
+            select(DoctorService).where(
+                DoctorService.id == body.doctor_service_id,
+                DoctorService.clinic_id == clinic_id,
+            )
+        )
+        ds = ds_res.scalar_one_or_none()
+        if ds:
+            ds_doctor_id = ds.doctor_id
+            ds_name = ds.name
+            ds_duration = ds.duration_minutes
+            ds_id = ds.id
+
     appt_status = AppointmentStatus.CHECKED_IN if body.flip_to_awaiting else AppointmentStatus.SCHEDULED
+
+    start = rounded.timetz().replace(tzinfo=None)
+    end_dt = rounded + timedelta(minutes=ds_duration)
+    end = end_dt.timetz().replace(tzinfo=None)
 
     appt = Appointment(
         clinic_id=clinic_id,
         patient_id=patient_id,
-        doctor_id=None,
+        doctor_id=ds_doctor_id,
+        doctor_service_id=ds_id,
         appointment_date=today,
-        start_time=rounded.timetz().replace(tzinfo=None),
-        end_time=time_type(23, 59),  # placeholder — overwritten on Terminer
-        duration_minutes=30,
-        treatment=(body.requested_service or "Walk-in").strip(),
+        start_time=start,
+        end_time=end,
+        duration_minutes=ds_duration,
+        treatment=ds_name,
         kind=AppointmentKind.WALK_IN,
         status=appt_status,
         notes=body.note,
@@ -632,24 +658,68 @@ async def checkout_from_dossier(
             )
             db.add(inv)
 
-    # Auto-schedule follow-up
+    # Auto-schedule follow-up — if linked to a plan, update the next
+    # session's appointment date instead of creating a duplicate.
     if body.follow_up_weeks and body.follow_up_weeks > 0:
         follow_date = (now + timedelta(weeks=body.follow_up_weeks)).date()
-        follow = Appointment(
-            clinic_id=clinic_id,
-            patient_id=patient.id,
-            doctor_id=appt.doctor_id if appt else user.id,
-            appointment_date=follow_date,
-            start_time=time_type(10, 0),
-            end_time=time_type(10, 30),
-            duration_minutes=30,
-            treatment=appt.treatment if appt else "Suivi",
-            kind=appt.kind if appt else AppointmentKind.CONSULTATION,
-            status=AppointmentStatus.SCHEDULED,
-            needs_confirmation=True,
-            notes=body.notes,
-        )
-        db.add(follow)
+        created_followup = False
+
+        if linked_session:
+            next_sess_res = await db.execute(
+                select(TreatmentSession).where(
+                    TreatmentSession.plan_id == linked_session.plan_id,
+                    TreatmentSession.session_number == linked_session.session_number + 1,
+                ).limit(1)
+            )
+            next_sess = next_sess_res.scalar_one_or_none()
+            if next_sess:
+                if next_sess.appointment_id:
+                    appt_res2 = await db.execute(
+                        select(Appointment).where(Appointment.id == next_sess.appointment_id)
+                    )
+                    next_appt = appt_res2.scalar_one_or_none()
+                    if next_appt:
+                        next_appt.appointment_date = follow_date
+                        next_appt.needs_confirmation = True
+                        created_followup = True
+                else:
+                    next_appt = Appointment(
+                        clinic_id=clinic_id,
+                        patient_id=patient.id,
+                        doctor_id=appt.doctor_id if appt else user.id,
+                        doctor_service_id=appt.doctor_service_id if appt else None,
+                        appointment_date=follow_date,
+                        start_time=time_type(10, 0),
+                        end_time=time_type(10, 30),
+                        duration_minutes=appt.duration_minutes if appt else 30,
+                        treatment=appt.treatment if appt else "Suivi",
+                        kind=AppointmentKind.SESSION,
+                        status=AppointmentStatus.SCHEDULED,
+                        needs_confirmation=True,
+                    )
+                    db.add(next_appt)
+                    await db.flush()
+                    next_sess.appointment_id = next_appt.id
+                    next_sess.status = SessionStatus.SCHEDULED
+                    created_followup = True
+
+        if not created_followup:
+            follow = Appointment(
+                clinic_id=clinic_id,
+                patient_id=patient.id,
+                doctor_id=appt.doctor_id if appt else user.id,
+                doctor_service_id=appt.doctor_service_id if appt else None,
+                appointment_date=follow_date,
+                start_time=time_type(10, 0),
+                end_time=time_type(10, 30),
+                duration_minutes=appt.duration_minutes if appt else 30,
+                treatment=appt.treatment if appt else "Suivi",
+                kind=appt.kind if appt else AppointmentKind.CONSULTATION,
+                status=AppointmentStatus.SCHEDULED,
+                needs_confirmation=True,
+                notes=body.notes,
+            )
+            db.add(follow)
 
     await db.commit()
     await db.refresh(patient)
@@ -735,6 +805,11 @@ async def uncall_patient(
 
 # ---------- Prepare session (mid-visit handoff to reception) -----------
 
+class PrepareRequest(BaseModel):
+    consent_text: str | None = None
+    invoice_amount: float | None = None
+
+
 class PrepareResponse(BaseModel):
     consent_id: str | None = None
     invoice_id: str | None = None
@@ -744,6 +819,7 @@ class PrepareResponse(BaseModel):
 @router.post("/{patient_id}/prepare-session", response_model=PrepareResponse)
 async def prepare_session(
     patient_id: uuid.UUID,
+    body: PrepareRequest | None = None,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -805,6 +881,13 @@ async def prepare_session(
         ).order_by(PatientConsent.created_at.desc()).limit(1)
     )
     consent = existing_consent.scalar_one_or_none()
+    default_consent_text = (
+        f"Je soussigné(e), autorise le Dr. à effectuer le traitement «{treatment_name}» "
+        f"après avoir été informé(e) des risques, bénéfices et alternatives. "
+        f"J'ai eu l'occasion de poser toutes mes questions."
+    )
+    consent_text = (body.consent_text if body and body.consent_text else default_consent_text)
+
     if not consent:
         consent = PatientConsent(
             clinic_id=clinic_id,
@@ -815,17 +898,17 @@ async def prepare_session(
             treatment_name=treatment_name,
             plan_id=linked_session.plan_id if linked_session else None,
             status="pending",
-            body_text=(
-                f"Je soussigné(e), autorise le Dr. à effectuer le traitement «{treatment_name}» "
-                f"après avoir été informé(e) des risques, bénéfices et alternatives. "
-                f"J'ai eu l'occasion de poser toutes mes questions."
-            ),
+            body_text=consent_text,
         )
         db.add(consent)
         await db.flush()
+    elif body and body.consent_text:
+        consent.body_text = consent_text
+        await db.flush()
 
-    # 2. Create facture (ISSUED) — skip if one already exists
-    session_price = linked_session.session_price if linked_session else 0
+    # 2. Create facture as DRAFT — reception validates before payment
+    session_price = (body.invoice_amount if body and body.invoice_amount is not None
+                     else (linked_session.session_price if linked_session else 0))
     existing_inv = await db.execute(
         select(Invoice).where(
             Invoice.clinic_id == clinic_id,
@@ -836,14 +919,13 @@ async def prepare_session(
     )
     invoice = existing_inv.scalar_one_or_none()
     if not invoice and session_price and session_price > 0:
-        inv_number = await _next_invoice_number(db, clinic_id, today.year)
         invoice = Invoice(
             clinic_id=clinic_id,
             patient_id=patient_id,
             plan_id=linked_session.plan_id if linked_session else None,
             session_id=linked_session.id if linked_session else None,
             issued_by=user.id,
-            number=inv_number,
+            number=None,
             issue_date=today,
             line_items=[{
                 "label": treatment_name,
@@ -857,8 +939,8 @@ async def prepare_session(
             tva=0.0,
             total=float(session_price),
             currency="MAD",
-            status=InvoiceStatus.ISSUED,
-            issued_at=now,
+            status=InvoiceStatus.DRAFT,
+            issued_at=None,
         )
         db.add(invoice)
         await db.flush()

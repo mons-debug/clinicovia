@@ -26,8 +26,9 @@ import {
 } from "@/components/ui/select";
 
 import { useCreatePlan } from "@/lib/api/plans";
-import { useTreatments, type TreatmentResponse } from "@/lib/api/appointments";
 import { useCalendarRange } from "@/lib/api/calendar";
+import { useAllServices } from "@/lib/api/doctor-services";
+import { DoctorServiceSelect } from "@/components/queue/walk-in-dialog";
 
 interface Props {
   patientId: string;
@@ -62,7 +63,8 @@ export function NewPlanDialog({ patientId, programmeId, triggerLabel = "Nouveau 
   const router = useRouter();
 
   const [title, setTitle] = useState("");
-  const [selectedTreatmentId, setSelectedTreatmentId] = useState("");
+  const [selectedDoctorId, setSelectedDoctorId] = useState("");
+  const [selectedServiceId, setSelectedServiceId] = useState("");
   const [totalSessions, setTotalSessions] = useState(4);
   const [intervalValue, setIntervalValue] = useState(4);
   const [intervalUnit, setIntervalUnit] = useState<"days" | "weeks" | "months">("weeks");
@@ -72,25 +74,16 @@ export function NewPlanDialog({ patientId, programmeId, triggerLabel = "Nouveau 
   const [autoSchedule, setAutoSchedule] = useState(true);
   const [defaultHour, setDefaultHour] = useState(10);
 
-  const { data: treatmentsData } = useTreatments();
-  const treatments = treatmentsData?.treatments ?? [];
+  const { data: serviceGroups } = useAllServices();
 
-  // Group by category
-  const treatmentsByCategory = useMemo(() => {
-    const groups = new Map<string, TreatmentResponse[]>();
-    for (const t of treatments) {
-      const key = t.category ?? "Autre";
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key)!.push(t);
+  const selectedService = useMemo(() => {
+    if (!serviceGroups || !selectedServiceId) return null;
+    for (const g of serviceGroups) {
+      const s = g.services.find((s) => s.id === selectedServiceId);
+      if (s) return s;
     }
-    return Array.from(groups.entries());
-  }, [treatments]);
-
-  // Selected treatment object
-  const selectedTreatment = useMemo(
-    () => treatments.find((t) => t.id === selectedTreatmentId) ?? null,
-    [treatments, selectedTreatmentId]
-  );
+    return null;
+  }, [serviceGroups, selectedServiceId]);
 
   // Projected dates
   const projectedDates = useMemo(() => {
@@ -113,17 +106,21 @@ export function NewPlanDialog({ patientId, programmeId, triggerLabel = "Nouveau 
   const create = useCreatePlan();
 
   const reset = () => {
-    setTitle(""); setSelectedTreatmentId(""); setTotalSessions(4);
+    setTitle(""); setSelectedDoctorId(""); setSelectedServiceId(""); setTotalSessions(4);
     setIntervalValue(4); setIntervalUnit("weeks"); setSessionPrice("");
     setStartDate(""); setNotes(""); setAutoSchedule(true); setDefaultHour(10);
   };
 
-  const handleTreatmentSelect = (treatmentId: string) => {
-    setSelectedTreatmentId(treatmentId);
-    const t = treatments.find((x) => x.id === treatmentId);
-    if (t) {
-      if (!title) setTitle(`${t.name} — cure ${totalSessions} séances`);
-      if (!sessionPrice && t.price > 0) setSessionPrice(String(t.price));
+  const handleServiceChange = (serviceId: string) => {
+    setSelectedServiceId(serviceId);
+    if (!serviceGroups) return;
+    for (const g of serviceGroups) {
+      const s = g.services.find((s) => s.id === serviceId);
+      if (s) {
+        if (!title) setTitle(`${s.name} — cure ${totalSessions} séances`);
+        if (!sessionPrice && s.default_price > 0) setSessionPrice(String(s.default_price));
+        break;
+      }
     }
   };
 
@@ -135,7 +132,8 @@ export function NewPlanDialog({ patientId, programmeId, triggerLabel = "Nouveau 
         patient_id: patientId,
         programme_id: programmeId ?? null,
         title: title.trim(),
-        primary_service: selectedTreatment?.name ?? null,
+        primary_service: selectedService?.name ?? null,
+        doctor_service_id: selectedServiceId || null,
         total_sessions: totalSessions,
         interval_value: intervalValue,
         interval_unit: intervalUnit,
@@ -175,29 +173,14 @@ export function NewPlanDialog({ patientId, programmeId, triggerLabel = "Nouveau 
         </DialogHeader>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {/* Treatment selector */}
-          <div className="sm:col-span-2 space-y-2">
-            <Label>Service / Traitement</Label>
-            <Select value={selectedTreatmentId || "_none"} onValueChange={(v) => v !== "_none" && handleTreatmentSelect(v)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Choisir un service…" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="_none">Choisir un service…</SelectItem>
-                {treatmentsByCategory.map(([cat, items]) => (
-                  <div key={cat}>
-                    <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">
-                      {cat}
-                    </div>
-                    {items.map((t) => (
-                      <SelectItem key={t.id} value={t.id}>
-                        {t.name} · {t.duration_minutes}min{t.price > 0 ? ` · ${t.price} MAD` : ""}
-                      </SelectItem>
-                    ))}
-                  </div>
-                ))}
-              </SelectContent>
-            </Select>
+          {/* Doctor + Service selector */}
+          <div className="sm:col-span-2">
+            <DoctorServiceSelect
+              selectedDoctorId={selectedDoctorId}
+              selectedServiceId={selectedServiceId}
+              onDoctorChange={setSelectedDoctorId}
+              onServiceChange={handleServiceChange}
+            />
           </div>
 
           {/* Title */}

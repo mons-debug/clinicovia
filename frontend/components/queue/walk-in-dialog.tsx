@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { UserPlus, Loader2, Search, UserCheck } from "lucide-react";
@@ -27,6 +27,7 @@ import {
 
 import { useCreatePatient, usePatients } from "@/lib/api/patients";
 import { useWalkInExistingPatient } from "@/lib/api/queue";
+import { useAllServices } from "@/lib/api/doctor-services";
 import { cn } from "@/lib/utils";
 
 const CHANNEL_OPTIONS = [
@@ -50,13 +51,75 @@ const SOURCE_OPTIONS = [
 
 type Mode = "existing" | "new";
 
+export function DoctorServiceSelect({
+  selectedDoctorId,
+  selectedServiceId,
+  onDoctorChange,
+  onServiceChange,
+}: {
+  selectedDoctorId: string;
+  selectedServiceId: string;
+  onDoctorChange: (doctorId: string) => void;
+  onServiceChange: (serviceId: string) => void;
+}) {
+  const { data: groups } = useAllServices();
+
+  const filteredServices = useMemo(() => {
+    if (!groups || !selectedDoctorId) return [];
+    const group = groups.find((g) => g.doctor_id === selectedDoctorId);
+    return group?.services ?? [];
+  }, [groups, selectedDoctorId]);
+
+  return (
+    <div className="grid grid-cols-2 gap-3">
+      <div className="space-y-2">
+        <Label>Médecin</Label>
+        <Select value={selectedDoctorId} onValueChange={(v) => { onDoctorChange(v); onServiceChange(""); }}>
+          <SelectTrigger><SelectValue placeholder="Choisir le médecin" /></SelectTrigger>
+          <SelectContent>
+            {(groups ?? []).map((g) => (
+              <SelectItem key={g.doctor_id} value={g.doctor_id}>
+                {g.doctor_name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-2">
+        <Label>Service</Label>
+        <Select value={selectedServiceId} onValueChange={onServiceChange} disabled={!selectedDoctorId}>
+          <SelectTrigger><SelectValue placeholder={selectedDoctorId ? "Choisir le service" : "Médecin d'abord"} /></SelectTrigger>
+          <SelectContent>
+            {filteredServices.map((s) => (
+              <SelectItem key={s.id} value={s.id}>
+                {s.name} · {s.duration_minutes}min
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
+  );
+}
+
 export function WalkInDialog({ triggerLabel = "Walk-in" }: { triggerLabel?: string }) {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<Mode>("existing");
   const qc = useQueryClient();
 
-  // Shared
-  const [requestedService, setRequestedService] = useState("");
+  // Doctor + service
+  const { data: serviceGroups } = useAllServices();
+  const [selectedDoctorId, setSelectedDoctorId] = useState("");
+  const [selectedServiceId, setSelectedServiceId] = useState("");
+
+  const selectedService = useMemo(() => {
+    if (!serviceGroups || !selectedServiceId) return null;
+    for (const g of serviceGroups) {
+      const s = g.services.find((s) => s.id === selectedServiceId);
+      if (s) return { service: s, doctorName: g.doctor_name };
+    }
+    return null;
+  }, [serviceGroups, selectedServiceId]);
 
   // Existing-patient mode
   const [search, setSearch] = useState("");
@@ -84,30 +147,32 @@ export function WalkInDialog({ triggerLabel = "Walk-in" }: { triggerLabel?: stri
   const reset = () => {
     setSearch(""); setPickedId(""); setPickedLabel("");
     setFirstName(""); setLastName(""); setPhone(""); setPhoneCode("+212");
-    setRequestedService(""); setChannelPref("whatsapp");
-    setLeadSource("walk_in"); setLanguage("fr");
+    setSelectedDoctorId(""); setSelectedServiceId("");
+    setChannelPref("whatsapp"); setLeadSource("walk_in"); setLanguage("fr");
     setMode("existing");
   };
 
+  const canSubmit = mode === "existing"
+    ? !!(pickedId && selectedServiceId)
+    : !!(firstName.trim() && lastName.trim() && phone.trim() && selectedServiceId);
+
   const submitExisting = async () => {
-    if (!pickedId) return toast.error("Sélectionnez un patient");
+    if (!pickedId || !selectedServiceId) return;
     try {
       await walkInExisting.mutateAsync({
         patientId: pickedId,
-        requestedService: requestedService.trim() || null,
+        requestedService: selectedService?.service.name ?? null,
+        doctorServiceId: selectedServiceId,
       });
-      toast.success(`${pickedLabel} ajouté(e) à la salle d'attente`);
-      reset();
-      setOpen(false);
+      toast.success(`${pickedLabel} → ${selectedService?.doctorName}`);
+      reset(); setOpen(false);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Échec");
     }
   };
 
   const submitNew = async () => {
-    if (!firstName.trim() || !lastName.trim()) return toast.error("Nom et prénom requis");
-    if (!phone.trim()) return toast.error("Téléphone requis");
-
+    if (!firstName.trim() || !lastName.trim() || !phone.trim() || !selectedServiceId) return;
     try {
       const created = await createNew.mutateAsync({
         first_name: firstName.trim(),
@@ -117,37 +182,32 @@ export function WalkInDialog({ triggerLabel = "Walk-in" }: { triggerLabel?: stri
         channel_pref: channelPref,
         language_pref: language,
         lead_source: leadSource,
-        requested_service: requestedService.trim() || null,
+        requested_service: selectedService?.service.name ?? null,
         intake_status: "intake_pending",
       });
 
-      // Also create a kind=walk_in calendar entry so the day's load is
-      // visible everywhere — but keep patient at INTAKE_PENDING since
-      // the dossier isn't complete yet.
       try {
         await walkInExisting.mutateAsync({
           patientId: created.id,
-          requestedService: requestedService.trim() || null,
+          requestedService: selectedService?.service.name ?? null,
+          doctorServiceId: selectedServiceId,
           flipToAwaiting: false,
           isFirstVisit: true,
         });
-      } catch {
-        // Best-effort: if calendar entry fails, the patient is still in queue.
-      }
+      } catch { /* best-effort */ }
 
-      toast.success(`${firstName} ${lastName} ajouté(e) à la salle d'attente + calendrier`);
+      toast.success(`${firstName} ${lastName} → ${selectedService?.doctorName}`);
       qc.invalidateQueries({ queryKey: ["queue"] });
       qc.invalidateQueries({ queryKey: ["patients"] });
       qc.invalidateQueries({ queryKey: ["calendar"] });
-      reset();
-      setOpen(false);
+      reset(); setOpen(false);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Échec");
     }
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) reset(); }}>
       <DialogTrigger asChild>
         <Button size="sm">
           <UserPlus className="h-3 w-3" />
@@ -158,7 +218,7 @@ export function WalkInDialog({ triggerLabel = "Walk-in" }: { triggerLabel?: stri
         <DialogHeader>
           <DialogTitle>Walk-in — accueil</DialogTitle>
           <DialogDescription>
-            Patient connu (séance, suivi) ou nouveau patient. Le médecin complétera le dossier au fauteuil.
+            Patient existant ou nouveau. Choisir le médecin et le service.
           </DialogDescription>
         </DialogHeader>
 
@@ -202,15 +262,12 @@ export function WalkInDialog({ triggerLabel = "Walk-in" }: { triggerLabel?: stri
                 value={search}
                 onChange={(e) => {
                   setSearch(e.target.value);
-                  if (pickedId) {
-                    setPickedId("");
-                    setPickedLabel("");
-                  }
+                  if (pickedId) { setPickedId(""); setPickedLabel(""); }
                 }}
                 autoFocus
               />
               {!pickedId && search && candidates.length > 0 && (
-                <div className="max-h-56 overflow-y-auto rounded-md border border-[var(--border)] bg-white">
+                <div className="max-h-40 overflow-y-auto rounded-md border border-[var(--border)] bg-white">
                   {candidates.map((p) => (
                     <button
                       type="button"
@@ -221,26 +278,19 @@ export function WalkInDialog({ triggerLabel = "Walk-in" }: { triggerLabel?: stri
                       }}
                       className="flex w-full items-center justify-between border-b border-[var(--line-soft,_#E2E8F0)] px-3 py-2 text-left text-sm hover:bg-[var(--background)]"
                     >
-                      <span className="font-medium">
-                        {p.first_name} {p.last_name}
-                      </span>
-                      <span className="text-xs text-[var(--text-muted)]">
-                        {p.phone_country_code}{p.phone}
-                      </span>
+                      <span className="font-medium">{p.first_name} {p.last_name}</span>
+                      <span className="text-xs text-[var(--text-muted)]">{p.phone_country_code}{p.phone}</span>
                     </button>
                   ))}
                 </div>
               )}
               {!pickedId && search && candidates.length === 0 && (
-                <p className="text-xs text-[var(--text-muted)]">
-                  Aucun patient trouvé. Bascule vers «&nbsp;Nouveau patient&nbsp;».
-                </p>
+                <p className="text-xs text-[var(--text-muted)]">Aucun patient trouvé.</p>
               )}
               {pickedId && (
                 <div className="flex items-center justify-between rounded-md bg-[var(--primary-lighter)] px-3 py-2 text-sm">
                   <span className="inline-flex items-center gap-2 font-medium text-[var(--primary)]">
-                    <UserCheck className="h-4 w-4" />
-                    {pickedLabel}
+                    <UserCheck className="h-4 w-4" /> {pickedLabel}
                   </span>
                   <button
                     type="button"
@@ -253,28 +303,28 @@ export function WalkInDialog({ triggerLabel = "Walk-in" }: { triggerLabel?: stri
               )}
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="wi-existing-service">Demande à l&apos;accueil</Label>
-              <Input
-                id="wi-existing-service"
-                placeholder="ex. séance 2 Botox · contrôle · question"
-                value={requestedService}
-                onChange={(e) => setRequestedService(e.target.value)}
-              />
-            </div>
+            {/* Doctor + Service dropdowns */}
+            <DoctorServiceSelect
+              selectedDoctorId={selectedDoctorId}
+              selectedServiceId={selectedServiceId}
+              onDoctorChange={setSelectedDoctorId}
+              onServiceChange={setSelectedServiceId}
+            />
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="wi-first">Prénom</Label>
-              <Input id="wi-first" value={firstName} onChange={(e) => setFirstName(e.target.value)} autoFocus />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="wi-last">Nom</Label>
-              <Input id="wi-last" value={lastName} onChange={(e) => setLastName(e.target.value)} />
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="wi-first">Prénom</Label>
+                <Input id="wi-first" value={firstName} onChange={(e) => setFirstName(e.target.value)} autoFocus />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="wi-last">Nom</Label>
+                <Input id="wi-last" value={lastName} onChange={(e) => setLastName(e.target.value)} />
+              </div>
             </div>
 
-            <div className="sm:col-span-2 space-y-2">
+            <div className="space-y-2">
               <Label htmlFor="wi-phone">Téléphone</Label>
               <div className="flex gap-2">
                 <Select value={phoneCode} onValueChange={setPhoneCode}>
@@ -291,7 +341,7 @@ export function WalkInDialog({ triggerLabel = "Walk-in" }: { triggerLabel?: stri
                 </Select>
                 <Input
                   id="wi-phone"
-                  placeholder="6 12 34 56 78 (sans le 0 initial)"
+                  placeholder="6 12 34 56 78"
                   inputMode="tel"
                   value={phone}
                   onChange={(e) => {
@@ -304,48 +354,48 @@ export function WalkInDialog({ triggerLabel = "Walk-in" }: { triggerLabel?: stri
               </div>
             </div>
 
-            <div className="sm:col-span-2 space-y-2">
-              <Label htmlFor="wi-service">Demande à l&apos;accueil</Label>
-              <Input
-                id="wi-service"
-                placeholder="ex. consultation Botox · hydrafacial · suivi"
-                value={requestedService}
-                onChange={(e) => setRequestedService(e.target.value)}
-              />
-            </div>
+            {/* Doctor + Service dropdowns */}
+            <DoctorServiceSelect
+              selectedDoctorId={selectedDoctorId}
+              selectedServiceId={selectedServiceId}
+              onDoctorChange={setSelectedDoctorId}
+              onServiceChange={setSelectedServiceId}
+            />
 
-            <div className="space-y-2">
-              <Label htmlFor="wi-channel">Canal préféré</Label>
-              <Select value={channelPref} onValueChange={setChannelPref}>
-                <SelectTrigger id="wi-channel"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {CHANNEL_OPTIONS.map((c) => (
-                    <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="wi-source">Source</Label>
-              <Select value={leadSource} onValueChange={setLeadSource}>
-                <SelectTrigger id="wi-source"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {SOURCE_OPTIONS.map((s) => (
-                    <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="wi-lang">Langue</Label>
-              <Select value={language} onValueChange={setLanguage}>
-                <SelectTrigger id="wi-lang"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="fr">Français</SelectItem>
-                  <SelectItem value="ar">العربية</SelectItem>
-                  <SelectItem value="en">English</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="wi-channel">Canal</Label>
+                <Select value={channelPref} onValueChange={setChannelPref}>
+                  <SelectTrigger id="wi-channel"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {CHANNEL_OPTIONS.map((c) => (
+                      <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="wi-source">Source</Label>
+                <Select value={leadSource} onValueChange={setLeadSource}>
+                  <SelectTrigger id="wi-source"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {SOURCE_OPTIONS.map((s) => (
+                      <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="wi-lang">Langue</Label>
+                <Select value={language} onValueChange={setLanguage}>
+                  <SelectTrigger id="wi-lang"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="fr">Français</SelectItem>
+                    <SelectItem value="ar">العربية</SelectItem>
+                    <SelectItem value="en">English</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
         )}
@@ -354,12 +404,12 @@ export function WalkInDialog({ triggerLabel = "Walk-in" }: { triggerLabel?: stri
           <Button variant="ghost" onClick={() => setOpen(false)}>Annuler</Button>
           <Button
             onClick={mode === "existing" ? submitExisting : submitNew}
-            disabled={pending}
+            disabled={pending || !canSubmit}
           >
             {pending ? (
-              <><Loader2 className="h-3 w-3 animate-spin" />Ajout…</>
+              <><Loader2 className="h-3 w-3 animate-spin" /> Ajout…</>
             ) : (
-              <><UserPlus className="h-3 w-3" />Ajouter en salle d&apos;attente</>
+              <><UserPlus className="h-3 w-3" /> Ajouter en salle d&apos;attente</>
             )}
           </Button>
         </DialogFooter>

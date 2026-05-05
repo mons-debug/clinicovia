@@ -44,6 +44,7 @@ class PlanCreate(BaseModel):
     estimated_total: float | None = None
     currency: str = "MAD"
     doctor_id: uuid.UUID | None = None
+    doctor_service_id: uuid.UUID | None = None
     notes: str | None = None
     start_at: datetime | None = None  # if omitted, defaults to now
     session_price: float | None = None  # MAD per séance

@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 class AppointmentCreate(BaseModel):
     patient_id: uuid.UUID
     doctor_id: uuid.UUID | None = None
+    doctor_service_id: uuid.UUID | None = None
     appointment_date: date
     start_time: time
     end_time: time

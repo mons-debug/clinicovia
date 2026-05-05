@@ -127,12 +127,31 @@ async def create_plan(
 
     start = body.start_at or datetime.now(timezone.utc)
 
+    # Resolve doctor from doctor_service if not explicitly set
+    doctor_id = body.doctor_id
+    ds_duration = body.default_duration_minutes
+    if body.doctor_service_id and not doctor_id:
+        from app.models.doctor_service import DoctorService
+        ds_res = await db.execute(
+            select(DoctorService).where(
+                DoctorService.id == body.doctor_service_id,
+                DoctorService.clinic_id == clinic_id,
+            )
+        )
+        ds = ds_res.scalar_one_or_none()
+        if ds:
+            doctor_id = ds.doctor_id
+            if not body.session_price and ds.default_price > 0:
+                body.session_price = ds.default_price
+            ds_duration = ds.duration_minutes
+
     plan = TreatmentPlan(
         clinic_id=clinic_id,
         patient_id=body.patient_id,
         programme_id=body.programme_id,
         created_by=user.id,
-        doctor_id=body.doctor_id,
+        doctor_id=doctor_id,
+        doctor_service_id=body.doctor_service_id,
         title=body.title,
         primary_service=body.primary_service,
         indication_slugs=body.indication_slugs,
@@ -181,11 +200,12 @@ async def create_plan(
             appt = Appointment(
                 clinic_id=clinic_id,
                 patient_id=body.patient_id,
-                doctor_id=body.doctor_id,
+                doctor_id=doctor_id,
+                doctor_service_id=body.doctor_service_id,
                 appointment_date=s.planned_for.date() if s.planned_for else start.date(),
                 start_time=start_t,
                 end_time=end_t,
-                duration_minutes=body.default_duration_minutes,
+                duration_minutes=ds_duration,
                 treatment=treatment_label,
                 kind=AppointmentKind.SESSION,
                 status=AppointmentStatus.SCHEDULED,
@@ -423,29 +443,8 @@ async def advance_session(
             detail=f"Cannot transition from {current.value} to {target.value}",
         )
 
-    # Consent gate: first session requires signed consent before starting.
-    # Soft gate — only blocks if consent table exists AND has a pending
-    # consent for this patient. If no consents at all, allow (backwards
-    # compat + tests). Once a consent is created, it must be signed.
-    if target == SessionStatus.IN_PROGRESS and session_row.session_number == 1:
-        from app.models.consent import PatientConsent
-        plan_res2 = await db.execute(
-            select(TreatmentPlan.patient_id).where(TreatmentPlan.id == session_row.plan_id)
-        )
-        patient_id_row = plan_res2.first()
-        if patient_id_row:
-            consent_check = await db.execute(
-                select(PatientConsent).where(
-                    PatientConsent.clinic_id == clinic_id,
-                    PatientConsent.patient_id == patient_id_row[0],
-                ).order_by(PatientConsent.created_at.desc()).limit(1)
-            )
-            consent = consent_check.scalar_one_or_none()
-            if consent and consent.status.value == "pending":
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="Le consentement doit être signé avant de commencer la première séance",
-                )
+    # Consent is now created by prepare-session and signed by reception
+    # in parallel. No blocking gate — reception handles signing workflow.
 
     now = datetime.now(timezone.utc)
     session_row.status = target

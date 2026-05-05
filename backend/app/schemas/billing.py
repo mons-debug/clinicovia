@@ -68,7 +68,7 @@ class InvoiceResponse(BaseModel):
     plan_id: uuid.UUID | None
     session_id: uuid.UUID | None = None
     issued_by: uuid.UUID | None
-    number: str
+    number: str | None
     issue_date: date
     line_items: list
     subtotal: float

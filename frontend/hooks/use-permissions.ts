@@ -23,7 +23,8 @@ type Module =
   | "settings"
   | "team"
   | "billing"
-  | "admin";
+  | "admin"
+  | "doctor_services";
 
 // Permission matrix: role -> module -> allowed actions
 const PERMISSION_MATRIX: Record<Role, Partial<Record<Module, Action[]>>> = {
@@ -114,9 +115,6 @@ const PERMISSION_MATRIX: Record<Role, Partial<Record<Module, Action[]>>> = {
     forms: ["full"],
   },
   [ROLES.DOCTOR]: {
-    // Clinical view: patients, queue, calendar, plans.
-    // Hide: pipeline, whatsapp inbox, ai_agents, campaigns, forms,
-    // invoices (reception's job), settings — focus on care.
     dashboard: ["read"],
     patients: ["read", "edit"],
     queue: ["full"],
@@ -125,6 +123,7 @@ const PERMISSION_MATRIX: Record<Role, Partial<Record<Module, Action[]>>> = {
     appointments: ["read", "edit"],
     doctors: ["read"],
     analytics: ["read"],
+    doctor_services: ["full"],
   },
 };
 

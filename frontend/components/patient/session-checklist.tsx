@@ -92,6 +92,24 @@ export function SessionChecklist({ patientId, patientName }: Props) {
         <TerminerVisiteButton
           patientId={patientId}
           patientName={patientName}
+          canTerminate={ctx.can_terminate}
+          mode={ctx.mode === "seance" ? "seance" : "consultation"}
+          treatment={ctx.treatment}
+          planTitle={ctx.plan_title}
+          sessionNumber={ctx.session_number}
+          totalSessions={ctx.total_sessions}
+          intervalValue={ctx.interval_value}
+          sessionPrice={ctx.session_price}
+          screeningOk={ctx.screening_ok}
+          consentSigned={ctx.consent_signed}
+          consentPending={ctx.consent_pending}
+          soapExists={ctx.soap_exists}
+          ordonnanceExists={ctx.ordonnance_exists}
+          ordonnanceCount={ctx.ordonnance_count}
+          photosBefore={ctx.photos_before}
+          photosAfter={ctx.photos_after}
+          factureStatus={ctx.facture_status}
+          factureAmount={ctx.facture_amount}
         />
       </div>
 

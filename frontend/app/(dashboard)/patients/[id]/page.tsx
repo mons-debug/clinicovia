@@ -276,11 +276,15 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
                 planTitle={sessionCtx?.plan_title}
                 sessionNumber={sessionCtx?.session_number}
                 totalSessions={sessionCtx?.total_sessions}
+                intervalValue={sessionCtx?.interval_value}
                 soapExists={sessionCtx?.soap_exists}
                 ordonnanceExists={sessionCtx?.ordonnance_exists}
                 ordonnanceCount={sessionCtx?.ordonnance_count}
                 photosBefore={sessionCtx?.photos_before}
                 photosAfter={sessionCtx?.photos_after}
+                screeningOk={sessionCtx?.screening_ok}
+                consentSigned={sessionCtx?.consent_signed}
+                consentPending={sessionCtx?.consent_pending}
                 factureStatus={sessionCtx?.facture_status}
                 factureAmount={sessionCtx?.facture_amount}
               />

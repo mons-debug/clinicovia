@@ -108,6 +108,9 @@ class TreatmentPlan(Base, TimestampMixin, TenantMixin):
     doctor_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
+    doctor_service_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("doctor_services.id", ondelete="SET NULL"), nullable=True
+    )
 
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     primary_service: Mapped[str | None] = mapped_column(String(128), nullable=True)

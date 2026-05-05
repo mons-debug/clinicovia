@@ -162,6 +162,12 @@ const NAV_GROUPS: NavGroup[] = [
     module: "doctors",
   },
   {
+    label: "Mes Services",
+    href: "/doctor/services",
+    icon: ClipboardList,
+    module: "doctor_services",
+  },
+  {
     label: "Analytics",
     href: "/analytics",
     icon: BarChart2,

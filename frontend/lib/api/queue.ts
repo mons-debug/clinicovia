@@ -28,6 +28,8 @@ export interface InRoomDocuments {
   invoice_number: string | null;
   invoice_total: number | null;
   invoice_status: string | null;
+  invoice_line_items: { label: string; quantity: number; unit_price: number }[] | null;
+  invoice_discount: number | null;
   prescription_ids: string[];
   prescription_numbers: string[];
 }
@@ -68,7 +70,11 @@ export function useAdvanceIntake() {
         body: JSON.stringify({ to_status: to }),
         token: token ?? undefined,
       }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["queue"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["queue"] });
+      qc.invalidateQueries({ queryKey: ["session-context"] });
+      qc.invalidateQueries({ queryKey: ["calendar"] });
+    },
   });
 }
 
@@ -104,6 +110,9 @@ export function useCheckoutFromDossier() {
       qc.invalidateQueries({ queryKey: ["calendar"] });
       qc.invalidateQueries({ queryKey: ["invoices"] });
       qc.invalidateQueries({ queryKey: ["patients"] });
+      qc.invalidateQueries({ queryKey: ["plans"] });
+      qc.invalidateQueries({ queryKey: ["programmes"] });
+      qc.invalidateQueries({ queryKey: ["session-context"] });
     },
   });
 }
@@ -150,12 +159,14 @@ export function useWalkInExistingPatient() {
     mutationFn: ({
       patientId,
       requestedService,
+      doctorServiceId,
       note,
       flipToAwaiting,
       isFirstVisit,
     }: {
       patientId: string;
       requestedService?: string | null;
+      doctorServiceId?: string | null;
       note?: string | null;
       flipToAwaiting?: boolean;
       isFirstVisit?: boolean;
@@ -164,6 +175,7 @@ export function useWalkInExistingPatient() {
         method: "POST",
         body: JSON.stringify({
           requested_service: requestedService ?? null,
+          doctor_service_id: doctorServiceId ?? null,
           note: note ?? null,
           flip_to_awaiting: flipToAwaiting ?? true,
           is_first_visit: isFirstVisit ?? false,
@@ -178,14 +190,27 @@ export function useWalkInExistingPatient() {
   });
 }
 
+export interface PrepareSessionInput {
+  patientId: string;
+  consentText?: string;
+  invoiceAmount?: number;
+}
+
 export function usePrepareSession() {
   const token = useAuthStore((s) => s.accessToken);
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (patientId: string) =>
+    mutationFn: ({ patientId, consentText, invoiceAmount }: PrepareSessionInput) =>
       apiClient<{ consent_id: string | null; invoice_id: string | null; message: string }>(
         `/queue/${patientId}/prepare-session`,
-        { method: "POST", token: token ?? undefined }
+        {
+          method: "POST",
+          token: token ?? undefined,
+          body: JSON.stringify({
+            consent_text: consentText || null,
+            invoice_amount: invoiceAmount ?? null,
+          }),
+        }
       ),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["queue"] });

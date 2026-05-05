@@ -60,6 +60,7 @@ export interface TreatmentListResponse {
 export interface AppointmentCreateInput {
   patient_id: string;
   doctor_id?: string | null;
+  doctor_service_id?: string | null;
   appointment_date: string;
   start_time: string;
   end_time: string;
