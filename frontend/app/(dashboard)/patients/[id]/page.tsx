@@ -54,7 +54,6 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
   const { id } = use(props.params);
   const { currentRole, user: authUser } = useAuthStore();
   const isDoctor = currentRole === "doctor" || currentRole === "clinic_owner";
-  const needsWizard = authUser?.specialty === "plastic_surgery";
   const [activeTab, setActiveTab] = useState<TabKey>(isDoctor ? "dossier" : "overview");
   const [noteContent, setNoteContent] = useState("");
 
@@ -356,15 +355,15 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
 
       {activeTab === "dossier" && (
         <div className="space-y-5">
-          {/* Active session — full wizard for surgery, checklist for aesthetic/reception */}
-          {sessionCtx?.active && isDoctor && needsWizard && (
+          {/* Active session — DoctorBento for doctors, SessionChecklist for reception */}
+          {sessionCtx?.active && isDoctor && (
             <DoctorBento
               patientId={id}
               patientName={patientName}
               patient={patient}
             />
           )}
-          {sessionCtx?.active && (!needsWizard || !isDoctor) && (
+          {sessionCtx?.active && !isDoctor && (
             <SessionChecklist patientId={id} patientName={patientName} />
           )}
 
