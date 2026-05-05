@@ -9,24 +9,21 @@ import {
   Phone,
   Mail,
   MapPin,
-  Calendar,
   MessageSquare,
   Pencil,
   StickyNote,
   Activity,
   User,
-  DollarSign,
-  Star,
   Loader2,
   AlertCircle,
   Pin,
   FolderOpen,
   CalendarPlus,
-  FileText,
   Receipt,
-  Camera,
   Pill,
   ShieldCheck,
+  Clock,
+  CalendarDays,
 } from "lucide-react";
 import { toast } from "sonner";
 import { StatusBadge, getStatusVariant } from "@/components/shared/status-badge";
@@ -36,7 +33,7 @@ import {
   usePatientActivities,
   useCreatePatientNote,
 } from "@/lib/api/patients";
-import { useAppointments, type AppointmentResponse } from "@/lib/api/appointments";
+import { useAppointments } from "@/lib/api/appointments";
 import { useConversations, useWhatsAppSessions, startConversation } from "@/lib/api/whatsapp";
 import { useAuthStore } from "@/stores/auth-store";
 import { useSessionContext } from "@/lib/api/session-context";
@@ -52,10 +49,6 @@ import { NewPrescriptionDialog } from "@/components/prescriptions/new-prescripti
 import { Badge } from "@/components/ui/badge";
 
 type TabKey = "overview" | "dossier" | "conversations" | "notes" | "activity";
-
-function shortTime(time: string): string {
-  return time.slice(0, 5);
-}
 
 export default function PatientProfilePage(props: { params: Promise<{ id: string }> }) {
   const { id } = use(props.params);
@@ -100,11 +93,28 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
   );
   const patientAppointments = (aptData?.appointments ?? []).filter((a) => a.patient_id === id);
 
+  // Derived data for quick info cards
+  const pastAppointments = patientAppointments
+    .filter((a) => new Date(a.appointment_date) <= new Date())
+    .sort((a, b) => new Date(b.appointment_date).getTime() - new Date(a.appointment_date).getTime());
+  const futureAppointments = patientAppointments
+    .filter((a) => new Date(a.appointment_date) > new Date())
+    .sort((a, b) => new Date(a.appointment_date).getTime() - new Date(b.appointment_date).getTime());
+  const lastVisit = pastAppointments[0];
+  const nextAppointment = futureAppointments[0];
+
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString("fr-FR", {
       month: "short",
       day: "numeric",
       year: "numeric",
+    });
+  };
+
+  const formatDateShort = (dateStr: string) => {
+    return new Date(dateStr).toLocaleDateString("fr-FR", {
+      day: "numeric",
+      month: "short",
     });
   };
 
@@ -159,9 +169,11 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
   }
 
   const p = patient;
+  const visitCount = pastAppointments.length;
+  const patientSinceDate = new Date(p.created_at).toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Back nav */}
       <Link
         href="/patients"
@@ -171,18 +183,19 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
         Retour aux patients
       </Link>
 
-      {/* Patient header card */}
-      <div className="rounded-xl border border-border bg-white p-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex items-start gap-4">
+      {/* Patient header */}
+      <div className="rounded-xl border border-border bg-white px-6 py-5">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4 min-w-0">
             <div
-              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-lg font-bold text-white bg-primary"
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-base font-bold text-white"
+              style={{ backgroundColor: "var(--primary)" }}
             >
               {p.first_name[0]}{p.last_name[0]}
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl font-bold text-text-primary">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2.5">
+                <h1 className="text-lg font-bold text-text-primary truncate">
                   {p.first_name} {p.last_name}
                 </h1>
                 <StatusBadge
@@ -191,44 +204,31 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
                   dot
                 />
               </div>
-              <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-text-secondary">
+              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-text-secondary">
                 <span className="inline-flex items-center gap-1">
-                  <Phone className="h-3.5 w-3.5" /> {p.phone_country_code}{p.phone}
+                  <Phone className="h-3 w-3 text-text-muted" /> {p.phone_country_code}{p.phone}
                 </span>
                 {p.email && (
                   <span className="inline-flex items-center gap-1">
-                    <Mail className="h-3.5 w-3.5" /> {p.email}
+                    <Mail className="h-3 w-3 text-text-muted" /> {p.email}
                   </span>
                 )}
                 {(p.city || p.country) && (
                   <span className="inline-flex items-center gap-1">
-                    <MapPin className="h-3.5 w-3.5" /> {[p.city, p.country].filter(Boolean).join(", ")}
+                    <MapPin className="h-3 w-3 text-text-muted" /> {[p.city, p.country].filter(Boolean).join(", ")}
                   </span>
                 )}
               </div>
-              {p.tags.length > 0 && (
-                <div className="mt-2 flex gap-1.5">
-                  {p.tags.map((t) => (
-                    <span
-                      key={t.id}
-                      className="rounded-md px-2 py-0.5 text-xs font-medium text-white"
-                      style={{ backgroundColor: t.color }}
-                    >
-                      {t.tag}
-                    </span>
-                  ))}
-                </div>
-              )}
             </div>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex items-center gap-1.5 shrink-0">
             <button
               onClick={async () => {
                 if (!p.phone) return;
                 const session = connectedSessions[0];
                 if (!session) {
-                  toast.error("No WhatsApp number connected");
+                  toast.error("Aucun numéro WhatsApp connecté");
                   return;
                 }
                 try {
@@ -237,68 +237,68 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
                   const conv = await startConversation(session.id, jid, `${p.first_name} ${p.last_name}`);
                   router.push(`/whatsapp?conversation=${conv.id}`);
                 } catch {
-                  toast.error("Failed to start WhatsApp conversation");
+                  toast.error("Erreur WhatsApp");
                 }
               }}
               disabled={!p.phone || connectedSessions.length === 0}
-              className={`flex items-center gap-1.5 rounded-lg border border-border bg-white px-3 py-2 text-sm font-medium transition-colors ${
+              className={`flex h-8 w-8 items-center justify-center rounded-lg border border-border transition-colors ${
                 p.phone && connectedSessions.length > 0
                   ? "text-text-primary hover:bg-gray-50"
                   : "cursor-not-allowed text-text-muted"
               }`}
-              title={!p.phone ? "No phone number" : connectedSessions.length === 0 ? "No WhatsApp connected" : "Send WhatsApp message"}
+              title={!p.phone ? "Pas de téléphone" : connectedSessions.length === 0 ? "WhatsApp non connecté" : "Envoyer un message WhatsApp"}
             >
               <MessageSquare className="h-4 w-4" />
-              WhatsApp
             </button>
             <Link
               href={`/patients/${id}/edit`}
-              className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90"
-              style={{ backgroundColor: "var(--primary-light)" }}
+              className="flex h-8 w-8 items-center justify-center rounded-lg border border-border text-text-primary transition-colors hover:bg-gray-50"
+              title="Modifier le patient"
             >
               <Pencil className="h-4 w-4" />
-              Edit
             </Link>
           </div>
         </div>
 
-        {/* Quick stats */}
-        <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
-          {[
-            { label: "Lead Score", value: `${p.lead_score}/100`, icon: Star, color: "#F59E0B" },
-            { label: "Total Spent", value: `${p.total_spent.toLocaleString()} MAD`, icon: DollarSign, color: "#10B981" },
-            { label: "Lifetime Value", value: `${p.lifetime_value.toLocaleString()} MAD`, icon: DollarSign, color: "#059669" },
-            { label: "Patient Since", value: formatDate(p.created_at), icon: Calendar, color: "#3B82F6" },
-          ].map((stat) => {
-            const Icon = stat.icon;
-            return (
-              <div key={stat.label} className="rounded-lg bg-gray-50 p-3">
-                <div className="flex items-center gap-2">
-                  <Icon className="h-4 w-4" style={{ color: stat.color }} />
-                  <span className="text-xs text-text-muted">{stat.label}</span>
-                </div>
-                <p className="mt-1 text-sm font-semibold text-text-primary">{stat.value}</p>
-              </div>
-            );
-          })}
+        {/* Tags */}
+        {p.tags.length > 0 && (
+          <div className="mt-3 flex gap-1.5 pl-16">
+            {p.tags.map((t) => (
+              <span
+                key={t.id}
+                className="rounded-md px-2 py-0.5 text-[10px] font-medium text-white"
+                style={{ backgroundColor: t.color }}
+              >
+                {t.tag}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* Compact info bar */}
+        <div className="mt-3 border-t border-border pt-3 pl-16">
+          <p className="text-xs text-text-secondary">
+            Patient depuis {patientSinceDate} · {visitCount} visite{visitCount !== 1 ? "s" : ""} · {p.total_spent.toLocaleString("fr-FR")} MAD dépensé
+          </p>
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 overflow-x-auto border-b border-border">
+      {/* Segmented tab bar */}
+      <div className="flex gap-1 rounded-lg bg-gray-100/80 p-1 overflow-x-auto">
         {tabs.map((tab) => {
           const Icon = tab.icon;
+          const isActive = activeTab === tab.key;
           return (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`flex shrink-0 items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
-                activeTab === tab.key
-                  ? "border-primary-light text-primary-light"
-                  : "border-transparent text-text-secondary hover:text-text-primary"
+              className={`flex shrink-0 items-center gap-1.5 rounded-md px-3.5 py-2 text-sm font-medium transition-all ${
+                isActive
+                  ? "bg-white text-text-primary shadow-sm"
+                  : "text-text-secondary hover:text-text-primary"
               }`}
             >
-              <Icon className="h-4 w-4" />
+              <Icon className="h-3.5 w-3.5" />
               {tab.label}
             </button>
           );
@@ -307,38 +307,38 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
 
       {/* Tab content */}
       {activeTab === "overview" && (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
           <div className="rounded-xl border border-border bg-white p-5 lg:col-span-2">
-            <h3 className="text-base font-semibold text-text-primary">Informations patient</h3>
+            <h3 className="text-sm font-semibold text-text-primary">Informations patient</h3>
             <div className="mt-4 grid grid-cols-2 gap-4">
               {[
                 { label: "Nom complet", value: `${p.first_name} ${p.last_name}` },
                 { label: "Genre", value: p.gender ? p.gender.charAt(0).toUpperCase() + p.gender.slice(1) : "--" },
                 { label: "Date de naissance", value: p.date_of_birth || "--" },
-                { label: "Lead Source", value: p.lead_source || "--" },
-                { label: "Treatment Interests", value: p.treatment_interests || "--" },
-                { label: "Address", value: [p.city, p.country].filter(Boolean).join(", ") || "--" },
+                { label: "Source", value: p.lead_source || "--" },
+                { label: "Intérêts", value: p.treatment_interests || "--" },
+                { label: "Adresse", value: [p.city, p.country].filter(Boolean).join(", ") || "--" },
               ].map((item) => (
                 <div key={item.label}>
-                  <p className="text-xs text-text-muted">{item.label}</p>
+                  <p className="text-[11px] text-text-muted uppercase tracking-wide">{item.label}</p>
                   <p className="mt-0.5 text-sm font-medium text-text-primary">{item.value}</p>
                 </div>
               ))}
             </div>
             {p.internal_notes && (
               <div className="mt-5 rounded-lg bg-amber-50 p-3">
-                <p className="text-xs font-medium text-amber-700">Internal Notes</p>
+                <p className="text-[11px] font-medium text-amber-700 uppercase tracking-wide">Notes internes</p>
                 <p className="mt-1 text-sm text-amber-800">{p.internal_notes}</p>
               </div>
             )}
           </div>
 
           <div className="rounded-xl border border-border bg-white p-5">
-            <h3 className="text-base font-semibold text-text-primary">Recent Activity</h3>
+            <h3 className="text-sm font-semibold text-text-primary">Activité récente</h3>
             <div className="mt-4 space-y-3">
               {activities.slice(0, 5).map((act) => (
                 <div key={act.id} className="flex items-start gap-2">
-                  <div className="mt-0.5 h-2 w-2 shrink-0 rounded-full bg-gray-300" />
+                  <div className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary-light" />
                   <div>
                     <p className="text-xs text-text-primary">{act.description}</p>
                     <p className="text-[10px] text-text-muted">{formatDate(act.created_at)}</p>
@@ -354,7 +354,7 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
       )}
 
       {activeTab === "dossier" && (
-        <div className="space-y-6">
+        <div className="space-y-5">
           {/* Active session — DoctorBento for doctors, SessionChecklist for reception */}
           {sessionCtx?.active && isDoctor && (
             <DoctorBento
@@ -367,13 +367,47 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
             <SessionChecklist patientId={id} patientName={patientName} />
           )}
 
-          {/* Quick actions */}
-          <div className="flex flex-wrap gap-2">
+          {/* Quick info cards — 2 column grid */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="flex items-center gap-3 rounded-lg border border-border bg-white p-4">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gray-50">
+                <Clock className="h-4 w-4 text-text-muted" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[11px] text-text-muted uppercase tracking-wide">Dernière visite</p>
+                {lastVisit ? (
+                  <p className="text-sm font-medium text-text-primary truncate">
+                    {formatDateShort(lastVisit.appointment_date)} — {lastVisit.treatment || "Consultation"}
+                  </p>
+                ) : (
+                  <p className="text-sm text-text-muted">Aucune</p>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-3 rounded-lg border border-border bg-white p-4">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gray-50">
+                <CalendarDays className="h-4 w-4 text-text-muted" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[11px] text-text-muted uppercase tracking-wide">Prochain RDV</p>
+                {nextAppointment ? (
+                  <p className="text-sm font-medium text-text-primary truncate">
+                    {formatDateShort(nextAppointment.appointment_date)} — {nextAppointment.treatment || "Consultation"}
+                  </p>
+                ) : (
+                  <p className="text-sm text-text-muted">Aucun</p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Quick actions — ghost/outline buttons */}
+          <div className="flex flex-wrap items-center gap-2">
             <Link
               href={`/appointments/new?patient=${id}`}
-              className="flex items-center gap-1.5 rounded-lg border border-border bg-white px-3 py-2 text-sm font-medium text-text-primary hover:bg-gray-50"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-medium text-text-primary transition-colors hover:bg-gray-50"
             >
-              <CalendarPlus className="h-4 w-4" />
+              <CalendarPlus className="h-3.5 w-3.5" />
               Nouveau RDV
             </Link>
             <NewInvoiceDialog patientId={id} triggerLabel="Nouvelle facture" />
@@ -382,31 +416,31 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
 
           {/* Plans & Séances */}
           <div className="rounded-xl border border-border bg-white p-5">
-            <h3 className="mb-4 text-base font-semibold text-text-primary">Plans de traitement</h3>
+            <h3 className="mb-4 text-sm font-semibold text-text-primary">Plans de traitement</h3>
             <ProgrammePlansSection patientId={id} />
           </div>
 
           {/* Factures */}
           <div className="rounded-xl border border-border bg-white p-5">
             <div className="flex items-center justify-between">
-              <h3 className="text-base font-semibold text-text-primary">Factures</h3>
-              <span className="text-xs text-text-muted">{invoices.length} facture{invoices.length !== 1 ? "s" : ""}</span>
+              <h3 className="text-sm font-semibold text-text-primary">Factures</h3>
+              <span className="text-[11px] text-text-muted">{invoices.length} facture{invoices.length !== 1 ? "s" : ""}</span>
             </div>
             {invoices.length === 0 ? (
-              <p className="mt-4 text-center text-sm text-text-muted">Aucune facture</p>
+              <p className="mt-4 text-center text-xs text-text-muted">Aucune facture</p>
             ) : (
-              <div className="mt-4 space-y-2">
+              <div className="mt-3 space-y-1.5">
                 {invoices.map((inv) => (
                   <Link
                     key={inv.id}
                     href={`/invoices/${inv.id}`}
-                    className="flex items-center justify-between rounded-lg border border-border p-3 transition-colors hover:bg-gray-50"
+                    className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5 transition-colors hover:bg-gray-50"
                   >
-                    <div className="flex items-center gap-3">
-                      <Receipt className="h-4 w-4 text-text-muted" />
+                    <div className="flex items-center gap-2.5">
+                      <Receipt className="h-3.5 w-3.5 text-text-muted" />
                       <div>
                         <span className="text-sm font-medium text-text-primary">{inv.number || "Brouillon"}</span>
-                        <span className="ml-2 text-xs text-text-muted">{formatDate(inv.created_at)}</span>
+                        <span className="ml-2 text-[11px] text-text-muted">{formatDate(inv.created_at)}</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -424,24 +458,24 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
           {/* Ordonnances */}
           <div className="rounded-xl border border-border bg-white p-5">
             <div className="flex items-center justify-between">
-              <h3 className="text-base font-semibold text-text-primary">Ordonnances</h3>
-              <span className="text-xs text-text-muted">{prescriptions.length} ordonnance{prescriptions.length !== 1 ? "s" : ""}</span>
+              <h3 className="text-sm font-semibold text-text-primary">Ordonnances</h3>
+              <span className="text-[11px] text-text-muted">{prescriptions.length} ordonnance{prescriptions.length !== 1 ? "s" : ""}</span>
             </div>
             {prescriptions.length === 0 ? (
-              <p className="mt-4 text-center text-sm text-text-muted">Aucune ordonnance</p>
+              <p className="mt-4 text-center text-xs text-text-muted">Aucune ordonnance</p>
             ) : (
-              <div className="mt-4 space-y-2">
+              <div className="mt-3 space-y-1.5">
                 {prescriptions.map((rx) => (
                   <Link
                     key={rx.id}
                     href={`/prescriptions/${rx.id}`}
-                    className="flex items-center justify-between rounded-lg border border-border p-3 transition-colors hover:bg-gray-50"
+                    className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5 transition-colors hover:bg-gray-50"
                   >
-                    <div className="flex items-center gap-3">
-                      <Pill className="h-4 w-4 text-text-muted" />
+                    <div className="flex items-center gap-2.5">
+                      <Pill className="h-3.5 w-3.5 text-text-muted" />
                       <div>
                         <span className="text-sm font-medium text-text-primary">{rx.number}</span>
-                        <span className="ml-2 text-xs text-text-muted">{formatDate(rx.issue_date)}</span>
+                        <span className="ml-2 text-[11px] text-text-muted">{formatDate(rx.issue_date)}</span>
                       </div>
                     </div>
                     <Badge variant={rx.status === "signed" ? "success" : "outline"}>
@@ -456,24 +490,24 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
           {/* Consentements */}
           <div className="rounded-xl border border-border bg-white p-5">
             <div className="flex items-center justify-between">
-              <h3 className="text-base font-semibold text-text-primary">Consentements</h3>
-              <span className="text-xs text-text-muted">{consents.length}</span>
+              <h3 className="text-sm font-semibold text-text-primary">Consentements</h3>
+              <span className="text-[11px] text-text-muted">{consents.length}</span>
             </div>
             {consents.length === 0 ? (
-              <p className="mt-4 text-center text-sm text-text-muted">Aucun consentement</p>
+              <p className="mt-4 text-center text-xs text-text-muted">Aucun consentement</p>
             ) : (
-              <div className="mt-4 space-y-2">
+              <div className="mt-3 space-y-1.5">
                 {consents.map((c) => (
                   <div
                     key={c.id}
-                    className="flex items-center justify-between rounded-lg border border-border p-3"
+                    className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5"
                   >
-                    <div className="flex items-center gap-3">
-                      <ShieldCheck className="h-4 w-4 text-text-muted" />
+                    <div className="flex items-center gap-2.5">
+                      <ShieldCheck className="h-3.5 w-3.5 text-text-muted" />
                       <div>
                         <span className="text-sm font-medium text-text-primary">{c.title}</span>
                         {c.treatment_name && (
-                          <span className="ml-2 text-xs text-text-muted">{c.treatment_name}</span>
+                          <span className="ml-2 text-[11px] text-text-muted">{c.treatment_name}</span>
                         )}
                       </div>
                     </div>
@@ -494,13 +528,13 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
           {/* Photos */}
           <div className="rounded-xl border border-border bg-white p-5">
             <div className="flex items-center justify-between">
-              <h3 className="text-base font-semibold text-text-primary">Photos</h3>
-              <span className="text-xs text-text-muted">{photos.length} photo{photos.length !== 1 ? "s" : ""}</span>
+              <h3 className="text-sm font-semibold text-text-primary">Photos</h3>
+              <span className="text-[11px] text-text-muted">{photos.length} photo{photos.length !== 1 ? "s" : ""}</span>
             </div>
             {photos.length === 0 ? (
-              <p className="mt-4 text-center text-sm text-text-muted">Aucune photo</p>
+              <p className="mt-4 text-center text-xs text-text-muted">Aucune photo</p>
             ) : (
-              <div className="mt-4 grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-6">
+              <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">
                 {photos.map((photo) => (
                   <div key={photo.id} className="group relative aspect-square overflow-hidden rounded-lg border border-border bg-gray-50">
                     <img
@@ -508,53 +542,12 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
                       alt={`${photo.stage} - ${photo.zone_slug}`}
                       className="h-full w-full object-cover"
                     />
-                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent px-2 py-1.5">
+                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent px-1.5 py-1">
                       <span className="text-[10px] font-medium text-white capitalize">{photo.stage}</span>
                     </div>
                   </div>
                 ))}
               </div>
-            )}
-          </div>
-
-          {/* Notes médicales */}
-          <div className="rounded-xl border border-border bg-white p-5">
-            <h3 className="text-base font-semibold text-text-primary">Notes médicales</h3>
-            <div className="mt-4">
-              <textarea
-                placeholder="Ajouter une note..."
-                rows={2}
-                value={noteContent}
-                onChange={(e) => setNoteContent(e.target.value)}
-                className="w-full resize-none rounded-lg border border-border bg-gray-50 p-3 text-sm placeholder:text-text-muted focus:border-primary-light focus:bg-white focus:outline-none focus:ring-1 focus:ring-primary-light"
-              />
-              <div className="mt-2 flex justify-end">
-                <button
-                  onClick={handleAddNote}
-                  disabled={createNoteMutation.isPending}
-                  className="rounded-lg px-4 py-1.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-60"
-                  style={{ backgroundColor: "var(--primary-light)" }}
-                >
-                  {createNoteMutation.isPending ? "Enregistrement..." : "Ajouter la note"}
-                </button>
-              </div>
-            </div>
-            {notes.length > 0 ? (
-              <div className="mt-4 space-y-3">
-                {notes.map((note) => (
-                  <div key={note.id} className="rounded-lg border border-border p-3">
-                    {note.is_pinned && (
-                      <span className="mb-1.5 inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700">
-                        <Pin className="h-3 w-3" /> Épinglé
-                      </span>
-                    )}
-                    <p className="text-sm text-text-primary">{note.content}</p>
-                    <p className="mt-1.5 text-xs text-text-muted">{formatDate(note.created_at)}</p>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="mt-4 text-xs text-text-muted">Aucune note</p>
             )}
           </div>
         </div>
@@ -588,7 +581,7 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
                       </span>
                     </div>
                     <p className="truncate text-xs text-text-secondary">
-                      {conv.last_message || "No messages"}
+                      {conv.last_message || "Aucun message"}
                     </p>
                   </div>
                   {conv.unread_count > 0 && (
@@ -606,10 +599,10 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
             <div className="p-8 text-center">
               <MessageSquare className="mx-auto h-8 w-8 text-text-muted" />
               <p className="mt-3 text-sm font-medium text-text-primary">
-                No WhatsApp Conversations
+                Aucune conversation
               </p>
               <p className="mt-1 text-xs text-text-secondary">
-                Conversations will appear here when this patient messages via WhatsApp.
+                Les conversations apparaîtront ici quand ce patient enverra un message via WhatsApp.
               </p>
             </div>
           )}
@@ -621,20 +614,26 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
           {/* Add note */}
           <div className="rounded-xl border border-border bg-white p-4">
             <textarea
-              placeholder="Ajouter une note..."
+              placeholder="Écrire une note..."
               rows={2}
               value={noteContent}
               onChange={(e) => setNoteContent(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                  handleAddNote();
+                }
+              }}
               className="w-full resize-none rounded-lg border border-border bg-gray-50 p-3 text-sm placeholder:text-text-muted focus:border-primary-light focus:bg-white focus:outline-none focus:ring-1 focus:ring-primary-light"
             />
-            <div className="mt-2 flex justify-end">
+            <div className="mt-2 flex items-center justify-between">
+              <span className="text-[11px] text-text-muted">Cmd+Entrée pour enregistrer</span>
               <button
                 onClick={handleAddNote}
-                disabled={createNoteMutation.isPending}
-                className="rounded-lg px-4 py-1.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+                disabled={createNoteMutation.isPending || !noteContent.trim()}
+                className="rounded-lg px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-40"
                 style={{ backgroundColor: "var(--primary-light)" }}
               >
-                {createNoteMutation.isPending ? "Enregistrement..." : "Enregistrer"}
+                {createNoteMutation.isPending ? "..." : "Enregistrer"}
               </button>
             </div>
           </div>
@@ -642,19 +641,29 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
           {/* Notes list */}
           {notes.map((note) => (
             <div key={note.id} className="rounded-xl border border-border bg-white p-4">
-              {note.is_pinned && (
-                <span className="mb-2 inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700">
-                  <Pin className="h-3 w-3" /> Pinned
-                </span>
-              )}
-              <p className="text-sm text-text-primary">{note.content}</p>
-              <p className="mt-2 text-xs text-text-muted">{formatDate(note.created_at)}</p>
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-start gap-2.5 min-w-0">
+                  <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gray-100 mt-0.5">
+                    <User className="h-3 w-3 text-text-muted" />
+                  </div>
+                  <div className="min-w-0">
+                    {note.is_pinned && (
+                      <span className="mb-1 inline-flex items-center gap-0.5 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
+                        <Pin className="h-2.5 w-2.5" /> Épinglé
+                      </span>
+                    )}
+                    <p className="text-sm text-text-primary whitespace-pre-wrap">{note.content}</p>
+                  </div>
+                </div>
+                <span className="text-[10px] text-text-muted shrink-0">{formatDate(note.created_at)}</span>
+              </div>
             </div>
           ))}
 
           {notes.length === 0 && (
             <div className="rounded-xl border border-border bg-white p-6 text-center">
-              <p className="text-sm text-text-secondary">Aucune note. Ajoutez votre première note ci-dessus.</p>
+              <StickyNote className="mx-auto h-6 w-6 text-text-muted" />
+              <p className="mt-2 text-sm text-text-secondary">Aucune note. Ajoutez votre première note ci-dessus.</p>
             </div>
           )}
         </div>
@@ -665,14 +674,14 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
           {activities.length > 0 ? (
             <div className="divide-y divide-border">
               {activities.map((act) => (
-                <div key={act.id} className="flex items-start gap-3 p-4">
-                  <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gray-100">
-                    <Activity className="h-3.5 w-3.5 text-text-muted" />
+                <div key={act.id} className="flex items-start gap-3 px-4 py-3">
+                  <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gray-100">
+                    <Activity className="h-3 w-3 text-text-muted" />
                   </div>
                   <div>
                     <p className="text-sm text-text-primary">{act.description}</p>
-                    <p className="mt-0.5 text-xs text-text-muted">
-                      {formatDate(act.created_at)} at {formatTime(act.created_at)}
+                    <p className="mt-0.5 text-[11px] text-text-muted">
+                      {formatDate(act.created_at)} à {formatTime(act.created_at)}
                     </p>
                   </div>
                 </div>
@@ -680,7 +689,8 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
             </div>
           ) : (
             <div className="p-6 text-center">
-              <p className="text-sm text-text-secondary">Aucune activité enregistrée.</p>
+              <Activity className="mx-auto h-6 w-6 text-text-muted" />
+              <p className="mt-2 text-sm text-text-secondary">Aucune activité enregistrée.</p>
             </div>
           )}
         </div>
