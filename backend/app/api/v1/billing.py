@@ -361,7 +361,7 @@ async def invoice_pdf(
 
     pdf_bytes = render_invoice_pdf(clinic=clinic, patient=patient, invoice=inv)
 
-    filename = f"{inv.number}.pdf"
+    filename = f"{inv.number or 'BROUILLON'}.pdf"
     return StreamingResponse(
         iter([pdf_bytes]),
         media_type="application/pdf",

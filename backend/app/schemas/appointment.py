@@ -21,11 +21,14 @@ class AppointmentCreate(BaseModel):
 
 class AppointmentUpdate(BaseModel):
     doctor_id: uuid.UUID | None = None
+    doctor_service_id: uuid.UUID | None = None
     appointment_date: date | None = None
     start_time: time | None = None
     end_time: time | None = None
     duration_minutes: int | None = None
     treatment: str | None = None
+    kind: str | None = None
+    room: str | None = None
     notes: str | None = None
 
 
@@ -42,6 +45,7 @@ class AppointmentResponse(BaseModel):
     patient_phone: str = ""
     patient_initials: str = ""
     doctor_id: uuid.UUID | None
+    doctor_service_id: uuid.UUID | None = None
     doctor_name: str = ""
     doctor_color: str = "#6B7280"
     appointment_date: date

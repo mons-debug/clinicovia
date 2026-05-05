@@ -47,6 +47,7 @@ __all__ = [
     "Consultation",
     "ConsultationCounter",
     "PatientScreening",
+    "PatientConsent",
     "Form",
     "FormSubmission",
     "WhatsAppSession",

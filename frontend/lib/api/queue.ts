@@ -16,6 +16,9 @@ export interface CheckoutDocuments {
   invoice_id: string | null;
   invoice_number: string | null;
   invoice_total: number | null;
+  invoice_status: string | null;
+  invoice_line_items: { label: string; quantity: number; unit_price: number }[] | null;
+  invoice_discount: number | null;
   prescription_ids: string[];
   prescription_numbers: string[];
 }

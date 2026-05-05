@@ -104,6 +104,12 @@ const DOCTOR_NAV: NavGroup[] = [
     ],
   },
   {
+    label: "Mes Services",
+    href: "/doctor/services",
+    icon: ClipboardList,
+    module: "doctor_services",
+  },
+  {
     label: "Plus",
     href: "/doctors",
     icon: MoreHorizontal,

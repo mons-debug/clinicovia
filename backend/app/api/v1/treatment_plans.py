@@ -534,7 +534,7 @@ class TimelinePrescription(BaseModel):
 
 class TimelineInvoice(BaseModel):
     id: uuid.UUID
-    number: str
+    number: str | None = None
     status: str
     total: float
     currency: str

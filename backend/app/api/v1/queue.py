@@ -77,6 +77,9 @@ class CheckoutDocuments(BaseModel):
     invoice_id: str | None = None
     invoice_number: str | None = None
     invoice_total: float | None = None
+    invoice_status: str | None = None
+    invoice_line_items: list[dict] | None = None
+    invoice_discount: float | None = None
     prescription_ids: list[str] = []
     prescription_numbers: list[str] = []
 

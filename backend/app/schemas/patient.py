@@ -143,6 +143,7 @@ class PatientResponse(BaseModel):
     intake_status: str
     intake_at: datetime | None
     doctor_called_at: datetime | None = None
+    prep_sent_at: datetime | None = None
     requested_service: str | None
     # Assignment + financial
     assigned_to: uuid.UUID | None

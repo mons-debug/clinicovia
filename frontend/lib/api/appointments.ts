@@ -11,6 +11,7 @@ export interface AppointmentResponse {
   patient_phone: string;
   patient_initials: string;
   doctor_id: string | null;
+  doctor_service_id: string | null;
   doctor_name: string;
   doctor_color: string;
   appointment_date: string;
@@ -18,9 +19,12 @@ export interface AppointmentResponse {
   end_time: string;
   duration_minutes: number;
   treatment: string;
+  kind: string;
   status: string;
+  room: string | null;
   notes: string | null;
   is_first_visit: boolean;
+  needs_confirmation: boolean;
   created_at: string;
   updated_at: string;
 }

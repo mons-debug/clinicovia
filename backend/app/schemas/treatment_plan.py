@@ -76,6 +76,7 @@ class PlanResponse(BaseModel):
     programme_id: uuid.UUID | None = None
     created_by: uuid.UUID | None
     doctor_id: uuid.UUID | None
+    doctor_service_id: uuid.UUID | None = None
     title: str
     primary_service: str | None
     indication_slugs: list | None

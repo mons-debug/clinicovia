@@ -31,6 +31,7 @@ export interface TreatmentPlan {
   programme_id: string | null;
   created_by: string | null;
   doctor_id: string | null;
+  doctor_service_id: string | null;
   title: string;
   primary_service: string | null;
   indication_slugs: string[] | null;
