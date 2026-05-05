@@ -96,8 +96,10 @@ const PERMISSION_MATRIX: Record<Role, Partial<Record<Module, Action[]>>> = {
   },
   [ROLES.DOCTOR]: {
     dashboard: ["read"],
-    patients: ["read"],
-    appointments: ["read", "edit"],
+    patients: ["read", "create", "edit"],
+    appointments: ["read", "create", "edit"],
+    doctors: ["read"],
+    settings: ["read"],
     analytics: ["read"],
   },
 };

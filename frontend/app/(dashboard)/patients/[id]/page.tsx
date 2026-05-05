@@ -20,6 +20,10 @@ import {
   Loader2,
   AlertCircle,
   Pin,
+  FolderOpen,
+  Clock,
+  CalendarPlus,
+  FileText,
 } from "lucide-react";
 import { toast } from "sonner";
 import { StatusBadge, getStatusVariant } from "@/components/shared/status-badge";
@@ -29,31 +33,50 @@ import {
   usePatientActivities,
   useCreatePatientNote,
 } from "@/lib/api/patients";
+import { useAppointments, type AppointmentResponse } from "@/lib/api/appointments";
 import { useConversations, useWhatsAppSessions, startConversation } from "@/lib/api/whatsapp";
+import { useAuthStore } from "@/stores/auth-store";
 
-const tabs = [
-  { key: "overview", label: "Overview", icon: User },
-  { key: "conversations", label: "Conversations", icon: MessageSquare },
-  { key: "notes", label: "Notes", icon: StickyNote },
-  { key: "activity", label: "Activity", icon: Activity },
-] as const;
+type TabKey = "overview" | "dossier" | "conversations" | "notes" | "activity";
 
-type TabKey = (typeof tabs)[number]["key"];
+function shortTime(time: string): string {
+  const [h, m] = time.split(":").map(Number);
+  const ampm = h >= 12 ? "PM" : "AM";
+  const h12 = h % 12 || 12;
+  return `${h12}:${m.toString().padStart(2, "0")} ${ampm}`;
+}
 
 export default function PatientProfilePage(props: { params: Promise<{ id: string }> }) {
   const { id } = use(props.params);
-  const [activeTab, setActiveTab] = useState<TabKey>("overview");
+  const { currentRole, user: authUser } = useAuthStore();
+  const isDoctor = currentRole === "doctor" && !authUser?.isSuperAdmin;
+  const [activeTab, setActiveTab] = useState<TabKey>(isDoctor ? "dossier" : "overview");
   const [noteContent, setNoteContent] = useState("");
 
   const router = useRouter();
   const { data: patient, isLoading, isError, error } = usePatient(id);
   const { data: sessionsData } = useWhatsAppSessions();
+
+  const tabs: { key: TabKey; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+    ...(isDoctor ? [] : [{ key: "overview" as TabKey, label: "Overview", icon: User }]),
+    { key: "dossier", label: "Dossier", icon: FolderOpen },
+    ...(isDoctor ? [] : [{ key: "conversations" as TabKey, label: "Conversations", icon: MessageSquare }]),
+    { key: "notes", label: "Notes", icon: StickyNote },
+    ...(isDoctor ? [] : [{ key: "activity" as TabKey, label: "Activity", icon: Activity }]),
+  ];
   const connectedSessions = (sessionsData?.sessions || []).filter((s) => s.status === "connected");
   const { data: notes = [] } = usePatientNotes(id);
   const { data: activities = [] } = usePatientActivities(id);
   const createNoteMutation = useCreatePatientNote(id);
   const { data: convsData } = useConversations({ patient_id: id });
   const patientConversations = convsData?.conversations || [];
+
+  const patientName = patient ? `${patient.first_name} ${patient.last_name}` : "";
+  const { data: aptData } = useAppointments(
+    { patient_search: patientName, date_from: "2020-01-01", date_to: "2030-12-31", page_size: 200 },
+    { enabled: !!patientName },
+  );
+  const patientAppointments = (aptData?.appointments ?? []).filter((a) => a.patient_id === id);
 
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString("en-US", {
@@ -305,6 +328,130 @@ export default function PatientProfilePage(props: { params: Promise<{ id: string
                 <p className="text-xs text-text-muted">No activity yet</p>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === "dossier" && (
+        <div className="space-y-6">
+          {/* Quick actions */}
+          <div className="flex gap-2">
+            <Link
+              href={`/appointments/new?patient=${id}`}
+              className="flex items-center gap-1.5 rounded-lg border border-border bg-white px-3 py-2 text-sm font-medium text-text-primary hover:bg-gray-50"
+            >
+              <CalendarPlus className="h-4 w-4" />
+              Nouveau RDV
+            </Link>
+          </div>
+
+          {/* Treatment history */}
+          <div className="rounded-xl border border-border bg-white p-5">
+            <h3 className="text-base font-semibold text-text-primary">Historique des traitements</h3>
+            {patientAppointments.length === 0 ? (
+              <div className="mt-4 py-6 text-center">
+                <FileText className="mx-auto h-7 w-7 text-text-muted" />
+                <p className="mt-2 text-sm text-text-secondary">Aucun traitement enregistre</p>
+              </div>
+            ) : (
+              <div className="mt-4 space-y-2">
+                {patientAppointments
+                  .sort((a, b) => b.appointment_date.localeCompare(a.appointment_date) || b.start_time.localeCompare(a.start_time))
+                  .map((apt) => {
+                    const isCompleted = apt.status === "completed";
+                    const isCancelled = apt.status === "cancelled" || apt.status === "no_show";
+                    const statusColor = {
+                      completed: "bg-emerald-50 text-emerald-700",
+                      cancelled: "bg-red-50 text-red-600",
+                      no_show: "bg-gray-100 text-gray-500",
+                      scheduled: "bg-amber-50 text-amber-700",
+                      confirmed: "bg-blue-50 text-blue-700",
+                      checked_in: "bg-emerald-50 text-emerald-700",
+                      in_progress: "bg-purple-50 text-purple-700",
+                    }[apt.status] || "bg-gray-100 text-gray-600";
+
+                    return (
+                      <Link
+                        key={apt.id}
+                        href={`/appointments/${apt.id}`}
+                        className={`flex items-center gap-4 rounded-lg border border-border p-4 transition-colors hover:bg-gray-50 ${isCancelled ? "opacity-50" : ""}`}
+                      >
+                        <div className="flex h-10 w-10 shrink-0 flex-col items-center justify-center rounded-lg bg-gray-50">
+                          <span className="text-[10px] font-semibold text-text-secondary">
+                            {new Date(apt.appointment_date + "T00:00:00").toLocaleDateString("fr-FR", { month: "short" }).toUpperCase()}
+                          </span>
+                          <span className="text-sm font-bold text-text-primary">
+                            {new Date(apt.appointment_date + "T00:00:00").getDate()}
+                          </span>
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className={`text-sm font-medium text-text-primary ${isCancelled ? "line-through" : ""}`}>
+                            {apt.treatment}
+                          </p>
+                          <p className="text-xs text-text-muted">
+                            {shortTime(apt.start_time)} - {shortTime(apt.end_time)}
+                            {apt.doctor_name && ` · ${apt.doctor_name}`}
+                          </p>
+                          {apt.notes && (
+                            <p className="mt-1 text-xs text-text-secondary line-clamp-1">{apt.notes}</p>
+                          )}
+                        </div>
+                        <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-medium ${statusColor}`}>
+                          {apt.status.replace("_", " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+                        </span>
+                      </Link>
+                    );
+                  })}
+              </div>
+            )}
+          </div>
+
+          {/* Medical notes */}
+          <div className="rounded-xl border border-border bg-white p-5">
+            <h3 className="text-base font-semibold text-text-primary">Notes medicales</h3>
+            <div className="mt-4">
+              <textarea
+                placeholder="Ajouter une note..."
+                rows={2}
+                value={noteContent}
+                onChange={(e) => setNoteContent(e.target.value)}
+                className="w-full resize-none rounded-lg border border-border bg-gray-50 p-3 text-sm placeholder:text-text-muted focus:border-primary-light focus:bg-white focus:outline-none focus:ring-1 focus:ring-primary-light"
+              />
+              <div className="mt-2 flex justify-end">
+                <button
+                  onClick={handleAddNote}
+                  disabled={createNoteMutation.isPending}
+                  className="rounded-lg px-4 py-1.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+                  style={{ backgroundColor: "var(--primary-light)" }}
+                >
+                  {createNoteMutation.isPending ? "Enregistrement..." : "Ajouter la note"}
+                </button>
+              </div>
+            </div>
+            {notes.length > 0 ? (
+              <div className="mt-4 space-y-3">
+                {notes.map((note) => (
+                  <div key={note.id} className="rounded-lg border border-border p-3">
+                    {note.is_pinned && (
+                      <span className="mb-1.5 inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700">
+                        <Pin className="h-3 w-3" /> Epingle
+                      </span>
+                    )}
+                    <p className="text-sm text-text-primary">{note.content}</p>
+                    <p className="mt-1.5 text-xs text-text-muted">{formatDate(note.created_at)}</p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-4 text-xs text-text-muted">Aucune note</p>
+            )}
+          </div>
+
+          {/* Treatment plans placeholder */}
+          <div className="rounded-xl border border-dashed border-border bg-gray-50 p-5 text-center">
+            <FileText className="mx-auto h-7 w-7 text-text-muted" />
+            <p className="mt-2 text-sm font-medium text-text-primary">Plans de traitement</p>
+            <p className="mt-1 text-xs text-text-secondary">Bientot disponible - gestion des plans de traitement personnalises</p>
           </div>
         </div>
       )}

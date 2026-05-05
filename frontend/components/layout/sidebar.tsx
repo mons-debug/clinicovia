@@ -46,6 +46,8 @@ import {
   ChevronRight,
   ChevronDown,
   Shield,
+  Clock,
+  MoreHorizontal,
 } from "lucide-react";
 import { useUIStore } from "@/stores/ui-store";
 import { useAuthStore } from "@/stores/auth-store";
@@ -67,6 +69,51 @@ interface NavGroup {
   dotColor?: string;
   children?: SubItem[];
 }
+
+const DOCTOR_NAV: NavGroup[] = [
+  {
+    label: "Accueil",
+    href: "/dashboard",
+    icon: LayoutDashboard,
+    module: "dashboard",
+  },
+  {
+    label: "Patients",
+    href: "/patients",
+    icon: Users,
+    module: "patients",
+    children: [
+      { label: "Tous les patients", href: "/patients", icon: Users },
+      { label: "Ajouter", href: "/patients/new", icon: UserPlus },
+    ],
+  },
+  {
+    label: "Salle d'attente",
+    href: "/waiting-room",
+    icon: Clock,
+    module: "appointments",
+  },
+  {
+    label: "Agenda",
+    href: "/appointments",
+    icon: Calendar,
+    module: "appointments",
+    children: [
+      { label: "Calendrier", href: "/appointments", icon: Calendar },
+      { label: "Nouveau RDV", href: "/appointments/new", icon: CalendarPlus },
+    ],
+  },
+  {
+    label: "Plus",
+    href: "/doctors",
+    icon: MoreHorizontal,
+    module: "doctors",
+    children: [
+      { label: "Doctors", href: "/doctors", icon: Stethoscope },
+      { label: "Settings", href: "/settings", icon: Settings },
+    ],
+  },
+];
 
 const NAV_GROUPS: NavGroup[] = [
   {
@@ -216,7 +263,9 @@ export function Sidebar() {
     setExpanded((prev) => ({ ...prev, [label]: !prev[label] }));
   };
 
-  const filteredGroups = NAV_GROUPS.filter((item) =>
+  const isDoctor = currentRole === "doctor" && !user?.isSuperAdmin;
+  const navSource = isDoctor ? DOCTOR_NAV : NAV_GROUPS;
+  const filteredGroups = navSource.filter((item) =>
     canAccessModule(item.module as Parameters<typeof canAccessModule>[0])
   );
 

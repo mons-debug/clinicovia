@@ -26,6 +26,8 @@ import {
   useUpdateAppointmentStatus,
   type AppointmentResponse,
 } from "@/lib/api/appointments";
+import { useAuthStore } from "@/stores/auth-store";
+import { LogIn } from "lucide-react";
 
 type ViewMode = "day" | "week" | "month" | "list";
 
@@ -132,10 +134,12 @@ function WhatsAppActions({ appointment }: { appointment: AppointmentResponse }) 
 function AppointmentBlock({ apt, style }: { apt: AppointmentResponse; style?: React.CSSProperties }) {
   const isCancelled = apt.status === "cancelled" || apt.status === "no_show";
   const color = apt.doctor_color || STATUS_COLORS[apt.status] || "#6B7280";
+  const statusMut = useUpdateAppointmentStatus();
+
+  const canCheckIn = apt.status === "scheduled" || apt.status === "confirmed";
 
   return (
-    <Link
-      href={`/appointments/${apt.id}`}
+    <div
       className={`absolute left-1 right-1 overflow-hidden rounded-md border-l-[3px] px-2 py-1 text-[10px] transition-all hover:shadow-md hover:z-10 ${isCancelled ? "opacity-40" : ""}`}
       style={{
         ...style,
@@ -143,16 +147,37 @@ function AppointmentBlock({ apt, style }: { apt: AppointmentResponse; style?: Re
         backgroundColor: `${color}15`,
       }}
     >
-      <div className="flex items-center justify-between gap-1">
-        <p className={`truncate font-semibold text-text-primary ${isCancelled ? "line-through" : ""}`}>
-          {apt.patient_name}
+      <Link href={`/appointments/${apt.id}`}>
+        <div className="flex items-center justify-between gap-1">
+          <p className={`truncate font-semibold text-text-primary ${isCancelled ? "line-through" : ""}`}>
+            {apt.patient_name}
+          </p>
+          <div className="flex items-center gap-0.5">
+            {!isCancelled && <WhatsAppActions appointment={apt} />}
+          </div>
+        </div>
+        <p className="truncate text-text-muted">
+          {shortTime(apt.start_time)} - {apt.treatment}
         </p>
-        {!isCancelled && <WhatsAppActions appointment={apt} />}
-      </div>
-      <p className="truncate text-text-muted">
-        {shortTime(apt.start_time)} - {apt.treatment}
-      </p>
-    </Link>
+      </Link>
+      {canCheckIn && (
+        <button
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            statusMut.mutate(
+              { id: apt.id, status: "checked_in" },
+              { onSuccess: () => toast.success("Patient checked in"), onError: () => toast.error("Erreur") },
+            );
+          }}
+          disabled={statusMut.isPending}
+          className="mt-0.5 flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-semibold text-emerald-700 hover:bg-emerald-100 transition-colors"
+        >
+          <LogIn className="h-2.5 w-2.5" />
+          Check in
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -161,6 +186,8 @@ export default function AppointmentsPage() {
   const today = fmtDate(new Date());
   const [selectedDate, setSelectedDate] = useState(today);
   const statusMutation = useUpdateAppointmentStatus();
+  const { currentRole, user: authUser } = useAuthStore();
+  const isDoctor = currentRole === "doctor" && !authUser?.isSuperAdmin;
 
   // Calculate date range based on view
   const { dateFrom, dateTo } = useMemo(() => {
@@ -178,7 +205,12 @@ export default function AppointmentsPage() {
   }, [view, selectedDate, today]);
 
   const { data, isLoading, isError, error } = useAppointments(
-    { date_from: dateFrom, date_to: dateTo, page_size: 200 },
+    {
+      date_from: dateFrom,
+      date_to: dateTo,
+      page_size: 200,
+      ...(isDoctor && authUser?.id ? { doctor_id: authUser.id } : {}),
+    },
     { enabled: true },
   );
 
