@@ -13,9 +13,9 @@ import {
   FileText,
   UserCheck,
   Loader2,
-  Sparkles,
   BellRing,
   Receipt,
+  Send,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -26,6 +26,7 @@ import {
   useAdvanceIntake,
   useCallPatient,
   useUncallPatient,
+  usePrepareSession,
   type IntakeStatus,
   type InRoomDocuments,
 } from "@/lib/api/queue";
@@ -381,6 +382,34 @@ function InRoomDocumentChips({ docs }: { docs: InRoomDocuments }) {
   );
 }
 
+function PrepareButton({ patientId }: { patientId: string }) {
+  const prepareMut = usePrepareSession();
+  return (
+    <Button
+      size="sm"
+      variant="outline"
+      className="mt-2 w-full border-blue-300 text-blue-700 hover:bg-blue-50 text-[11px]"
+      disabled={prepareMut.isPending}
+      onClick={() => {
+        prepareMut.mutate(
+          { patientId },
+          {
+            onSuccess: () => toast.success("Documents envoyés à la réception"),
+            onError: () => toast.error("Erreur lors de la préparation"),
+          }
+        );
+      }}
+    >
+      {prepareMut.isPending ? (
+        <Loader2 className="h-3 w-3 animate-spin" />
+      ) : (
+        <Send className="h-3 w-3" />
+      )}
+      Préparer (consentement + facture)
+    </Button>
+  );
+}
+
 function Column({ title, subtitle, count, accent, Icon, children, empty }: ColumnProps) {
   const isEmpty = count === 0;
   return (
@@ -451,15 +480,12 @@ export default function QueuePage() {
 
   const totals = useMemo(() => {
     if (!data) return { total: 0, checkout: 0 };
+    const base = data.counts.awaiting_doctor + data.counts.in_room + (data.counts.checkout_pending ?? 0);
     return {
-      total:
-        data.counts.intake_pending +
-        data.counts.awaiting_doctor +
-        data.counts.in_room +
-        (data.counts.checkout_pending ?? 0),
+      total: isDoctor ? base : base + data.counts.intake_pending,
       checkout: data.counts.checkout_pending ?? 0,
     };
-  }, [data]);
+  }, [data, isDoctor]);
 
   if (isLoading) {
     return (
@@ -497,29 +523,35 @@ export default function QueuePage() {
             {isFetching && <Loader2 className="h-3 w-3 animate-spin" />}
             Synchronisation live
           </span>
-          <WalkInDialog />
+          {!isDoctor && <WalkInDialog />}
         </div>
       </div>
 
-      {/* Four columns — left-to-right is the patient flow */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <Column
-          title="À l'accueil"
-          subtitle="Réception remplit la fiche"
-          count={data.counts.intake_pending}
-          accent="bg-amber-50 text-amber-700"
-          Icon={UserCheck}
-          empty="Aucun patient à l'accueil"
-        >
-          {data.intake_pending.map((p) => (
-            <PatientCard
-              key={p.id}
-              patient={p}
-              primaryAction={{ label: "Salle d'attente", to: "awaiting_doctor" }}
-              secondaryAction={{ label: "Annuler", to: "archived" }}
-            />
-          ))}
-        </Column>
+      {/* Columns — left-to-right is the patient flow */}
+      <div className={cn(
+        "grid grid-cols-1 gap-4 md:grid-cols-2",
+        isDoctor ? "xl:grid-cols-3" : "xl:grid-cols-4"
+      )}>
+        {/* Reception only — intake column */}
+        {!isDoctor && (
+          <Column
+            title="À l'accueil"
+            subtitle="Réception remplit la fiche"
+            count={data.counts.intake_pending}
+            accent="bg-amber-50 text-amber-700"
+            Icon={UserCheck}
+            empty="Aucun patient à l'accueil"
+          >
+            {data.intake_pending.map((p) => (
+              <PatientCard
+                key={p.id}
+                patient={p}
+                primaryAction={{ label: "Salle d'attente", to: "awaiting_doctor" }}
+                secondaryAction={{ label: "Annuler", to: "archived" }}
+              />
+            ))}
+          </Column>
+        )}
 
         <Column
           title="En attente"
@@ -533,8 +565,10 @@ export default function QueuePage() {
             <PatientCard
               key={p.id}
               patient={p}
-              primaryAction={{ label: "Patient entré en salle", to: "in_room" }}
-              secondaryAction={{ label: "Retour", to: "intake_pending", variant: "ghost" }}
+              primaryAction={isDoctor
+                ? { label: "Commencer", to: "in_room" }
+                : { label: "Patient entré en salle", to: "in_room" }}
+              secondaryAction={isDoctor ? undefined : { label: "Retour", to: "intake_pending", variant: "ghost" }}
               showCallButton
             />
           ))}
@@ -550,23 +584,63 @@ export default function QueuePage() {
         >
           {data.in_room.map((p) => {
             const docs = (data.in_room_documents ?? []).find((d) => d.patient_id === p.id);
+            const hasDocs = docs && (docs.consent_id || docs.invoice_id);
             return (
               <div key={p.id}>
                 <PatientCard
                   patient={p}
-                  primaryAction={isDoctor ? undefined : undefined}
+                  primaryAction={isDoctor
+                    ? { label: "Terminer", to: "checkout_pending" }
+                    : undefined}
                   secondaryAction={{ label: "Renvoyer en attente", to: "awaiting_doctor", variant: "ghost" }}
                 />
-                {docs && (docs.consent_id || docs.invoice_id) && (
+                {/* Doctor: show Préparer button when no documents yet */}
+                {isDoctor && !hasDocs && (
+                  <PrepareButton patientId={p.id} />
+                )}
+                {/* Reception: full document workflow (consent, facture, ordonnance) */}
+                {!isDoctor && hasDocs && (
                   <InRoomDocumentChips docs={docs} />
+                )}
+                {/* Doctor: light document status chips (read-only) */}
+                {isDoctor && hasDocs && (
+                  <div className="mt-1 rounded-md bg-emerald-50 px-3 py-2.5 space-y-1">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">Documents</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {docs.consent_id && (
+                        <span className={cn(
+                          "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium",
+                          docs.consent_status === "signed"
+                            ? "bg-emerald-100 text-emerald-700"
+                            : "bg-amber-100 text-amber-700"
+                        )}>
+                          <FileText className="h-3 w-3" />
+                          {docs.consent_status === "signed" ? "Consentement signé" : "Consentement en attente"}
+                        </span>
+                      )}
+                      {docs.invoice_id && (
+                        <span className={cn(
+                          "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium",
+                          docs.invoice_status === "paid"
+                            ? "bg-emerald-100 text-emerald-700"
+                            : "bg-amber-100 text-amber-700"
+                        )}>
+                          <Receipt className="h-3 w-3" />
+                          {docs.invoice_status === "paid"
+                            ? "Facture payée"
+                            : `Facture · ${docs.invoice_total?.toLocaleString("fr-FR")} MAD`}
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 )}
               </div>
             );
           })}
-          {/* Doctor tip — click patient name to open dossier + Terminer */}
+          {/* Doctor tip — click patient name to open dossier */}
           {data.counts.in_room > 0 && isDoctor && !data.in_room.some((p) => (data.in_room_documents ?? []).find((d) => d.patient_id === p.id)) && (
             <p className="mt-1 rounded-md bg-emerald-50 px-3 py-2 text-center text-[11px] text-emerald-700">
-              Clic sur le nom du patient → dossier → Terminer la visite
+              Clic sur le nom du patient pour ouvrir le dossier
             </p>
           )}
         </Column>

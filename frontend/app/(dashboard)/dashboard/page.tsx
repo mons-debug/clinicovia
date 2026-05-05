@@ -205,7 +205,7 @@ function DoctorDashboard() {
         <div className="rounded-xl border border-border bg-white p-5 shadow-sm lg:col-span-2">
           <div className="flex items-center justify-between">
             <h3 className="text-base font-semibold text-text-primary">Salle d'attente</h3>
-            <Link href="/waiting-room" className="text-xs font-medium hover:opacity-80" style={{ color: "var(--primary-light)" }}>
+            <Link href="/queue" className="text-xs font-medium hover:opacity-80" style={{ color: "var(--primary-light)" }}>
               Voir tout
             </Link>
           </div>

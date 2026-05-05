@@ -8,7 +8,6 @@ import {
   LayoutDashboard,
   Users,
   UserPlus,
-  UserCog,
   Kanban,
   Plus,
   MessageSquare,
@@ -26,8 +25,6 @@ import {
   PlusCircle,
   Stethoscope,
   Calendar,
-  CalendarPlus,
-  List,
   BarChart2,
   DollarSign,
   TrendingUp,
@@ -47,7 +44,6 @@ import {
   ChevronDown,
   Shield,
   Clock,
-  MoreHorizontal,
 } from "lucide-react";
 import { useUIStore } from "@/stores/ui-store";
 import { useAuthStore } from "@/stores/auth-store";
@@ -70,7 +66,7 @@ interface NavGroup {
   children?: SubItem[];
 }
 
-const DOCTOR_NAV: NavGroup[] = [
+const NAV_ITEMS: NavGroup[] = [
   {
     label: "Accueil",
     href: "/dashboard",
@@ -89,58 +85,8 @@ const DOCTOR_NAV: NavGroup[] = [
   },
   {
     label: "Salle d'attente",
-    href: "/waiting-room",
-    icon: Clock,
-    module: "appointments",
-  },
-  {
-    label: "Agenda",
-    href: "/appointments",
-    icon: Calendar,
-    module: "appointments",
-    children: [
-      { label: "Calendrier", href: "/appointments", icon: Calendar },
-      { label: "Nouveau RDV", href: "/appointments/new", icon: CalendarPlus },
-    ],
-  },
-  {
-    label: "Mes Services",
-    href: "/doctor/services",
-    icon: ClipboardList,
-    module: "doctor_services",
-  },
-  {
-    label: "Plus",
-    href: "/doctors",
-    icon: MoreHorizontal,
-    module: "doctors",
-    children: [
-      { label: "Doctors", href: "/doctors", icon: Stethoscope },
-      { label: "Settings", href: "/settings", icon: Settings },
-    ],
-  },
-];
-
-const NAV_GROUPS: NavGroup[] = [
-  {
-    label: "Dashboard",
-    href: "/dashboard",
-    icon: LayoutDashboard,
-    module: "dashboard",
-  },
-  {
-    label: "Patients",
-    href: "/patients",
-    icon: Users,
-    module: "patients",
-    children: [
-      { label: "All Patients", href: "/patients", icon: Users },
-    ],
-  },
-  {
-    label: "Salle d'attente",
     href: "/queue",
-    icon: ClipboardList,
+    icon: Clock,
     module: "queue",
   },
   {
@@ -156,13 +102,19 @@ const NAV_GROUPS: NavGroup[] = [
     module: "invoices",
   },
   {
+    label: "Mes Services",
+    href: "/doctor/services",
+    icon: ClipboardList,
+    module: "doctor_services",
+  },
+  {
     label: "Pipeline",
     href: "/pipeline",
     icon: Kanban,
     module: "pipeline",
     children: [
-      { label: "Board", href: "/pipeline", icon: Kanban },
-      { label: "New Deal", href: "/pipeline/deals/new", icon: Plus },
+      { label: "Tableau", href: "/pipeline", icon: Kanban },
+      { label: "Nouveau deal", href: "/pipeline/deals/new", icon: Plus },
     ],
   },
   {
@@ -172,53 +124,47 @@ const NAV_GROUPS: NavGroup[] = [
     module: "whatsapp",
     dotColor: "#25D366",
     children: [
-      { label: "Inbox", href: "/whatsapp", icon: MessageSquare },
-      { label: "Broadcast", href: "/whatsapp/broadcast", icon: Radio },
-      { label: "Templates", href: "/whatsapp/templates", icon: FileStack },
+      { label: "Messages", href: "/whatsapp", icon: MessageSquare },
+      { label: "Diffusion", href: "/whatsapp/broadcast", icon: Radio },
+      { label: "Modeles", href: "/whatsapp/templates", icon: FileStack },
     ],
   },
   {
-    label: "AI Agents",
+    label: "Agents IA",
     href: "/ai-agents",
     icon: Sparkles,
     module: "ai_agents",
     children: [
-      { label: "All Agents", href: "/ai-agents", icon: Bot },
+      { label: "Tous les agents", href: "/ai-agents", icon: Bot },
       { label: "Conversations", href: "/ai-agents/conversations", icon: MessageCircle },
-      { label: "Knowledge Base", href: "/ai-agents/knowledge-base", icon: BookOpen },
+      { label: "Base de connaissances", href: "/ai-agents/knowledge-base", icon: BookOpen },
     ],
   },
   {
-    label: "Forms",
-    href: "/forms",
-    icon: FileText,
-    module: "forms",
-    children: [
-      { label: "All Forms", href: "/forms", icon: ClipboardList },
-      { label: "Create Form", href: "/forms/new", icon: FilePlus },
-    ],
-  },
-  {
-    label: "Campaigns",
+    label: "Campagnes",
     href: "/campaigns",
     icon: Megaphone,
     module: "campaigns",
     children: [
-      { label: "All Campaigns", href: "/campaigns", icon: Megaphone },
-      { label: "New Campaign", href: "/campaigns/new", icon: PlusCircle },
+      { label: "Toutes les campagnes", href: "/campaigns", icon: Megaphone },
+      { label: "Nouvelle campagne", href: "/campaigns/new", icon: PlusCircle },
     ],
   },
   {
-    label: "Doctors",
+    label: "Formulaires",
+    href: "/forms",
+    icon: FileText,
+    module: "forms",
+    children: [
+      { label: "Tous les formulaires", href: "/forms", icon: ClipboardList },
+      { label: "Creer un formulaire", href: "/forms/new", icon: FilePlus },
+    ],
+  },
+  {
+    label: "Medecins",
     href: "/doctors",
     icon: Stethoscope,
     module: "doctors",
-  },
-  {
-    label: "Mes Services",
-    href: "/doctor/services",
-    icon: ClipboardList,
-    module: "doctor_services",
   },
   {
     label: "Analytics",
@@ -226,29 +172,29 @@ const NAV_GROUPS: NavGroup[] = [
     icon: BarChart2,
     module: "analytics",
     children: [
-      { label: "Overview", href: "/analytics", icon: BarChart2 },
-      { label: "Revenue", href: "/analytics/revenue", icon: DollarSign },
+      { label: "Vue d'ensemble", href: "/analytics", icon: BarChart2 },
+      { label: "Revenus", href: "/analytics/revenue", icon: DollarSign },
       { label: "Conversions", href: "/analytics/conversions", icon: TrendingUp },
       { label: "Sources", href: "/analytics/sources", icon: Globe },
-      { label: "Campaigns", href: "/analytics/campaigns", icon: PieChart },
-      { label: "AI Agents", href: "/analytics/agents", icon: Cpu },
+      { label: "Campagnes", href: "/analytics/campaigns", icon: PieChart },
+      { label: "Agents IA", href: "/analytics/agents", icon: Cpu },
     ],
   },
   {
-    label: "Settings",
+    label: "Parametres",
     href: "/settings",
     icon: Settings,
     module: "settings",
     children: [
       { label: "General", href: "/settings", icon: Settings },
-      { label: "Clinic Profile", href: "/settings/clinic", icon: Building2 },
-      { label: "Team", href: "/settings/team", icon: UserCog2 },
+      { label: "Profil clinique", href: "/settings/clinic", icon: Building2 },
+      { label: "Equipe", href: "/settings/team", icon: UserCog2 },
       { label: "WhatsApp", href: "/settings/whatsapp", icon: MessageSquare },
       { label: "Pipeline", href: "/settings/pipeline", icon: Workflow },
       { label: "Integrations", href: "/settings/integrations", icon: Plug },
-      { label: "AI Config", href: "/settings/ai-config", icon: BrainCircuit },
+      { label: "Config IA", href: "/settings/ai-config", icon: BrainCircuit },
       { label: "Notifications", href: "/settings/notifications", icon: Bell },
-      { label: "Billing", href: "/settings/billing", icon: CreditCard },
+      { label: "Facturation", href: "/settings/billing", icon: CreditCard },
     ],
   },
 ];
@@ -269,7 +215,7 @@ export function Sidebar() {
   const [expanded, setExpanded] = useState<Record<string, boolean>>(() => {
     // Auto-expand the group that contains the current path
     const initial: Record<string, boolean> = {};
-    for (const group of NAV_GROUPS) {
+    for (const group of NAV_ITEMS) {
       if (group.children) {
         const isActive = pathname === group.href || pathname.startsWith(group.href + "/");
         if (isActive) initial[group.label] = true;
@@ -282,9 +228,7 @@ export function Sidebar() {
     setExpanded((prev) => ({ ...prev, [label]: !prev[label] }));
   };
 
-  const isDoctor = currentRole === "doctor" && !user?.isSuperAdmin;
-  const navSource = isDoctor ? DOCTOR_NAV : NAV_GROUPS;
-  const filteredGroups = navSource.filter((item) =>
+  const filteredGroups = NAV_ITEMS.filter((item) =>
     canAccessModule(item.module as Parameters<typeof canAccessModule>[0])
   );
 
